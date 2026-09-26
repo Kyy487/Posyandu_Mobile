@@ -3,7 +3,7 @@ class MeasurementModel {
   final String childId;
   final String measurementDate;
   final double weightKg;
-  final double heightKg; // atau heightCm
+  final double heightCm;
   final int? ageInMonths;
   final double? zScoreWfa;
   final String? statusGizi;
@@ -14,7 +14,7 @@ class MeasurementModel {
     required this.childId,
     required this.measurementDate,
     required this.weightKg,
-    required this.heightKg,
+    required this.heightCm,
     this.ageInMonths,
     this.zScoreWfa,
     this.statusGizi,
@@ -27,7 +27,7 @@ class MeasurementModel {
       childId: json['child_id']?.toString() ?? '',
       measurementDate: json['measurement_date']?.toString() ?? '',
       weightKg: _parseDouble(json['weight_kg']) ?? 0,
-      heightKg: _parseDouble(json['height_cm']) ?? 0,
+      heightCm: _parseDouble(json['height_cm']) ?? 0,
       ageInMonths: _parseInt(json['age_in_months']),
       zScoreWfa: _parseDouble(json['z_score_wfa']),
       statusGizi: _parseStatus(json['status_gizi']),

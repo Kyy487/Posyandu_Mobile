@@ -1,9 +1,9 @@
-// This is a basic Flutter widget test.
+// Widget test dasar: memastikan aplikasi bisa dibangun dan menampilkan
+// layar login tanpa error.
 //
-// To perform an interaction with a widget in your test, use the WidgetTester
-// utility in the flutter_test package. For example, you can send tap and scroll
-// gestures. You can also use WidgetTester to find child widgets in the widget
-// tree, read text, and verify that the values of widget properties are correct.
+// Catatan: `flutter_secure_storage` memakai platform channel, sehingga
+// `pumpWidget(const MyApp())` di sini TIDAK memanggil storage. Semua parser
+// JSON diuji terpisah di `kontrak_api_test.dart` memakai data asli dari API.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -11,20 +11,20 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:posyandu_mobile/main.dart';
 
 void main() {
-  testWidgets('Counter increments smoke test', (WidgetTester tester) async {
-    // Build our app and trigger a frame.
+  testWidgets('aplikasi menampilkan layar login', (WidgetTester tester) async {
     await tester.pumpWidget(const MyApp());
 
-    // Verify that our counter starts at 0.
-    expect(find.text('0'), findsOneWidget);
-    expect(find.text('1'), findsNothing);
+    // Judul aplikasi harus tampil.
+    expect(find.text('Smart Posyandu'), findsWidgets);
 
-    // Tap the '+' icon and trigger a frame.
-    await tester.tap(find.byIcon(Icons.add));
-    await tester.pump();
+    // Tidak ada error_exception yang tertangkap saat build pertama.
+    expect(tester.takeException(), isNull);
+  });
 
-    // Verify that our counter has incremented.
-    expect(find.text('0'), findsNothing);
-    expect(find.text('1'), findsOneWidget);
+  testWidgets('MaterialApp punya title yang benar', (WidgetTester tester) async {
+    await tester.pumpWidget(const MyApp());
+
+    final app = tester.widget<MaterialApp>(find.byType(MaterialApp));
+    expect(app.title, 'Smart Posyandu');
   });
 }

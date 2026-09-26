@@ -5,8 +5,69 @@ Base URL: `http://localhost:8000/api`
 ## Authentication (Public)
 | Method | Endpoint | Description |
 | :--- | :--- | :--- |
-| `POST` | `/register` | Mendaftarkan akun baru (Kader/Ibu) |
+| `POST` | `/register` | Mendaftarkan akun baru — **[role ditentukan server](#role-ditentukan-server-bukan-pilih-dari-input)** |
 | `POST` | `/login` | Masuk dan mendapatkan Bearer Token |
+
+## Role Ditentukan Server (bukan pilih dari input)
+
+`role` **tidak pernah** dipercaya dari body request. Server yang memutuskan:
+
+| Body request | `KADER_REGISTRATION_CODE` di `.env` | Hasil |
+| :--- | :--- | :--- |
+| tanpa `role` / `role: "ibu"` | — | Akun **`ibu`** (`201`) |
+| `role: "kader"` tanpa `kader_code` | terisi | `403` — kode wajib diisi |
+| `role: "kader"` + `kader_code` salah | terisi | `403` — kode tidak cocok |
+| `role: "kader"` + `kader_code` benar | terisi | Akun **`kader`** (`201`) |
+| `role: "kader"` + kode apa pun | **kosong** | `403` — pendaftaran kader dimatikan |
+| `role` selain `kader` (mis. `"admin"`) | — | `422` |
+
+> **Kenapa begitu?** Sebelumnya `role` diterima apa adanya dari body request, dan
+>layar pendaftaran punya dropdown "Kader Posyandu". Siapa pun tanpa login bisa
+> membuat akun kader lalu menghapus data anak siapa pun. Role kini hanya bisa
+> didapat dengan kode yang dibagikan koordinator posyandu.
+
+> **Menonaktifkan pendaftaran kader**: kosongkan `KADER_REGISTRATION_CODE` di
+> `.env`, lalu `php artisan config:clear`. Kader dibuat lewat
+> `php artisan tinker` atau SQL di HeidiSQL.
+
+### Request body `POST /register`
+
+| Field | Tipe | Wajib | Keterangan |
+| :--- | :--- | :--- | :--- |
+| `nik` | string(16) | Ya | NIK, unik |
+| `name` | string | Ya | Nama lengkap |
+| `password` | string | Ya | Minimal 8 karakter |
+| `password_confirmation` | string | Ya | Harus sama dengan `password` (`422` bila tidak) |
+| `phone_number` | string(15) | Tidak | Nomor HP |
+| `role` | `"kader"` | Tidak | Hanya boleh bernilai `kader`. Kosong = `ibu` |
+| `kader_code` | string | Kader¹ | Kode dari `KADER_REGISTRATION_CODE` |
+
+¹ Wajib hanya bila `role` = `kader`.
+
+### Respons sukses (`201`)
+
+```json
+{
+  "success": true,
+  "message": "Registrasi berhasil",
+  "data": {
+    "user": { "id": "...", "nik": "...", "name": "...", "role": "ibu" },
+    "token": "1|xxxxxxxx"
+  }
+}
+```
+
+> Field `password` tidak pernah ikut respons (`$hidden` pada model `User`).
+
+### Kode error
+
+| HTTP | Kondisi | `message` |
+| :--- | :--- | :--- |
+| `422` | validasi gagal | `Validasi gagal.` + `errors` per-field |
+| `403` | kode kader salah/kosong | `Pendaftaran akun kader ditolak.` |
+| `401` | login gagal | `Kredensial yang diberikan tidak cocok dengan data kami.` |
+| `429` | melewati batas percobaan | `Terlalu banyak percobaan. Silakan coba lagi beberapa saat lagi.` |
+
 
 ## Protected Routes (Requires Bearer Token)
 Header Wajib: `Authorization: Bearer {token}` & `Accept: application/json`
@@ -244,11 +305,64 @@ yang dihitung oleh trigger database:
 Rincian perhitungan, klasifikasi `status_gizi`, dan cara rollback ada di
 `docs/LAPORAN_ZSCORE_TRIGGER.md`.
 
-> ⚠️ **Known issues**:
-> - Response `401` (unauthenticated) belum memakai envelope `{success, message}`.
+> **Known issues**:
 > - Belum ada endpoint untuk melihat daftar anak yang sudah di-soft delete
 >   (butuh `withTrashed()`), dan belum ada `restore` via API.
+> - `login` menghapus SEMUA token lama milik user tersebut, jadi login di satu
+>   device akan memutus sesi device lain.
+> - Belum ada paginasi pada daftar anak maupun riwayat penimbangan.
 >
-> ✅ **Sudah diperbaiki**: nama ibu dikirim sebagai nested object `mother` (bukan `parent_name`)
-> pada **keduanya** `/children` (Ibu maupun Kader) dan `/kader/children`, sehingga dashboard Ibu
-> tidak lagi menampilkan `-`.
+> **Sudah diperbaiki**:
+> - Nama ibu dikirim sebagai nested object `mother` (bukan `parent_name`) pada
+>   **keduanya** `/children` (Ibu maupun Kader) dan `/kader/children`, sehingga
+>   dashboard Ibu tidak lagi menampilkan `-`.
+> - Semua error (termasuk `401`, `403`, `404`, `405`, `422`, `429`) sekarang
+>   memakai envelope `{success, message, errors}` yang konsisten - lihat
+>   `bootstrap/app.php`. Sebelumnya `401` membalas `{"message":"Unauthenticated."}`.
+> - `POST /login` dan `POST /register` dibatasi `throttle` (default 10/menit dan
+>   30/menit, diatur lewat `LOGIN_THROTTLE` / `REGISTER_THROTTLE`).
+> - Daftar anak (`GET /children`, `GET /kader/children`, `GET /children/{id}`)
+>   sekarang ikut mengirim **ringkasan penimbangan terakhir**, supaya Dashboard
+>   Ibu tidak perlu request tambahan:
+>
+>   | Field | Tipe | Keterangan |
+>   |-------|------|------------|
+>   | `last_measurement_date` | `string \| null` | Tanggal penimbangan terakhir (`YYYY-MM-DD`), `null` bila anak belum pernah ditimbang |
+>   | `latest_z_score` | `number \| null` | Z-Score W/A terakhir, sudah dihitung trigger PostgreSQL |
+>   | `nutritional_status` | `string \| null` | Klasifikasi status gizi, mis. `"Gizi Buruk"` |
+>
+>   Objek `latest_measurement` **sengaja tidak dikirim** (disembunyikan lewat
+>   `$hidden` pada model `Child`) karena isinya sudah diringkas di 3 field di atas.
+>   Catatan: nama relasi pada `$hidden` ditulis **camelCase**
+>   (`latestMeasurement`) karena `relationsToArray()` memfilter `$hidden`
+>   sebelum men-snake_case key-nya.
+>
+>   Untuk riwayat penimbangan lengkap, Ibu belum punya endpoint sendiri -
+>   `GET /kader/measurements?child_id=` masih restricted Kader.
+
+## Kode Error Seragam (Aturan #8)
+
+Semua respons error dari API — baik dari controller maupun dari exception handler
+Laravel — memakai satu bentuk:
+
+```json
+{
+  "success": false,
+  "message": "Deskripsi utama error",
+  "errors": null
+}
+```
+
+| HTTP | Kapan | `message` default |
+| :--- | :--- | :--- |
+| `401` | token tidak ada / kedaluwarsa / sudah dilogout | `Sesi tidak valid atau telah berakhir. Silakan login kembali.` |
+| `403` | role tidak berwenang | `Akses ditolak.` |
+| `404` | endpoint atau data tidak ada | `Endpoint tidak ditemukan.` / `Data yang diminta tidak ditemukan.` |
+| `405` | metode HTTP salah | `Metode HTTP tidak diizinkan untuk endpoint ini.` |
+| `422` | validasi gagal | `Validasi gagal.` + `errors` per-field |
+| `429` | melewati batas percobaan | `Terlalu banyak percobaan. Silakan coba lagi beberapa saat lagi.` |
+| `500` | kesalahan server | `Terjadi kesalahan server. Silakan coba lagi.` |
+
+> Detail internal (SQLSTATE, nama tabel, nama route, path file) **tidak pernah**
+> dikirim ke klien — hanya ditulis ke `storage/logs/laravel.log`.
+

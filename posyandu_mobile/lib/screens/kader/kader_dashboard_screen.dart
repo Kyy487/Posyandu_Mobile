@@ -18,7 +18,6 @@ class _DashboardKaderScreenState extends State<DashboardKaderScreen> {
   List<Child> _allChildren = [];
   List<Child> _filteredChildren = [];
   bool _isLoading = true;
-  String _searchQuery = '';
   
   // TAMBAHAN: Variabel State untuk melacak tab yang aktif
   String _selectedCategory = 'Balita';
@@ -62,7 +61,6 @@ class _DashboardKaderScreenState extends State<DashboardKaderScreen> {
   // Logika Pencarian
   void _filterChildren(String query) {
     setState(() {
-      _searchQuery = query;
       if (query.isEmpty) {
         _filteredChildren = _allChildren;
       } else {
@@ -88,13 +86,14 @@ class _DashboardKaderScreenState extends State<DashboardKaderScreen> {
           IconButton(
             icon: const Icon(Icons.logout, color: Colors.white),
             onPressed: () async {
+              // Navigator diambil SEBELUM await agar tidak memakai BuildContext
+              // setelah async gap.
+              final navigator = Navigator.of(context);
               await AuthService().logout();
-              if (mounted) {
-                Navigator.pushReplacement(
-                  context,
-                  MaterialPageRoute(builder: (context) => const LoginScreen()),
-                );
-              }
+              if (!mounted) return;
+              navigator.pushReplacement(
+                MaterialPageRoute(builder: (context) => const LoginScreen()),
+              );
             },
           )
         ],
@@ -332,14 +331,14 @@ class _DashboardKaderScreenState extends State<DashboardKaderScreen> {
           color: Colors.white,
           borderRadius: BorderRadius.circular(16),
           boxShadow: [
-            BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 4)),
+            BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 10, offset: const Offset(0, 4)),
           ],
         ),
         child: Row(
           children: [
             Container(
               padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(color: color.withOpacity(0.1), borderRadius: BorderRadius.circular(12)),
+              decoration: BoxDecoration(color: color.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(12)),
               child: Icon(icon, color: color, size: 24),
             ),
             const SizedBox(width: 12),
@@ -366,7 +365,7 @@ class _DashboardKaderScreenState extends State<DashboardKaderScreen> {
           Container(
             padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
-              color: color.withOpacity(0.1),
+              color: color.withValues(alpha: 0.1),
               shape: BoxShape.circle,
             ),
             child: Icon(icon, color: color, size: 28),

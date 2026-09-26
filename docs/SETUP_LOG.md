@@ -24,6 +24,30 @@ Seluruh tabel menggunakan arsitektur **UUID**.
 - [x] Pendaftaran Public & Protected Routes di `routes/api.php`.
 - [x] Pembuatan `ChildController` (Fungsi CRUD untuk Profil Anak dengan relasi `user_id` dari token otentikasi).
 
+## Keamanan Auth & Kontrak Error (Selesai — 26 Sep 2026)
+Perbaikan ini menutup lubang privilege escalation dan menhomogenkan JSON envelope.
+- [x] **`role` tidak lagi dipercaya dari body request.** `POST /api/register` selalu
+      membuat akun `ibu`; akun `kader` hanya bisa dibuat bila klien mengirim
+      `kader_code` yang cocok dengan `KADER_REGISTRATION_CODE` (env).
+      Sebelumnya siapa pun bisa mengirim `role=kader` dan langsung mendapat akses
+      hapus semua data anak.
+- [x] `config/posyandu.php` — `kader_registration_code`, `login_throttle`,
+      `register_throttle`. Env kosong = pendaftaran kader dimatikan (403).
+- [x] Dropdown "Peran (Role)" dihapus dari `register_screen.dart`; diganti kolom
+      **"Kode kader posyandu (opsional)"**. Tidak ada lagi pemilihan role.
+- [x] `AuthController` sekarang punya `try-catch` + `Log::error()` (Aturan #10),
+      memvalidasi `password_confirmation`, dan mensyaratkan NIK 16 digit saat
+      login (sebelumnya tidak, sehingga inkonsisten dengan register).
+- [x] `bootstrap/app.php` — exception handler untuk `401`, `403`, `404`, `405`,
+      `422`, `429`. Sebelumnya `401` membalas `{"message":"Unauthenticated."}`
+      sehingga Flutter tidak bisa membaca `success`.
+- [x] `throttle` pada `POST /login` (10/menit) dan `POST /register` (30/menit)
+      untuk menutup brute force NIK + password.
+- [x] `uji-api.ps1` — kadernya dibuat lewat kode (bukan lewat lubang role), plus
+      2 pemeriksaan baru: daftar kader tanpa kode → `403`, kode salah → `403`.
+      Total 108 pemeriksaan, seluruhnya lulus.
+
+
 ## Cleanup API Anak (Selesai — 26 Sep 2026)
 - [x] `routes/api.php` dirapikan: 12 route unik, duplikat & `auth:sanctum` bersarang dihapus.
 - [x] `ChildController@indexKader()` memuat relasi `mother` agar nama ibu terkirim.
@@ -50,4 +74,25 @@ Seluruh tabel menggunakan arsitektur **UUID**.
 - [x] `measurement_model.dart` aman terhadap nilai `string`, `number`, dan `null` (kolom bertipe `decimal`).
 - [x] `input_penimbangan_screen.dart` menampilkan dialog Z-Score dan status gizi setelah simpan.
 - [x] `detail_anak_screen.dart` memakai data API (tanpa hardcode) dan mengaktifkan tombol "Input Bulan Ini".
-- [x] `test/kontrak_api_test.dart` — 6 test kontrak API, seluruhnya lulus.
+
+## Kebersihan Mobile (Selesai — 26 Sep 2026)
+- [x] **8 `print()` debug dihapus** dari `kader_service.dart`, termasuk
+      `print('Token yang akan dikirim: $token')` yang membocorkan token Sanctum
+      ke log device.
+- [x] `baseUrl` tidak lagi di-hardcode di 3 file. Semua service memakai
+      `ApiConstants.baseUrl` yang bisa di-override saat run:
+      `flutter run --dart-define=API_BASE_URL=http://192.168.1.10:8000/api`
+      (default tetap `10.0.2.2` untuk emulator Android).
+- [x] Penanganan `401` (sesi habis) ditambahkan di `auth_service.dart`,
+      `child_service.dart`, dan `kader_service.dart`; user diarahkan login ulang.
+- [x] `MeasurementModel.heightKg` → `heightCm` (nama sebelumnya salah satuan;
+      isinya `height_cm` dalam cm).
+- [x] `test/widget_test.dart` — test counter bawaan Flutter yang selalu gagal
+      diganti uji yang benar (aplikasi menampilkan layar login).
+- [x] `test/kontrak_api_test.dart` — file diperbaiki encoding-nya, ditambah 3 test
+      kontrak error envelope (`401`, `422`, `403`).
+- [x] 29 lint/info di semua file diperbaiki: `withOpacity` → `withValues(alpha:)`,
+      `super.key`, dan `BuildContext` lintas async gap pada tombol logout.
+- [x] **`flutter analyze`: No issues found** (dari 32 issue).
+      **`flutter test`: 11/11 lulus** (dari 6 lulus + 1 gagal).
+

@@ -115,7 +115,7 @@ class _DetailAnakScreenState extends State<DetailAnakScreen> {
                 color: Colors.white,
                 borderRadius: BorderRadius.circular(16),
                 boxShadow: [
-                  BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 4))
+                  BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 10, offset: const Offset(0, 4))
                 ],
               ),
               child: Row(
@@ -205,7 +205,7 @@ class _DetailAnakScreenState extends State<DetailAnakScreen> {
                 children: [
                   _buildStatCard('Berat (BB)', '${terakhir.weightKg} kg', Colors.blue),
                   const SizedBox(width: 10),
-                  _buildStatCard('Tinggi (TB)', '${terakhir.heightKg} cm', Colors.purple),
+                  _buildStatCard('Tinggi (TB)', '${terakhir.heightCm} cm', Colors.purple),
                   const SizedBox(width: 10),
                   _buildStatCard('Status Gizi', terakhir.statusGizi ?? '-', _warnaStatus(terakhir.statusGizi)),
                 ],
@@ -215,9 +215,9 @@ class _DetailAnakScreenState extends State<DetailAnakScreen> {
                 width: double.infinity,
                 padding: const EdgeInsets.all(14),
                 decoration: BoxDecoration(
-                  color: _warnaStatus(terakhir.statusGizi).withOpacity(0.08),
+                  color: _warnaStatus(terakhir.statusGizi).withValues(alpha: 0.08),
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: _warnaStatus(terakhir.statusGizi).withOpacity(0.4)),
+                  border: Border.all(color: _warnaStatus(terakhir.statusGizi).withValues(alpha: 0.4)),
                 ),
                 child: Row(
                   children: [
@@ -286,7 +286,7 @@ class _DetailAnakScreenState extends State<DetailAnakScreen> {
                   return _buildHistoryCard(
                     date: _formatTanggal(m.measurementDate),
                     bb: '${m.weightKg} kg',
-                    tb: '${m.heightKg} cm',
+                    tb: '${m.heightCm} cm',
                     zScore: m.zScoreWfa?.toStringAsFixed(2) ?? '-',
                     statusGizi: m.statusGizi,
                     warnaStatus: _warnaStatus(m.statusGizi),
@@ -346,9 +346,9 @@ class _DetailAnakScreenState extends State<DetailAnakScreen> {
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: color.withOpacity(0.25)),
+          border: Border.all(color: color.withValues(alpha: 0.25)),
           boxShadow: [
-            BoxShadow(color: color.withOpacity(0.05), blurRadius: 4, offset: const Offset(0, 2))
+            BoxShadow(color: color.withValues(alpha: 0.05), blurRadius: 4, offset: const Offset(0, 2))
           ],
         ),
         child: Column(
@@ -394,7 +394,7 @@ class _DetailAnakScreenState extends State<DetailAnakScreen> {
               children: [
                 Container(
                   padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(color: warnaStatus.withOpacity(0.12), shape: BoxShape.circle),
+                  decoration: BoxDecoration(color: warnaStatus.withValues(alpha: 0.12), shape: BoxShape.circle),
                   child: Icon(Icons.monitor_weight, color: warnaStatus, size: 20),
                 ),
                 Container(height: 45, width: 2, color: Colors.grey[100]),
@@ -419,7 +419,7 @@ class _DetailAnakScreenState extends State<DetailAnakScreen> {
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                           decoration: BoxDecoration(
-                            color: warnaStatus.withOpacity(0.12),
+                            color: warnaStatus.withValues(alpha: 0.12),
                             borderRadius: BorderRadius.circular(8),
                           ),
                           child: const Text('TERAKHIR',
@@ -443,9 +443,9 @@ class _DetailAnakScreenState extends State<DetailAnakScreen> {
                   Container(
                     padding: const EdgeInsets.all(10),
                     decoration: BoxDecoration(
-                      color: warnaStatus.withOpacity(0.08),
+                      color: warnaStatus.withValues(alpha: 0.08),
                       borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: warnaStatus.withOpacity(0.3)),
+                      border: Border.all(color: warnaStatus.withValues(alpha: 0.3)),
                     ),
                     child: Row(
                       children: [

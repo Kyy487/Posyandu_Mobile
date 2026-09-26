@@ -1,12 +1,15 @@
 import 'dart:convert';
-import 'package:http/http.dart' as http;
+
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:http/http.dart' as http;
+
+import '../utils/constants.dart';
 
 class AuthService {
-  final String baseUrl = 'http://10.0.2.2:8000/api'; 
+  final String baseUrl = ApiConstants.baseUrl;
   final storage = const FlutterSecureStorage();
 
-  // FUNGSI LOGIN (Menggunakan NIK)
+  /// Memeriksa NIK + password.
   Future<Map<String, dynamic>> login(String nik, String password) async {
     try {
       final response = await http.post(
@@ -15,42 +18,26 @@ class AuthService {
           'Content-Type': 'application/json',
           'Accept': 'application/json',
         },
-        body: jsonEncode({
-          'nik': nik,
-          'password': password,
-        }),
+        body: jsonEncode({'nik': nik, 'password': password}),
       );
 
-      final Map<String, dynamic> responseData = jsonDecode(response.body);
-
-      if (response.statusCode == 200 && responseData['success'] == true) {
-        if (responseData['data'] != null && responseData['data']['token'] != null) {
-          await storage.write(key: 'token', value: responseData['data']['token']);
-        }
-        return responseData;
-      }
-
-      return {
-        'success': false,
-        'message': responseData['message'] ?? 'Login gagal',
-        'errors': responseData['errors'] ?? responseData['data'],
-      };
+      return await _handleAuthResponse(response, 'Login gagal');
     } catch (e) {
-      return {
-        'success': false,
-        'message': 'Terjadi kesalahan koneksi jaringan. Cek server lokal.',
-        'errors': null
-      };
+      return _networkError();
     }
   }
 
-  // FUNGSI REGISTER (Menggunakan NIK)
+  /// Mendaftarkan akun baru.
+  ///
+  /// [kaderCode] opsional. Bila kosong, server membuat akun `ibu`. Bila diisi
+  /// dan cocok dengan kode di server, akun menjadi `kader`. Role tidak pernah
+  /// dipilih dari layar — server yang memutuskan.
   Future<Map<String, dynamic>> register({
     required String name,
-    required String nik, // Email diganti dengan NIK
+    required String nik,
     required String password,
     required String passwordConfirmation,
-    required String role,
+    String kaderCode = '',
   }) async {
     try {
       final response = await http.post(
@@ -61,78 +48,130 @@ class AuthService {
         },
         body: jsonEncode({
           'name': name,
-          'nik': nik, // Parameter untuk Laravel dikirim sebagai NIK
+          'nik': nik,
           'password': password,
           'password_confirmation': passwordConfirmation,
-          'role': role,
+          if (kaderCode.isNotEmpty) ...{
+            'role': 'kader',
+            'kader_code': kaderCode,
+          },
         }),
       );
 
-      final Map<String, dynamic> responseData = jsonDecode(response.body);
-
-      if (response.statusCode == 200 || response.statusCode == 201) {
-        if (responseData['success'] == true) {
-          if (responseData['data'] != null && responseData['data']['token'] != null) {
-            await storage.write(key: 'token', value: responseData['data']['token']);
-          }
-          return responseData;
-        }
-      }
-
-      return {
-        'success': false,
-        'message': responseData['message'] ?? 'Registrasi gagal',
-        'errors': responseData['errors'] ?? responseData['data'],
-      };
-
+      return await _handleAuthResponse(response, 'Registrasi gagal');
     } catch (e) {
-      return {
-        'success': false,
-        'message': 'Terjadi kesalahan koneksi jaringan. Cek server lokal.',
-        'errors': null
-      };
+      return _networkError();
     }
   }
-  // Tambahkan fungsi ini di dalam class AuthService
-Future<Map<String, dynamic>> logout() async {
-  try {
-    // Ambil token dari storage
+
+  /// Keluar dan mencabut token di server.
+  Future<Map<String, dynamic>> logout() async {
     final token = await storage.read(key: 'token');
-    
-    if (token != null) {
-      // Hit API Logout Laravel
+
+    if (token == null) {
+      return {'success': false, 'message': 'Tidak ada sesi aktif (token kosong)'};
+    }
+
+    try {
       final response = await http.post(
         Uri.parse('$baseUrl/logout'),
         headers: {
           'Content-Type': 'application/json',
           'Accept': 'application/json',
-          'Authorization': 'Bearer $token', // Wajib untuk rute yang diproteksi Sanctum
+          'Authorization': 'Bearer $token',
         },
       );
 
-      // Selalu hapus token di storage lokal agar user bisa keluar 
-      // meskipun server sedang error/down
+      // Selalu hapus token lokal, walau server sedang error.
       await storage.delete(key: 'token');
 
-      final Map<String, dynamic> responseData = jsonDecode(response.body);
-      return responseData;
+      return jsonDecode(response.body);
+    } catch (e) {
+      // Server mati? Tetap keluarkan user dari aplikasi.
+      await storage.delete(key: 'token');
+      return {
+        'success': false,
+        'message': 'Koneksi gagal, tetapi sesi lokal telah dihapus.',
+        'errors': null,
+      };
     }
-    
-    return {'success': false, 'message': 'Tidak ada sesi aktif (token kosong)'};
+  }
 
-  } catch (e) {
-    // Jika terjadi error jaringan (misal server mati), paksa hapus token lokal
-    await storage.delete(key: 'token');
+  Future<String?> getToken() => storage.read(key: 'token');
+
+  Future<bool> hasSession() async {
+    final token = await getToken();
+    return token != null && token.isNotEmpty;
+  }
+
+  /// Data user yang sedang login (`GET /api/user`).
+  ///
+  /// Dipakai dashboard Ibu untuk menampilkan nama asli, bukan nama hardcode.
+  /// Mengembalikan `null` bila sesi habis atau server tidak bisa dihubungi.
+  Future<Map<String, dynamic>?> getProfile() async {
+    final token = await getToken();
+    if (token == null || token.isEmpty) return null;
+
+    try {
+      final response = await http.get(
+        Uri.parse('$baseUrl/user'),
+        headers: {
+          'Accept': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+      );
+
+      if (response.statusCode == 401) {
+        await logout();
+        return null;
+      }
+
+      final body = jsonDecode(response.body) as Map<String, dynamic>;
+      if (body['success'] == true && body['data'] is Map) {
+        return Map<String, dynamic>.from(body['data'] as Map);
+      }
+      return null;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  /// Membaca respons auth dan menyimpan token bila ada.
+  Future<Map<String, dynamic>> _handleAuthResponse(
+    http.Response response,
+    String fallbackMessage,
+  ) async {
+    Map<String, dynamic> body;
+    try {
+      body = jsonDecode(response.body) as Map<String, dynamic>;
+    } catch (e) {
+      return {
+        'success': false,
+        'message': 'Respons server tidak valid (bukan JSON). '
+            'Pastikan backend Laravel sedang berjalan.',
+        'errors': null,
+      };
+    }
+
+    final token = body['data'] is Map ? (body['data'] as Map)['token'] : null;
+    if (token is String && token.isNotEmpty) {
+      await storage.write(key: 'token', value: token);
+    }
+
+    if (body['success'] == true) {
+      return body;
+    }
+
     return {
       'success': false,
-      'message': 'Koneksi gagal, tetapi sesi lokal telah dihapus.',
-      'errors': null
+      'message': body['message']?.toString() ?? fallbackMessage,
+      'errors': body['errors'],
     };
   }
-}
 
-  // Fungsi untuk mendapatkan token dari storage
-  Future<String?> getToken() async {
-    return await storage.read(key: 'token');
-  } 
+  Map<String, dynamic> _networkError() => {
+        'success': false,
+        'message': 'Terjadi kesalahan koneksi jaringan. Cek server lokal.',
+        'errors': null,
+      };
 }
