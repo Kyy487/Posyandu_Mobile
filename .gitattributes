@@ -1,0 +1,71 @@
+# =====================================================================
+# .gitattributes - Normalisasi line ending & protection file binary
+# =====================================================================
+# Repo ini cross-platform (Windows dev, Linux CI, Android build).
+# Tanpa aturan ini, file yang di-checkout dengan CRLF di Windows akan
+# terbaca sebagai "modified" di Linux/macOS dan sebaliknya.
+
+# --- Default: semua file teks disimpan dengan LF di dalam repo ---
+* text=auto eol=lf
+
+# --- File yang WAJIB dibiarkan CRLF (konvensi Microsoft) ---
+*.bat        text eol=crlf
+*.cmd        text eol=crlf
+*.ps1        text eol=crlf
+
+# --- File biner: jangan pernah diubah/dinormalisasi ---
+*.png        binary
+*.jpg        binary
+*.jpeg       binary
+*.gif        binary
+*.ico        binary
+*.webp       binary
+*.pdf        binary
+*.zip        binary
+*.gz         binary
+*.jar        binary
+*.aar        binary
+*.so         binary
+*.dll        binary
+*.exe        binary
+*.apk        binary
+*.aab        binary
+*.ipa        binary
+*.ttf        binary
+*.otf        binary
+*.woff       binary
+*.woff2      binary
+*.mp3        binary
+*.mp4        binary
+*.keystore   binary
+*.jks        binary
+*.p12        binary
+*.pem        binary
+*.db         binary
+*.sqlite     binary
+*.sqlite3    binary
+
+# --- File generated / lockfile: simpan apa adanya ---
+*.lock       -diff
+pubspec.lock -diff
+composer.lock -diff
+
+# --- Dokumentasi & diff ---
+*.md         text eol=lf diff=markdown
+*.php        text eol=lf diff=php
+*.dart       text eol=lf
+*.kt         text eol=lf
+*.kts        text eol=lf
+*.java       text eol=lf
+*.js         text eol=lf
+*.ts         text eol=lf
+*.json       text eol=lf
+*.yml        text eol=lf
+*.yaml       text eol=lf
+*.xml        text eol=lf
+*.gradle     text eol=lf
+*.properties text eol=lf
+
+# --- File yang tidak boleh di-export lewat 'git archive' ---
+.gitattributes  export-ignore
+.gitignore      export-ignore

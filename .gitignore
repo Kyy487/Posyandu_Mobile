@@ -1,0 +1,101 @@
+# =====================================================================
+# .gitignore - Root Project Smart Posyandu
+# Berlaku untuk seluruh isi repo: posyandu-backend, posyandu_mobile, docs
+# =====================================================================
+
+# ---------------------------------------------------------------------
+# 1. RAHASIA & KREDENSIAL (PALING PENTING)
+# ---------------------------------------------------------------------
+# Jangan pernah commit file .env yang berisi password database,
+# APP_KEY, atau token API.
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+*.p12
+*.jks
+*.keystore
+auth.json
+credentials.json
+service-account*.json
+google-services.json
+GoogleService-Info.plist
+id_rsa
+id_ed25519
+
+# ---------------------------------------------------------------------
+# 2. DEPENDENCY (di-generate ulang oleh composer / flutter pub get)
+# ---------------------------------------------------------------------
+/posyandu-backend/vendor/
+/posyandu-backend/node_modules/
+/posyandu-mobile/.dart_tool/
+/posyandu-mobile/.pub-cache/
+/posyandu-mobile/.pub/
+/posyandu-mobile/build/
+/posyandu-mobile/coverage/
+/posyandu-mobile/.flutter-plugins-dependencies
+**/doc/api/
+
+# ---------------------------------------------------------------------
+# 3. CACHE & BUILD ARTIFACT
+# ---------------------------------------------------------------------
+.phpunit.cache/
+.phpunit.result.cache
+.php-cs-fixer.cache
+/public/build
+/public/hot
+/public/storage
+/storage/*.key
+/storage/pail
+/bootstrap/cache/*.php
+posyandu-mobile/android/app/debug/
+posyandu-mobile/android/app/profile/
+posyandu-mobile/android/app/release/
+*.log
+*.class
+*.pyc
+*.swp
+*.map.json
+*.symbols
+
+# ---------------------------------------------------------------------
+# 4. EDITOR & IDE
+# ---------------------------------------------------------------------
+.vscode/
+.idea/
+.zed/
+.nova/
+.atom/
+*.iml
+*.ipr
+*.iws
+.history/
+.buildlog/
+._*
+.swiftpm/
+_ide_helper.php
+Homestead.json
+Homestead.yaml
+
+# ---------------------------------------------------------------------
+# 5. OS
+# ---------------------------------------------------------------------
+.DS_Store
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# ---------------------------------------------------------------------
+# 6. KHUSUS LARAGON / XAMPP LOKAL
+# ---------------------------------------------------------------------
+# index.php di root folder hanya halaman phpinfo bawaan Laragon,
+# bukan bagian dari source code proyek.
+index.php
+
+# ---------------------------------------------------------------------
+# 7. VARIABEL LOKAL
+# ---------------------------------------------------------------------
+.env.local
+*.local
