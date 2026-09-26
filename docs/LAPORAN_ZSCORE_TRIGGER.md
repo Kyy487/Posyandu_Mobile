@@ -189,16 +189,33 @@ Tidak ada data pengguna yang hilang selama pengerjaan.
 | :--- | ---: | ---: |
 | `users` | 3 | 3 |
 | `children` | 3 | 3 |
-| `measurements` | 3 | 4 *(bertambah 1 hasil uji HTTP)* |
+| `measurements` | 3 | 5 *(bertambah 2 hasil uji HTTP)* |
 
-Catatan: 3 measurement lama (data dummy awal proyek) tetap utuh dan **diperbarui** oleh `backfillExistingMeasurements()` sehingga z-score serta status Gizinya sudah sesuai standar WHO. Penambahan 1 baris berasal dari uji HTTP nyata dan **sengaja tidak dihapus** agar dapat dipakai sebagai contoh data yang sudah ter-kalkulasi di aplikasi.
+Catatan: 3 measurement lama (data dummy awal proyek) tetap utuh dan **diperbarui** oleh `backfillExistingMeasurements()` sehingga z-score serta status Gizinya sudah sesuai standar WHO.
 
-```
-Measurement ID : 01a0dc0d-67eb-71e5-81c9-edecb72edeed
-Anak           : Budi Santoso (16 bulan)
-Berat / Tinggi : 7.10 kg / 75.00 cm
-Z-Score        : -3.09  →  Gizi Buruk
-```
+Data di DB saat ini:
+
+| Tanggal | Berat / Tinggi | Z-Score | Status | Keterangan |
+| :--- | :--- | ---: | :--- | :--- |
+| 2026-09-18 | 20.00 kg / 20.00 cm | 8.64 | — | Data dummy lama, tidak realistis |
+| 2026-09-19 | 20.00 kg / 20.00 cm | 8.64 | — | Data dummy lama, tidak realistis |
+| 2026-09-19 | 20.00 kg / 20.00 cm | 8.64 | — | Data dummy lama, tidak realistis |
+| 2026-09-26 | 7.10 kg / 75.00 cm | -3.09 | Gizi Buruk | **Data valid**, dipakai sebagai contoh |
+| 2026-09-26 | 20.00 kg / 30.00 cm | 42.00 | — | Sisa uji HTTP, perlu dihapus |
+
+> ⚠️ **Tertunda**: 4 baris data dummy/uji di atas belum dihapus dan masih memengaruhi grafik.
+> Penghapusan tidak dilakukan otomatis karena `measurements` tidak punya endpoint `DELETE` untuk
+> cadet..baru. Rekomendasi: tambahkan `DELETE /kader/measurements/{id}` (sudah ada) atau
+> hapus manual lewat SQL setelah konfirmasi pemilik data.
+>
+> Baris valid yang **harus dipertahankan**:
+>
+> ```
+> Measurement ID : 01a0dc0d-67eb-71e5-81c9-edecb72edeed
+> Anak           : Budi Santoso (16 bulan)
+> Berat / Tinggi : 7.10 kg / 75.00 cm
+> Z-Score        : -3.09  →  Gizi Buruk
+> ```
 
 Token uji yang dibuat khusus untuk pengujian telah dicabut; token login asli pengguna tetap utuh.
 
@@ -247,27 +264,34 @@ Token uji yang dibuat khusus untuk pengujian telah dicabut; token login asli pen
 
 ## 7. Temuan yang Masih Terbuka
 
+> Status per 26 September 2026, setelah cleanup route, perbaikan otorisasi `show()`,
+> dan penyatuan kontrak tambah anak.
+
 ### 7.1 Prioritas Tinggi
 
-| Item | Lokasi | Aturan |
+| Item | Lokasi | Status |
 | :--- | :--- | :--- |
-| Response `401`belum memakai envelope wajib — masih `{"message":"Unauthenticated."}` | `bootstrap/app.php` (perlu handler `AuthenticationException`) | #8 |
-| Nama ibu berbeda antar endpoint: `/children` mengirim nested `mother`, `/kader/children` tidak mengirim apa pun | `ChildController@index` vs `@indexKader` | #8 |
-| Ibu **tidak bisa** mengakses riwayat penimbangan anaknya (terkunci role kader) — menghambat grafik tumbuh kembang di Fase 4 | `routes/api.php` | RANCANGAN 3.2.A |
-| Tidak ada `Log::error()`; pesan exception mentah justru dikirim ke client (kebocoran informasi internal) | `ChildController`, `MeasurementController` | #10 |
-| Response error `500` di `MeasurementController` masih memakai key `data` alih-alih `errors` | `MeasurementController@index` | #8 |
+| Response `401` belum memakai envelope wajib — masih `{"message":"Unauthenticated."}` | `bootstrap/app.php` (perlu handler `AuthenticationException`) | ⏳ Terbuka |
+| Ibu **tidak bisa** mengakses riwayat penimbangan anaknya (terkunci role kader) — menghambat grafik tumbuh kembang di Fase 4 | `routes/api.php` | ⏳ Terbuka (RANCANGAN 3.2.A) |
+| Response error `500` di `MeasurementController` masih memakai key `data` alih-alih `errors` | `MeasurementController@index` | ⏳ Terbuka |
+| Tidak ada `Log::error()` di `MeasurementController`; pesan exception mentah dikirim ke client | `MeasurementController` | ⏳ Terbuka |
+| 4 baris `measurements` berisi data dummy/uji tidak realistis (lihat 5.4) | `measurements` | ⏳ Tertunda |
 
 ### 7.2 Prioritas Sedang
 
-| Item | Keterangan |
-| :--- | :--- |
-| Route duplikat & bersarang | `POST /logout` terdaftar 2×, `POST /children` 3×, `auth:sanctum` bersarang, group `RoleCheck:ibu` menjadi dead code |
-| Tabel `medical_notes` belum ada | RANCANGAN 3.1.A — catatan keluhan (demam, diare) per kunjungan |
-| Tabel `child_conditions` belum ada | RANCANGAN 3.1.A — penanda alergi & penyakit bawaan |
-| API Imunisasi belum ada | Tabel `immunization_records` sudah ada, tetapi belum ada Controller/Route |
-| `casts()` pada Model belum ada | Menyebabkan nilai numerik dikirim sebagai string |
-| CRUD `children` belum lengkap | Tidak ada `PUT`/`PATCH`/`DELETE` |
-| Z-Score TB/U (`z_score_hfa`) | Diperlukan untuk deteksi stunting sejati |
+| Item | Keterangan | Status |
+| :--- | :--- | :--- |
+| Route duplikat & bersarang | `POST /logout` 2×, `POST /children` 3×, `auth:sanctum` bersarang, `RoleCheck:ibu` dead code | ✅ Diperbaiki — 12 route unik |
+| Nama ibu tidak konsisten antar endpoint | `index()` Ibu tidak memuat relasi `mother` sehingga mobile menampilkan `-` | ✅ Diperbaiki — eager load di semua cabang |
+| Otorisasi `GET /children/{id}` terlalu longgar | Ibu bisa melihat anak orang lain | ✅ Diperbaiki — 403 untuk cross-user |
+| Kontrak tambah anak terduplikasi (`store` + `storeKader`) | Dua method dengan validasi berbeda; `storeKader` buat UUID manual | ✅ Diperbaiki — satu kontrak unified |
+| `PUT`/`PATCH`/`DELETE` untuk `children` belum ada | `ChildController` hanya punya `index`, `store`, `show`, `indexKader` | ⏳ Terbuka |
+| Tabel `medical_notes` belum ada | RANCANGAN 3.1.A — catatan keluhan (demam, diare) per kunjungan | ⏳ Terbuka |
+| Tabel `child_conditions` belum ada | RANCANGAN 3.1.A — penanda alergi & penyakit bawaan | ⏳ Terbuka |
+| API Imunisasi belum ada | Tabel `immunization_records` sudah ada, tetapi belum ada Controller/Route | ⏳ Terbuka |
+| `casts()` pada Model belum ada | Menyebabkan nilai numerik dikirim sebagai string | ⏳ Terbuka |
+| Z-Score TB/U (`z_score_hfa`) | Diperlukan untuk deteksi stunting sejati | ⏳ Terbuka |
+| Infrastruktur test belum bisa jalan | `phpunit.xml` memaksa SQLite in-memory; migrasi proyek PostgreSQL-specific | ⏳ Terbuka |
 
 ### 7.3 Ketidaksesuaian Dokumentasi
 
@@ -281,7 +305,7 @@ Dokumen berikut **sudah tidak akurat** dan perlu disinkronkan. Status per 26 Sep
 | `DATABASE_SCHEMA.md` | `children.nik_anak` | `children.nik` | ✅ Sudah diperbarui |
 | `DATABASE_SCHEMA.md` | `children.birth_date` | `children.date_of_birth` | ✅ Sudah diperbarui |
 | `DATABASE_SCHEMA.md` | — | Tabel `who_wfa_standards` + function/trigger | ✅ Sudah ditambahkan |
-| `API_CONTRACT.md` | Hanya `/measurements` (draft) | Route `/kader/*` + contoh respons z-score | ✅ Sudah diperbarui |
+| `API_CONTRACT.md` | Hanya `/measurements` (draft) | Route `/kader/*` + kontrak unified anak + contoh respons z-score | ✅ Sudah diperbarui |
 | `SETUP_LOG.md` | Tidak memuat Z-Score & mobile | Fase Z-Score + mobile | ✅ Sudah ditambahkan |
 | `README.md` (docs) | Indeks 3 dokumen | Indeks 5 dokumen | ✅ Sudah diperbarui |
 | `PROJECT_OVERVIEW.md` | Roadmap tertulis dua kali dengan status Fase 1 yang saling bertentangan | — | ⏳ Belum diperbarui |

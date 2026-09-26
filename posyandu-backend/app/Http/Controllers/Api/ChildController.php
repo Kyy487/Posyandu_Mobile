@@ -4,9 +4,10 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Child;
+use App\Models\User;
 use Illuminate\Http\Request;
-use Illuminate\Support\Str;
-use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Validation\ValidationException;
 
 class ChildController extends Controller
 {
@@ -15,12 +16,17 @@ class ChildController extends Controller
     {
         $user = $request->user();
 
-        // Jika Ibu, hanya ambil anaknya sendiri. Jika Kader, ambil semua anak beserta data ibunya.
+        // Relasi `mother` dimuat untuk Ibu maupun Kader. Mobile membaca
+        // `mother.name` (dan NIK) di child.dart; tanpa ini dashboard Ibu
+        // menampilkan "-" untuk nama ibu.
+        $query = Child::with('mother:id,name,nik');
+
+        // Ibu hanya melihat anaknya sendiri. Kader melihat seluruh data.
         if ($user->role === 'ibu') {
-            $children = Child::where('user_id', $user->id)->get();
-        } else {
-            $children = Child::with('mother:id,name,nik')->get();
+            $query->where('user_id', $user->id);
         }
+
+        $children = $query->get();
 
         return response()->json([
             'success' => true,
@@ -29,54 +35,132 @@ class ChildController extends Controller
         ], 200);
     }
 
-    // Menambahkan data balita baru
+    /**
+     * Menambahkan data balita baru.
+     *
+     * Kontrak tunggal untuk Ibu maupun Kader:
+     * - Ibu  : anak otomatis milik Ibu yang login, tidak perlu menyebut ibu.
+     * - Kader: wajib menyebut ibu lewat `ibu_nik` (NIK, sesuai KK) atau
+     *          `user_id` (UUID). Keduanya boleh dikirim, asal menunjuk
+     *          user yang sama.
+     */
     public function store(Request $request)
     {
         $user = $request->user();
+        $isKader = $user->role === 'kader';
 
-        $validator = Validator::make($request->all(), [
-            'nik' => 'nullable|string|size:16|unique:children,nik',
-            'name' => 'required|string|max:255',
-            'date_of_birth' => 'required|date',
-            'gender' => 'required|in:L,P',
-            'birth_weight' => 'nullable|numeric|min:0',
-            'birth_height' => 'nullable|numeric|min:0',
-            // Kader wajib mengirim user_id (Ibu), sedangkan Ibu otomatis memakai ID-nya sendiri
-            'user_id' => $user->role === 'kader' ? 'required|exists:users,id' : 'nullable'
-        ]);
+        try {
+            $validated = $request->validate([
+                'nik' => 'nullable|string|size:16|unique:children,nik',
+                'name' => 'required|string|max:255',
+                'date_of_birth' => 'required|date',
+                'gender' => 'required|in:L,P',
+                'birth_weight' => 'nullable|numeric|min:0',
+                'birth_height' => 'nullable|numeric|min:0',
+                'user_id' => [
+                    $isKader ? 'required_without:ibu_nik' : 'nullable',
+                    'exists:users,id',
+                ],
+                'ibu_nik' => [
+                    $isKader ? 'required_without:user_id' : 'nullable',
+                    'string',
+                    'size:16',
+                ],
+            ]);
 
-        if ($validator->fails()) {
+            // --- Tentukan ibu pemilik anak -------------------------------
+            if (!$isKader) {
+                // Ibu tidak pernah bisa menunjuk ibu lain.
+                $mother = $user;
+            } else {
+                $byId = !empty($validated['user_id'])
+                    ? User::find($validated['user_id'])
+                    : null;
+
+                $byNik = null;
+                if (!empty($validated['ibu_nik'])) {
+                    $byNik = User::where('nik', $validated['ibu_nik'])->first();
+
+                    if (!$byNik) {
+                        return response()->json([
+                            'success' => false,
+                            'message' => 'NIK Ibu tidak ditemukan di sistem. Pastikan akun Ibu sudah terdaftar.',
+                            'errors' => ['ibu_nik' => ['NIK Ibu belum terdaftar.']],
+                        ], 404);
+                    }
+                }
+
+                // Dua-duanya dikirim harus menunjuk user yang sama.
+                if ($byId && $byNik && $byId->id !== $byNik->id) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'user_id dan ibu_nik harus menunjuk Ibu yang sama.',
+                        'errors' => ['user_id' => ['user_id dan ibu_nik tidak sesuai.']],
+                    ], 422);
+                }
+
+                $mother = $byNik ?? $byId;
+            }
+
+            if (!$mother) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Ibu pemilik anak tidak ditemukan.',
+                    'errors' => ['user_id' => ['Data ibu wajib diisi.']],
+                ], 404);
+            }
+
+            if ($mother->role !== 'ibu') {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Data anak hanya dapat ditambahkan pada akun dengan role ibu.',
+                    'errors' => ['user_id' => ['User yang dipilih bukan role ibu.']],
+                ], 422);
+            }
+
+            // --- Simpan (UUID dibuat otomatis oleh trait HasUuids) -------
+            $child = Child::create([
+                'user_id' => $mother->id,
+                'nik' => $validated['nik'] ?? null,
+                'name' => $validated['name'],
+                'date_of_birth' => $validated['date_of_birth'],
+                'gender' => $validated['gender'],
+                'birth_weight' => $validated['birth_weight'] ?? null,
+                'birth_height' => $validated['birth_height'] ?? null,
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Data balita berhasil ditambahkan.',
+                'data' => $child->load('mother:id,name,nik'),
+            ], 201);
+
+        } catch (ValidationException $e) {
             return response()->json([
                 'success' => false,
                 'message' => 'Validasi gagal.',
-                'errors' => $validator->errors()
+                'errors' => $e->errors(),
             ], 422);
+        } catch (\Throwable $e) {
+            // Pesan exception asli hanya masuk log, tidak dikirim ke client.
+            Log::error('Gagal menambah data balita: ' . $e->getMessage(), [
+                'user_id' => $user->id,
+                'role' => $user->role,
+                'exception' => $e,
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Terjadi kesalahan server. Silakan coba lagi.',
+                'errors' => null,
+            ], 500);
         }
-
-        // Tentukan siapa ibu dari anak ini
-        $motherId = $user->role === 'ibu' ? $user->id : $request->user_id;
-
-        $child = Child::create([
-            'user_id' => $motherId,
-            'nik' => $request->nik,
-            'name' => $request->name,
-            'date_of_birth' => $request->date_of_birth,
-            'gender' => $request->gender,
-            'birth_weight' => $request->birth_weight,
-            'birth_height' => $request->birth_height,
-        ]);
-
-        return response()->json([
-            'success' => true,
-            'message' => 'Data balita berhasil ditambahkan.',
-            'data' => $child
-        ], 201);
     }
 
     // Melihat detail satu anak
-    public function show($id)
+    public function show(Request $request, $id)
     {
-        $child = Child::with('mother:id,name')->find($id);
+        $child = Child::with('mother:id,name,nik')->find($id);
 
         if (!$child) {
             return response()->json([
@@ -84,6 +168,15 @@ class ChildController extends Controller
                 'message' => 'Data balita tidak ditemukan.',
                 'errors' => null
             ], 404);
+        }
+
+        // Otorisasi: Kader boleh melihat semua anak, Ibu hanya boleh melihat anaknya sendiri.
+        if ($request->user()->role !== 'kader' && $child->user_id !== $request->user()->id) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Akses ditolak. Anda tidak berhak melihat data anak ini.',
+                'errors' => null
+            ], 403);
         }
 
         return response()->json([
@@ -95,8 +188,9 @@ class ChildController extends Controller
     public function indexKader()
     {
         try {
-            // Mengambil semua data anak (bisa dimodifikasi dengan paginasi/filter nanti)
-            $children = Child::all();
+            // Memuat relasi mother agar nama ibu ikut terkirim (dibaca mobile di child.dart).
+            // Paginasi/filter bisa ditambahkan nanti tanpa mengubah bentuk respons.
+            $children = Child::with('mother:id,name,nik')->get();
 
             // Format baku JSON Envelope wajib
             return response()->json([
@@ -105,73 +199,14 @@ class ChildController extends Controller
                 'data' => $children
             ], 200);
 
-        } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Terjadi kesalahan server: ' . $e->getMessage(),
-                'errors' => null
-            ], 500);
-        }
-    }
-public function storeKader(Request $request)
-    {
-        try {
-            // 1. Validasi Input
-            $validated = $request->validate([
-                'nik' => 'required|string|size:16|unique:children,nik',
-                'name' => 'required|string|max:255',
-                'date_of_birth' => 'required|date',
-                'gender' => 'required|in:L,P',
-                'birth_weight' => 'required|numeric',
-                'birth_height' => 'required|numeric',
-                'ibu_nik' => 'required|string|size:16'
+        } catch (\Throwable $e) {
+            Log::error('Gagal mengambil daftar anak: ' . $e->getMessage(), [
+                'exception' => $e,
             ]);
 
-            // 2. CARI DATA IBU BERDASARKAN NIK
-            // Kita cari user yang memiliki NIK sesuai inputan 'ibu_nik'
-            $ibu = \App\Models\User::where('nik', $validated['ibu_nik'])->first();
-
-            // Jika NIK Ibu belum terdaftar di sistem, tolak penyimpanan
-            if (!$ibu) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'NIK Ibu tidak ditemukan di sistem. Pastikan akun Ibu sudah terdaftar.',
-                    'errors' => ['ibu_nik' => ['NIK Ibu belum terdaftar.']]
-                ], 404);
-            }
-
-            // 3. Simpan ke Database
-            $child = new Child();
-            $child->id = (string) \Illuminate\Support\Str::uuid();
-
-            // MASUKKAN UUID IBU KE KOLOM user_id
-            $child->user_id = $ibu->id;
-
-            $child->nik = $validated['nik'];
-            $child->name = $validated['name'];
-            $child->date_of_birth = $validated['date_of_birth'];
-            $child->gender = $validated['gender'];
-            $child->birth_weight = $validated['birth_weight'];
-            $child->birth_height = $validated['birth_height'];
-            $child->save();
-
-            // 4. Return respons JSON Envelope
-            return response()->json([
-                'success' => true,
-                'message' => 'Data anak berhasil ditambahkan.',
-                'data' => $child
-            ], 201);
-
-        } catch (\Illuminate\Validation\ValidationException $e) {
             return response()->json([
                 'success' => false,
-                'message' => 'Data tidak valid. Periksa kembali isian Anda.',
-                'errors' => $e->errors()
-            ], 422);
-        } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Terjadi kesalahan server: ' . $e->getMessage(),
+                'message' => 'Terjadi kesalahan server. Silakan coba lagi.',
                 'errors' => null
             ], 500);
         }
