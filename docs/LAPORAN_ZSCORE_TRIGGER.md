@@ -285,13 +285,18 @@ Token uji yang dibuat khusus untuk pengujian telah dicabut; token login asli pen
 | Nama ibu tidak konsisten antar endpoint | `index()` Ibu tidak memuat relasi `mother` sehingga mobile menampilkan `-` | ✅ Diperbaiki — eager load di semua cabang |
 | Otorisasi `GET /children/{id}` terlalu longgar | Ibu bisa melihat anak orang lain | ✅ Diperbaiki — 403 untuk cross-user |
 | Kontrak tambah anak terduplikasi (`store` + `storeKader`) | Dua method dengan validasi berbeda; `storeKader` buat UUID manual | ✅ Diperbaiki — satu kontrak unified |
-| `PUT`/`PATCH`/`DELETE` untuk `children` belum ada | `ChildController` hanya punya `index`, `store`, `show`, `indexKader` | ⏳ Terbuka |
+| `PUT`/`PATCH`/`DELETE` untuk `children` belum ada | CRUD anak belum lengkap | ✅ Diperbaiki — `update()` + `destroy()` |
+| Hapus anak menghapus riwayat penimbangan | `measurements.child_id` & `immunization_records.child_id` memakai `ON DELETE CASCADE` | ✅ Diperbaiki — soft delete (`children.deleted_at`) |
+| ID anak tidak valid di URL membuat `500` | Query ke kolom `uuid` dengan string sembarang melempar error PostgreSQL | ✅ Diperbaiki — validasi `Str::isUuid()` |
+| Z-Score tidak dihitung ulang saat DOB/gender anak diubah | Trigger hanya berjalan saat measurement berubah | ✅ Diperbaiki — `update()` menyentuh measurement agar trigger berjalan |
 | Tabel `medical_notes` belum ada | RANCANGAN 3.1.A — catatan keluhan (demam, diare) per kunjungan | ⏳ Terbuka |
 | Tabel `child_conditions` belum ada | RANCANGAN 3.1.A — penanda alergi & penyakit bawaan | ⏳ Terbuka |
 | API Imunisasi belum ada | Tabel `immunization_records` sudah ada, tetapi belum ada Controller/Route | ⏳ Terbuka |
 | `casts()` pada Model belum ada | Menyebabkan nilai numerik dikirim sebagai string | ⏳ Terbuka |
 | Z-Score TB/U (`z_score_hfa`) | Diperlukan untuk deteksi stunting sejati | ⏳ Terbuka |
 | Infrastruktur test belum bisa jalan | `phpunit.xml` memaksa SQLite in-memory; migrasi proyek PostgreSQL-specific | ⏳ Terbuka |
+| Daftar/pemulihan anak yang sudah di-soft delete belum ada | `withTrashed()` hanya bisa lewat kode server, belum ada endpoint `restore` | ⏳ Terbuka |
+| `Log::error()` belum ada di `MeasurementController` | Pesan exception mentah masih bisa dikirim ke klien | ⏳ Terbuka |
 
 ### 7.3 Ketidaksesuaian Dokumentasi
 

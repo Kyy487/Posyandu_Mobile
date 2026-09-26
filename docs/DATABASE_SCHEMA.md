@@ -16,6 +16,16 @@ Menyimpan autentikasi Ibu dan Kader.
 * `name`, `gender` ('L', 'P'), `date_of_birth`
 * `birth_weight` (Float), `birth_height` (Float)
 * `timestamps`
+* `deleted_at` (Timestamp, Nullable) — soft delete, ditambahkan oleh migration
+  `2026_09_26_020000_add_deleted_at_to_children_table.php`
+
+> ⚠️ **Kenapa soft delete?** `measurements.child_id` dan
+> `immunization_records.child_id` memakai `ON DELETE CASCADE`. Hard delete pada anak
+> akan ikut menghapus seluruh riwayat penimbangan dan imunisasi — data kesehatan yang
+> tidak boleh hilang diam-diam. Karena itu `Child` memakai trait `SoftDeletes`.
+>
+> NIK anak tetap unik **termasuk** baris yang sudah di-soft delete, agar NIK tidak
+> pernah dipakai ulang oleh anak yang berbeda.
 
 ## 3. `measurements` (e-KMS / Riwayat Tumbuh Kembang)
 * `id` (UUID, PK)

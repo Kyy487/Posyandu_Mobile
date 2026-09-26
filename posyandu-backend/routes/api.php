@@ -53,6 +53,10 @@ Route::middleware('auth:sanctum')->group(function () {
         // Ibu menambah anaknya sendiri. Kader tetap boleh, dengan mengirim
         // user_id; pembagian peran ini ditangani ChildController@store.
         Route::post('/children', [ChildController::class, 'store']);
+
+        // Partial update: hanya field yang dikirim yang berubah, jadi aman
+        // dipanggil lewat PUT maupun PATCH.
+        Route::match(['put', 'patch'], '/children/{id}', [ChildController::class, 'update']);
     });
 
     // -----------------------------------------------------------------
@@ -61,6 +65,10 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::middleware([RoleCheck::class.':kader'])->group(function () {
         Route::get('/kader/children', [ChildController::class, 'indexKader']);
         Route::post('/kader/children', [ChildController::class, 'store']);
+
+        // Soft delete, khusus Kader. Didaftarkan di sini agar Ibu tidak bisa
+        // menghapus data anaknya, meski path endpoint tetap /children/{id}.
+        Route::delete('/children/{id}', [ChildController::class, 'destroy']);
 
         Route::get('/kader/measurements', [MeasurementController::class, 'index']);
         Route::post('/kader/measurements', [MeasurementController::class, 'store']);
