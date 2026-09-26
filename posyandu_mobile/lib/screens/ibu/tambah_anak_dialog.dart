@@ -55,11 +55,13 @@ class _TambahAnakDialogState extends State<_TambahAnakDialog> {
     );
     if (picked == null) return;
 
-    final text =
-        '${picked.day.toString().padLeft(2, '0')}-'
-        '${picked.month.toString().padLeft(2, '0')}-'
-        '${picked.year}';
-    _tanggalController.text = text;
+    // Format WAJIB YYYY-MM-DD (ISO 8601). PostgreSQL menolak format lain
+    // ("26-09-2026" -> SQLSTATE 22008), dan backend memvalidasi dengan
+    // date_format:Y-m-d. Tampilannya juga memakai format yang sama supaya
+    // yang terlihat persis yang dikirim.
+    _tanggalController.text =
+        '${picked.year}-${picked.month.toString().padLeft(2, '0')}-'
+        '${picked.day.toString().padLeft(2, '0')}';
   }
 
   Future<void> _simpan() async {
@@ -129,15 +131,18 @@ class _TambahAnakDialogState extends State<_TambahAnakDialog> {
                 onTap: _pickTanggalLahir,
                 decoration: const InputDecoration(
                   labelText: 'Tanggal Lahir',
-                  hintText: 'DD-MM-YYYY',
+                  hintText: 'YYYY-MM-DD',
                   prefixIcon: Icon(Icons.cake_outlined),
                 ),
                 validator: (value) {
                   if (value == null || value.trim().isEmpty) {
                     return 'Tanggal lahir wajib diisi';
                   }
+                  if (!RegExp(r'^\d{4}-\d{2}-\d{2}$').hasMatch(value.trim())) {
+                    return 'Format harus YYYY-MM-DD';
+                  }
                   if (DateTime.tryParse(value.trim()) == null) {
-                    return 'Format tanggal tidak valid';
+                    return 'Tanggal tidak valid';
                   }
                   return null;
                 },

@@ -227,6 +227,39 @@ $r = Req 'POST' "$base/kader/children" $tK @{ name = "X6 $s"; date_of_birth = '2
 Check "gender tidak valid -> 422" 422 $r.Status
 
 # =====================================================================
+Group "4b. Format tanggal wajib ISO (Y-m-d)"
+# Regresi: rule `date` hanya mengandalkan strtotime(), jadi "26-09-2026" LOLOS
+# validasi lalu ditolak PostgreSQL saat insert -> 500 + stack trace di log.
+# Karena itu store/update kini pakai date_format:Y-m-d.
+$badTanggal = @(
+  @{ nilai = '26-09-2026'; label = 'DD-MM-YYYY' },
+  @{ nilai = '2026-9-5';     label = 'bulan/hari tanpa nol' },
+  @{ nilai = '2026/09/26';   label = 'garis miring' },
+  @{ nilai = '26 Sep 2026';  label = 'nama bulan' }
+)
+foreach ($bt in $badTanggal) {
+  $r = Req 'POST' "$base/children" $tA @{ name = "Format $s $($bt.label)"; date_of_birth = $bt.nilai; gender = 'P' }
+  Check "tanggal $($bt.label) -> 422" 422 $r.Status
+  Check "  bukan 500 (tidak sampai ke PostgreSQL)" $true ($r.Status -ne 500)
+  Check "  ada pesan di errors.date_of_birth" $true ($null -ne $r.Body.errors.date_of_birth)
+}
+
+$r = Req 'POST' "$base/children" $tA @{ name = "Tanggal Lalu $s"; date_of_birth = '2026-09-26'; gender = 'P' }
+Check "tanggal ISO YYYY-MM-DD -> 201" 201 $r.Status
+$idTanggalOk = $r.Body.data.id
+
+$r = Req 'POST' "$base/children" $tA @{ name = "Tanggal Depan $s"; date_of_birth = '2099-01-01'; gender = 'P' }
+Check "tanggal masa depan -> 422" 422 $r.Status
+
+$r = Req 'PATCH' "$base/children/$idTanggalOk" $tA @{ date_of_birth = '26-09-2026' }
+Check "PATCH tanggal DD-MM-YYYY -> 422" 422 $r.Status
+Check "  bukan 500" $true ($r.Status -ne 500)
+
+$r = Req 'POST' "$base/kader/measurements" $tK @{ child_id = $idTanggalOk; measurement_date = '26-09-2026'; weight_kg = 7.1; height_cm = 75 }
+Check "penimbangan tanggal DD-MM-YYYY -> 422" 422 $r.Status
+Check "  bukan 500" $true ($r.Status -ne 500)
+
+# =====================================================================
 Group "5. Daftar & detail anak"
 $cekMilikA = @($idA, $idA2, $idK1)
 $r = Req 'GET' "$base/children" $tA $null

@@ -60,7 +60,12 @@ class ChildController extends Controller
             $validated = $request->validate([
                 'nik' => 'nullable|string|size:16|unique:children,nik',
                 'name' => 'required|string|max:255',
-                'date_of_birth' => 'required|date',
+                // `date_format:Y-m-d` WAJIB dipakai, bukan `date` saja.
+                // Rule `date` hanya mengandalkan strtotime() sehingga "26-09-2026" lolos
+                // validasi, lalu PostgreSQL menolaknya saat insert
+                // (SQLSTATE 22008) dan itu jadi 500. Dengan date_format,
+                // format salah ditolak sebagai 422 sebelum menyentuh DB.
+                'date_of_birth' => 'required|date_format:Y-m-d|before_or_equal:today',
                 'gender' => 'required|in:L,P',
                 'birth_weight' => 'nullable|numeric|min:0',
                 'birth_height' => 'nullable|numeric|min:0',
@@ -249,7 +254,12 @@ class ChildController extends Controller
                     Rule::unique('children', 'nik')->ignore($child->id),
                 ],
                 'name' => ['sometimes', 'required', 'string', 'max:255'],
-                'date_of_birth' => ['sometimes', 'required', 'date'],
+                // Sama seperti `store`: date_format mencegah 500 dari
+                // PostgreSQL, before_or_equal mencegah tanggal lahir di masa depan.
+                'date_of_birth' => [
+                    'sometimes', 'required',
+                    'date_format:Y-m-d', 'before_or_equal:today',
+                ],
                 'gender' => ['sometimes', 'required', 'in:L,P'],
                 'birth_weight' => ['sometimes', 'nullable', 'numeric', 'min:0'],
                 'birth_height' => ['sometimes', 'nullable', 'numeric', 'min:0'],

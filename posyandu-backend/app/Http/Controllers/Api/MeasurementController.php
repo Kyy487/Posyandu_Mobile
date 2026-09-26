@@ -33,7 +33,9 @@ class MeasurementController extends Controller
             // 1. Validasi Input
             $validated = $request->validate([
                 'child_id' => 'required|uuid|exists:children,id',
-                'measurement_date' => 'required|date|before_or_equal:today',
+                // date_format:Y-m-d mencegah rule `date` meloloskan format
+            // seperti "26-09-2026" yang ditolak PostgreSQL jadi 500.
+            'measurement_date' => 'required|date_format:Y-m-d|before_or_equal:today',
                 'weight_kg' => 'required|numeric|min:0.5|max:50',
                 'height_cm' => 'required|numeric|min:20|max:150',
                 'head_circumference_cm' => 'nullable|numeric|min:20|max:60',
