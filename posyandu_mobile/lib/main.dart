@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+
 import 'screens/login_screen.dart';
+import 'theme/app_theme.dart';
 
 void main() {
   runApp(const MyApp());
@@ -12,9 +14,8 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'Smart Posyandu',
-      theme: ThemeData(
-        primarySwatch: Colors.blue,
-      ),
+      debugShowCheckedModeBanner: false,
+      theme: AppTheme.build(),
       home: const LoginScreen(),
     );
   }

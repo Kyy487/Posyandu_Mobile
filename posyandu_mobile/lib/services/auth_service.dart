@@ -104,6 +104,20 @@ class AuthService {
     return token != null && token.isNotEmpty;
   }
 
+  /// NIK terakhir yang user pilih untuk diingat ("Ingat NIK" di login).
+  ///
+  /// Disimpan di secure storage, bukan di preferences biasa, supaya tidak
+  /// bocor lewat backup aplikasi.
+  Future<String?> getRememberedNik() => storage.read(key: 'remembered_nik');
+
+  Future<void> saveRememberedNik(String nik) async {
+    if (nik.isEmpty) {
+      await storage.delete(key: 'remembered_nik');
+      return;
+    }
+    await storage.write(key: 'remembered_nik', value: nik);
+  }
+
   /// Data user yang sedang login (`GET /api/user`).
   ///
   /// Dipakai dashboard Ibu untuk menampilkan nama asli, bukan nama hardcode.
