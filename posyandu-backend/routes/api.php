@@ -24,9 +24,17 @@ use App\Http\Controllers\Api\MeasurementController;
 
 // ---------------------------------------------------------------------
 // Route Terbuka (Public)
+//
+// `throttle:` membatasi percobaan berulang per IP untuk menutup serangan
+// brute force ke NIK + password. Nilai diambil dari config/posyandu.php
+// (env LOGIN_THROTTLE / REGISTER_THROTTLE). Kelewat batas -> 429.
 // ---------------------------------------------------------------------
-Route::post('/register', [AuthController::class, 'register']);
-Route::post('/login', [AuthController::class, 'login']);
+Route::post('/register', [AuthController::class, 'register'])
+    ->middleware('throttle:'.config('posyandu.register_throttle'));
+
+Route::post('/login', [AuthController::class, 'login'])
+    ->middleware('throttle:'.config('posyandu.login_throttle'));
+
 
 // ---------------------------------------------------------------------
 // Route Terlindungi (Protected) - Wajib Bearer Token

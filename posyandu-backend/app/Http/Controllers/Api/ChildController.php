@@ -22,14 +22,18 @@ class ChildController extends Controller
         // Relasi `mother` dimuat untuk Ibu maupun Kader. Mobile membaca
         // `mother.name` (dan NIK) di child.dart; tanpa ini dashboard Ibu
         // menampilkan "-" untuk nama ibu.
+        //
+        // `latestMeasurement` otomatis ikut termuat karena `$with` pada model
+        // Child, sehingga `latest_z_score` dan `nutritional_status` tersedia
+        // tanpa query tambahan per anak.
         $query = Child::with('mother:id,name,nik');
 
         // Ibu hanya melihat anaknya sendiri. Kader melihat seluruh data.
         if ($user->role === 'ibu') {
-            $query->where('user_id', $user->id);
+            $query->ownedBy($user->id);
         }
 
-        $children = $query->get();
+        $children = $query->orderBy('name')->get();
 
         return response()->json([
             'success' => true,
@@ -451,9 +455,14 @@ class ChildController extends Controller
     public function indexKader()
     {
         try {
-            // Memuat relasi mother agar nama ibu ikut terkirim (dibaca mobile di child.dart).
+            // Relasi `mother` agar nama ibu ikut terkirim (dibaca mobile di
+            // child.dart). `latestMeasurement` ikut termuat otomatis dari
+            // `$with` pada model Child.
+            //
             // Paginasi/filter bisa ditambahkan nanti tanpa mengubah bentuk respons.
-            $children = Child::with('mother:id,name,nik')->get();
+            $children = Child::with('mother:id,name,nik')
+                ->orderBy('name')
+                ->get();
 
             // Format baku JSON Envelope wajib
             return response()->json([
