@@ -5,6 +5,7 @@ use App\Http\Controllers\Api\ChildController;
 use App\Http\Controllers\Api\ImmunizationController;
 // -- Area Controller --//
 use App\Http\Controllers\Api\MeasurementController;
+use App\Http\Controllers\Api\MedicalNoteController;
 use App\Http\Controllers\Api\PetugasController;
 use App\Http\Controllers\Api\PosyanduScheduleController;
 use App\Http\Middleware\RoleCheck;
@@ -78,6 +79,18 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/children/{id}/immunizations', [ImmunizationController::class, 'show']);
 
         // -----------------------------------------------------------------
+        // AREA CATATAN KELUHAN - Ibu hanya membaca
+        //
+        // Satu path untuk Ibu dan Kader, sama seperti checklist imunisasi di
+        // atas. Beda peran ditangani middleware RoleCheck dan pemeriksaan
+        // kepemilikan di MedicalNoteController@findAccessibleChild.
+        //
+        // Default-nya bulan berjalan; `?month=YYYY-MM` untuk bulan lain dan
+        // `?all=1` untuk seluruh riwayat.
+        // -----------------------------------------------------------------
+        Route::get('/children/{id}/medical-notes', [MedicalNoteController::class, 'index']);
+
+        // -----------------------------------------------------------------
         // AREA JADWAL POSYANDU - Ibu hanya membaca
         // -----------------------------------------------------------------
         Route::get('/schedules', [PosyanduScheduleController::class, 'index']);
@@ -119,6 +132,24 @@ Route::middleware('auth:sanctum')->group(function () {
         // "salah pilih dosis": PATCH sengaja tidak bisa memindahkan
         // `immunization_type_id`, jadi tanpa DELETE salah pilihan jadi permanen.
         Route::delete('/kader/immunizations/{record}', [ImmunizationController::class, 'destroy']);
+
+        // -----------------------------------------------------------------
+        // AREA CATATAN KELUHAN - Kader mencatat dan mengoreksi
+        //
+        // `child` tanpa `{id}` agar tidak bentrok dengan route `DELETE
+        // /children/{id}` di group di atas; keduanya dibedakan oleh prefix
+        // `/kader/`.
+        //
+        // Berbeda dari suntikan, `note_date` BOLEH diubah lewat PATCH: kesalahan
+        // tanggal di sini adalah salah pilih hari di kalender, bukan keputusan
+        // yang perlu dibatalkan lalu diulang.
+        // -----------------------------------------------------------------
+        Route::post('/kader/children/{child}/medical-notes', [MedicalNoteController::class, 'store']);
+        Route::patch('/kader/medical-notes/{note}', [MedicalNoteController::class, 'update']);
+
+        // Batalkan catatan keluhan (soft delete), supaya salah input tidak
+        // hilang permanen dan tanggal yang sama bisa dicatat ulang.
+        Route::delete('/kader/medical-notes/{note}', [MedicalNoteController::class, 'destroy']);
 
         // -----------------------------------------------------------------
         // AREA JADWAL POSYANDU - Kader membuat, mengubah, menghapus

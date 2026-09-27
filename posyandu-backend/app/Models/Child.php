@@ -116,6 +116,17 @@ class Child extends Model
         return $this->hasMany(ImmunizationRecord::class);
     }
 
+    /**
+     * Satu Anak memiliki banyak catatan keluhan.
+     *
+     * Catatan yang sudah di-soft delete otomatis tidak ikut, jadi Ibu yang
+     * membaca riwayat tidak pernah melihat entri yang sudah dibatalkan kader.
+     */
+    public function medicalNotes(): HasMany
+    {
+        return $this->hasMany(MedicalNote::class);
+    }
+
     // -----------------------------------------------------------------
     // Accessor untuk respons API
     // -----------------------------------------------------------------

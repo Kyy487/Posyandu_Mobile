@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
@@ -43,6 +44,18 @@ class User extends Authenticatable
     public function immunizationRecords()
     {
         return $this->hasMany(ImmunizationRecord::class, 'kader_id');
+    }
+
+    /**
+     * Relasi: Satu Kader mencatat banyak Catatan Keluhan.
+     *
+     * Dipakai endpoint `GET /kader/children/{child}/medical-notes` untuk
+     * menampilkan siapa yang mencatat tiap complain, supaya kader lain yang
+     * melakukan kunjungan lanjutan tahu catatan sebelumnya dibuat siapa.
+     */
+    public function medicalNotes(): HasMany
+    {
+        return $this->hasMany(MedicalNote::class, 'kader_id');
     }
 
     // Relasi: Satu Kader membuat banyak Agenda Posyandu
