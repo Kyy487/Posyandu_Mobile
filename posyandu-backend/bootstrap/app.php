@@ -19,7 +19,27 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
-        //
+        /*
+        |--------------------------------------------------------------------------
+        | Redirect tamu untuk request API
+        |--------------------------------------------------------------------------
+        |
+        | Aplikasi ini API-only: proses login dilakukan aplikasi Flutter, jadi
+        | tidak ada route web bernama `login` di server ini.
+        |
+        | Tanpa baris di bawah, `Authenticate` middleware memanggil
+        | `route('login')` setiap kali request API datang tanpa token dan
+        | tanpa header `Accept: application/json`. Route-nya tidak ada, jadi
+        | hasilnya RouteNotFoundException dan Flutter menerima 500, bukan 401
+        | yang bisa dibaca sebagai "sesi berakhir".
+        |
+        | Mengembalikan null membuat `AuthenticationException` tidak punya URL
+        | tujuan redirect, sehingga renderer di bawah mengembalikan JSON 401.
+        |
+        */
+        $middleware->redirectGuestsTo(
+            fn (Request $request) => $request->is('api/*') ? null : route('login')
+        );
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         $exceptions->shouldRenderJsonWhen(

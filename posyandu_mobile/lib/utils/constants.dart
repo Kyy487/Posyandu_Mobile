@@ -20,4 +20,15 @@ class ApiConstants {
   static const String childrenEndpoint = '/children';
   static const String kaderChildrenEndpoint = '/kader/children';
   static const String kaderMeasurementsEndpoint = '/kader/measurements';
+
+  // Imunisasi: checklist dibaca Ibu maupun Kader, pencatatan hanya Kader.
+  static const String immunizationTypesEndpoint = '/immunization-types';
+  static const String kaderImmunizationsEndpoint = '/kader/immunizations';
+
+  // Jadwal posyandu: Ibu read-only, Kader boleh tulis.
+  static const String schedulesEndpoint = '/schedules';
+  static const String kaderSchedulesEndpoint = '/kader/schedules';
+
+  // Daftar petugas. NIK tidak pernah ikut respons.
+  static const String petugasEndpoint = '/petugas';
 }

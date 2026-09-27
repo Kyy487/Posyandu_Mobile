@@ -7,7 +7,10 @@ use App\Http\Middleware\RoleCheck;
 //-- Area Controller --//
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\ChildController;
+use App\Http\Controllers\Api\ImmunizationController;
 use App\Http\Controllers\Api\MeasurementController;
+use App\Http\Controllers\Api\PetugasController;
+use App\Http\Controllers\Api\PosyanduScheduleController;
 
 /*
 |--------------------------------------------------------------------------
@@ -65,6 +68,24 @@ Route::middleware('auth:sanctum')->group(function () {
         // Partial update: hanya field yang dikirim yang berubah, jadi aman
         // dipanggil lewat PUT maupun PATCH.
         Route::match(['put', 'patch'], '/children/{id}', [ChildController::class, 'update']);
+
+        // -----------------------------------------------------------------
+        // AREA IMUNISASI - dapat diakses Ibu maupun Kader (Ibu read-only)
+        //
+        // Checklist dihitung di PHP setiap request (lihat
+        // ImmunizationChecklistService) karena status bergantung pada tanggal
+        // lahir anak, bukan data yang bisa disimpan.
+        // -----------------------------------------------------------------
+        Route::get('/immunization-types', [ImmunizationController::class, 'types']);
+        Route::get('/children/{id}/immunizations', [ImmunizationController::class, 'show']);
+
+        // -----------------------------------------------------------------
+        // AREA JADWAL POSYANDU - Ibu hanya membaca
+        // -----------------------------------------------------------------
+        Route::get('/schedules', [PosyanduScheduleController::class, 'index']);
+
+        // Daftar petugas. NIK tidak pernah ikut respons; lihat PetugasController.
+        Route::get('/petugas', [PetugasController::class, 'index']);
     });
 
     // -----------------------------------------------------------------
@@ -81,5 +102,26 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/kader/measurements', [MeasurementController::class, 'index']);
         Route::post('/kader/measurements', [MeasurementController::class, 'store']);
         Route::delete('/kader/measurements/{id}', [MeasurementController::class, 'destroy']);
+
+        // -----------------------------------------------------------------
+        // AREA IMUNISASI - Kader mencatat dan mengoreksi
+        //
+        // `child` tanpa `{id}` agar tidak bentrok dengan route `DELETE
+        // /children/{id}` di group di atas; keduanya dibedakan oleh prefix
+        // `/kader/`.
+        // -----------------------------------------------------------------
+        Route::post('/kader/children/{child}/immunizations', [ImmunizationController::class, 'store']);
+
+        // Koreksi suntikan memakai PATCH, bukan hapus-lalu-simpan, karena
+        // unique constraint `immunization_child_type_unique` melarang dua
+        // record untuk dosis yang sama pada satu anak.
+        Route::patch('/kader/immunizations/{record}', [ImmunizationController::class, 'update']);
+
+        // -----------------------------------------------------------------
+        // AREA JADWAL POSYANDU - Kader membuat, mengubah, menghapus
+        // -----------------------------------------------------------------
+        Route::post('/kader/schedules', [PosyanduScheduleController::class, 'store']);
+        Route::patch('/kader/schedules/{id}', [PosyanduScheduleController::class, 'update']);
+        Route::delete('/kader/schedules/{id}', [PosyanduScheduleController::class, 'destroy']);
     });
 });

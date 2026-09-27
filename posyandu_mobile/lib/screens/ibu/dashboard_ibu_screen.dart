@@ -4,6 +4,8 @@ import '../../models/child.dart';
 import '../../services/auth_service.dart';
 import '../../services/child_service.dart';
 import '../login_screen.dart';
+import 'jadwal_posyandu_screen.dart';
+import 'status_imunisasi_screen.dart';
 import 'tambah_anak_dialog.dart';
 
 class DashboardIbuScreen extends StatefulWidget {
@@ -158,9 +160,11 @@ class _DashboardIbuScreenState extends State<DashboardIbuScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _buildQuickMenu(),
-                  const SizedBox(height: 24),
-                  _buildStatusGizi(),
+              _buildQuickMenu(),
+              const SizedBox(height: 16),
+              _buildImunisasiMenu(),
+              const SizedBox(height: 24),
+              _buildStatusGizi(),
                   const SizedBox(height: 20),
                   _buildInsight(),
                 ],
@@ -333,11 +337,92 @@ class _DashboardIbuScreenState extends State<DashboardIbuScreen> {
               _buildMenuButton(Icons.play_circle_fill, 'Edukasi\n& Tips', Colors.purple,
                   () => _info('Video edukasi')),
               _buildMenuButton(Icons.calendar_month, 'Jadwal\nPosyandu', Colors.teal,
-                  () => _info('Jadwal posyandu')),
+                  _bukaJadwalPosyandu),
             ],
           ),
         ),
       ],
+    );
+  }
+
+  void _bukaJadwalPosyandu() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => const JadwalPosyanduScreen()),
+    );
+  }
+
+  void _bukaStatusImunisasi() {
+    final anak = _anakAktif;
+    if (anak == null) return;
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => StatusImunisasiScreen(
+          childId: anak.id,
+          childName: anak.name,
+        ),
+      ),
+    );
+  }
+
+  /// Entri imunisasi dibuat kartu penuh, bukan tombol menu, karena status
+  /// imunisasi adalah hal yang paling sering dicek orang tua.
+  Widget _buildImunisasiMenu() {
+    final nama = _anakAktif?.name ?? 'anak';
+
+    return InkWell(
+      onTap: _bukaStatusImunisasi,
+      borderRadius: BorderRadius.circular(20),
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(20),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.pink.withValues(alpha: 0.05),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.purple.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: const Icon(Icons.vaccines, color: Colors.purple, size: 26),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Status Imunisasi $nama',
+                    style: const TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.black87,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  const Text(
+                    'Lihat dosis yang sudah, belum, dan terlambat.',
+                    style: TextStyle(fontSize: 12, color: Colors.grey),
+                  ),
+                ],
+              ),
+            ),
+            const Icon(Icons.chevron_right, color: Colors.grey),
+          ],
+        ),
+      ),
     );
   }
 

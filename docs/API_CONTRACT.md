@@ -89,6 +89,22 @@ Header Wajib: `Authorization: Bearer {token}` & `Accept: application/json`
 | `GET` | `/kader/measurements` | Riwayat penimbangan |
 | `POST` | `/kader/measurements` | Input penimbangan (e-KMS) — endpoint yang dipakai mobile |
 | `DELETE` | `/kader/measurements/{id}` | Hapus penimbangan |
+| `POST` | `/kader/children/{child}/immunizations` | Catat suntikan — **[lihat bagian imunisasi](#imunisasi)** |
+| `PATCH` | `/kader/immunizations/{record}` | Koreksi suntikan yang sudah tercatat |
+| `POST` | `/kader/schedules` | **[Agenda posyandu](#jadwal-posyandu-agenda-kegiatan)** — buat agenda |
+| `PATCH`/`DELETE` | `/kader/schedules/{id}` | Ubah / hapus agenda |
+
+> **Tidak ada `GET /kader/schedules`.** Membaca daftar agenda tidak perlu prefix
+> `kader`: Ibu dan Kader memakai endpoint yang sama, `GET /api/schedules`.
+> Prefix `kader` hanya untuk operasi tulis.
+
+### Imunisasi & Agenda (Ibu dan Kader)
+| Method | Endpoint | Description | Role Akses |
+| :--- | :--- | :--- | :--- |
+| `GET` | `/immunization-types` | Master 16 dosis imunisasi | Ibu / Kader |
+| `GET` | `/children/{id}/immunizations` | Checklist imunisasi + status per dosis | Ibu (anaknya) / Kader |
+| `GET` | `/petugas` | Daftar petugas untuk dipilih di agenda | Ibu / Kader |
+| `GET` | `/schedules` | Daftar agenda kegiatan | Ibu / Kader |
 
 ## Menambah Data Anak (Kontrak Unified)
 
@@ -268,10 +284,229 @@ Child::withTrashed()->find($id)->restore();
 > dipakai lagi, API membalas `422` dengan pesan yang menyebut nama anak yang sudah dihapus.
 
 
-### Immunization *(Draft)*
-| Method | Endpoint | Description | Role Akses |
+## Imunisasi
+
+Status imunisasi **tidak disimpan** di database. Setiap kali checklist diambil,
+server menghitung ulang umur anak lalu menetapkan status tiap dosis:
+
+| Status | Arti |
+| :--- | :--- |
+| `sudah` | Sudah ada suntikan untuk dosis tersebut |
+| `belum` | Belum disuntik, masih dalam batas waktu |
+| `terlambat` | Belum disuntik dan sudah melewati batas toleransi |
+
+> **Klien tidak boleh menghitung ulang.** Ambang toleransi "terlambat" diatur di
+> `config/posyandu.php` (`terlambat_setelah_bulan`, default 2) dan bisa diubah
+> koordinator posyandu. Bila Flutter menyalin logikanya, layar bisa menampilkan
+> status yang berbeda dari server.
+
+### `GET /immunization-types`
+
+Master 16 dosis (program HB Indonesia). Field `label` sudah diformat server,
+mis. `"Hepatitis B (Dosis 2)"`.
+
+| Dosis | `code` | Target |
+| :--- | :--- | :--- |
+| Hepatitis B 1-4 | `HB` | 0, 2, 4, 6 bulan |
+| BCG 1 | `BCG` | 2 bulan |
+| Polio Oral 1-5 | `POLIO` | 0, 2, 3, 4, 6 bulan |
+| DPT-HB-Hib 1-4 | `DPT-HB-HIB` | 2, 3, 4, 6 bulan |
+| Campak-Rubella 1-2 | `MR` | 9, 18 bulan |
+
+### `GET /children/{id}/immunizations`
+
+Ibu hanya boleh melihat anaknya sendiri; Kader boleh melihat semua anak.
+
+```json
+{
+  "success": true,
+  "message": "Checklist imunisasi berhasil diambil.",
+  "data": {
+    "child": {
+      "id": "01a0d979-c11f-705b-8dd8-a245652c7aa4",
+      "name": "Budi Santoso",
+      "date_of_birth": "2025-05-10",
+      "gender": "L"
+    },
+    "summary": { "sudah": 1, "belum": 1, "terlambat": 14, "total": 16 },
+    "checklist": [
+      {
+        "immunization_type_id": "01a0ddcb-8197-7184-9c37-fe42f3cc1fd9",
+        "code": "HB",
+        "name": "Hepatitis B",
+        "label": "Hepatitis B",
+        "dose_number": 1,
+        "target_age_months": 0,
+        "interval_months": null,
+        "status": "terlambat",
+        "sisa_bulan": -14,
+        "record": null
+      },
+      {
+        "immunization_type_id": "01a0ddcb-81d2-72d7-af73-83b7815725e6",
+        "code": "MR",
+        "name": "Campak-Rubella",
+        "label": "Campak-Rubella (Dosis 2)",
+        "dose_number": 2,
+        "target_age_months": 18,
+        "interval_months": 9,
+        "status": "belum",
+        "sisa_bulan": 4,
+        "record": null
+      }
+    ]
+  }
+}
+```
+
+> **`sisa_bulan` memakai nama snake_case.** Nilainya negatif bila sudah
+> terlambat (`-14` = sudah 14 bulan lewat) dan positif bila masih ada sisa
+> waktu. Parser yang salah mengira `null` di sini akan membuat teks
+> "terlambat X bulan" hilang tanpa error terlihat.
+
+Bila dosis sudah disuntik, `record` berisi `id`, `date_given`, `batch_number`,
+`notes`, dan `kader_id`.
+
+### `POST /kader/children/{child}/immunizations`
+
+| Field | Tipe | Wajib | Keterangan |
 | :--- | :--- | :--- | :--- |
-| `POST` | `/immunizations`| Input data vaksinasi baru | Kader |
+| `immunization_type_id` | uuid | Ya | Dosis yang disuntik |
+| `date_given` | date | Ya | Format `YYYY-MM-DD` |
+| `batch_number` | string(60) | Tidak | Nomor batch vaksin |
+| `notes` | string(255) | Tidak | Catatan |
+
+Respons `201` berisi objek suntikan yang baru dibuat.
+
+### `PATCH /kader/immunizations/{record}`
+
+Partial update: `date_given`, `batch_number`, `notes`. **Dosis tidak bisa
+dipindah lewat endpoint ini** — memindahkan catatan ke dosis lain berarti
+membatalkan satu dosis dan mencatat yang lain, dua operasi terpisah di
+lapangan. Bila tidak ada field yang dikirim, `422`.
+
+| HTTP | Kondisi | `message` |
+| :--- | :--- | :--- |
+| `403` | Ibu memanggil endpoint `/kader/*` | `Akses ditolak.` |
+| `404` | anak / record tidak ada | `Data yang diminta tidak ditemukan.` |
+| `422` | dosis sudah tercatat untuk anak ini | pesan `immunization_type_id` (dibatasi unique `immunization_child_type_unique`) |
+| `422` | tanggal bukan `YYYY-MM-DD` | pesan `date_given` |
+| `422` | `PATCH` tanpa field | `Tidak ada data yang diperbarui.` |
+
+## Jadwal Posyandu (Agenda Kegiatan)
+
+Satu agenda = **satu kegiatan pada tanggal tertentu**, bukan jadwal kunjungan
+per anak. Satu agenda bisa ditangani beberapa petugas lewat pivot
+`posyandu_schedule_petugas`.
+
+Status agenda: `terjadwal`, `berlangsung`, `selesai`, `dibatalkan`
+(dibatasi CHECK constraint di database).
+
+### `GET /schedules`
+
+| Parameter | Tipe | Keterangan |
+| :--- | :--- | :--- |
+| `date` | `YYYY-MM-DD` | Filter agenda pada tanggal tertentu |
+
+```json
+{
+  "success": true,
+  "message": "Daftar jadwal posyandu berhasil diambil.",
+  "data": [
+    {
+      "id": "01a0ddcb-81e1-7060-8710-81d18ae89d7d",
+      "title": "Penimbangan Rutin Bulanan",
+      "description": "Penimbangan dan pengukuran tinggi badan balita.",
+      "scheduled_date": "2026-11-02",
+      "start_time": "08:00",
+      "end_time": "11:00",
+      "location": "Posyandu Desa Sukamaju",
+      "location_name": "Posyandu Desa Sukamaju",
+      "status": "terjadwal",
+      "notes": null,
+      "created_by": "01a0d979-c297-704b-b89a-d66ff76f2474",
+      "creator_name": "Kader Siti",
+      "petugas_ids": ["01a0d979-c297-704b-b89a-d66ff76f2474"],
+      "petugas": [
+        { "id": "01a0d979-c297-704b-b89a-d66ff76f2474", "name": "Kader Siti", "jabatan": "Kader Posyandu" }
+      ],
+      "created_at": "2026-09-26T12:58:16+00:00",
+      "updated_at": "2026-09-26T12:58:16+00:00"
+    }
+  ]
+}
+```
+
+> `location_name` selalu terisi: kalau kolom `location` kosong, server memakai
+> `config('posyandu.posyandu_name')`. Satu lokasi dipakai untuk seluruh aplikasi,
+> jadi tidak ada tabel lokasi terpisah.
+
+### `POST /kader/schedules`
+
+| Field | Tipe | Wajib | Keterangan |
+| :--- | :--- | :--- | :--- |
+| `title` | string(120) | Ya | Nama kegiatan |
+| `scheduled_date` | date | Ya | Format `YYYY-MM-DD` |
+| `description` | string(500) | Tidak | |
+| `start_time` | time | Tidak | Format `HH:MM` (24 jam) |
+| `end_time` | time | Tidak | Harus `>=` `start_time` |
+| `status` | enum | Tidak | Default `terjadwal` |
+| `location` | string(120) | Tidak | Kosongkan untuk memakai nama posyandu dari config |
+| `notes` | string(500) | Tidak | |
+| `petugas_ids` | uuid[] | Tidak | **Harus user dengan role `kader`** |
+
+Respons `201` berisi agenda yang baru, termasuk `petugas` hasil sinkronisasi.
+
+### `PATCH /kader/schedules/{id}`
+
+Partial update dengan field yang sama. Dua hal yang mudah terlewat:
+
+- **`petugas_ids: []` berarti MENGOSONGKAN seluruh penugasan.** Server memakai
+  `sync`, bukan `syncWithoutDetaching`. Bila field-nya tidak dikirim sama sekali,
+  penugasan lama tidak berubah.
+- **`created_by` tidak pernah berubah** walau Kader lain yang mengedit.
+
+### `DELETE /kader/schedules/{id}`
+
+Respons `200` berisi `id` agenda yang dihapus. Penugasan di pivot ikut terhapus.
+Menghapus ulang id yang sama membalas `404`.
+
+| HTTP | Kondisi | `message` |
+| :--- | :--- | :--- |
+| `403` | Ibu memanggil endpoint `/kader/*` | `Akses ditolak.` |
+| `403` | `petugas_ids` menunjuk user role `ibu` | pesan `petugas_ids` |
+| `422` | `end_time` < `start_time` | pesan `end_time` |
+| `422` | `status` di luar enum | pesan `status` |
+| `422` | tidak ada field yang dikirim | `Tidak ada data yang diperbarui.` |
+| `404` | id agenda tidak ada | `Data yang diminta tidak ditemukan.` |
+
+## Daftar Petugas
+
+`GET /petugas` — terbuka untuk Ibu dan Kader, karena Ibu perlu tahu siapa
+petugas yang menangani agendasnya.
+
+```json
+{
+  "success": true,
+  "message": "Daftar petugas posyandu berhasil diambil.",
+  "data": [
+    {
+      "id": "01a0d979-c297-704b-b89a-d66ff76f2474",
+      "name": "Kader Siti",
+      "jabatan": "Kader Posyandu",
+      "phone_number": null
+    }
+  ]
+}
+```
+
+> **NIK tidak pernah dikirim.** Kolom yang dibaca query sudah dikunci lewat
+> `select('id', 'name', 'jabatan', 'phone_number')`, jadi kolom sensitif baru di
+> tabel `users` tidak akan bocor tanpa sengaja mengubah query ini. `id` tetap
+> dikirim karena mobile memakainya untuk menyinkronkan penugasan di pivot agenda.
+>
+> `jabatan` (`"Bidan"` / `"Kader Posyandu"`) murni deskriptif untuk ditampilkan.
+> Otorisasi tetap memakai `role`, yang hanya punya dua nilai: `ibu` / `kader`.
 
 ## Respons Penimbangan (Penting untuk mobile)
 
@@ -310,9 +545,20 @@ Rincian perhitungan, klasifikasi `status_gizi`, dan cara rollback ada di
 >   (butuh `withTrashed()`), dan belum ada `restore` via API.
 > - `login` menghapus SEMUA token lama milik user tersebut, jadi login di satu
 >   device akan memutus sesi device lain.
-> - Belum ada paginasi pada daftar anak maupun riwayat penimbangan.
+> - Belum ada paginasi pada daftar anak, riwayat penimbangan, agenda, maupun
+>   checklist imunisasi.
+> - Belum ada endpoint untuk memindahkan catatan suntikan dari satu dosis ke
+>   dosis lain (lihat catatan di bagian Imunisasi).
+> - Agenda tidak bisa di recurring (mis. "setiap bulan Rabu"), jadi jadwal rutin
+>   harus dibuat manual satu per satu.
 >
 > **Sudah diperbaiki**:
+> - Request ke endpoint API tanpa token dan **tanpa** header
+>   `Accept: application/json` sekarang membalas `401` dengan envelope yang
+>   benar. Sebelumnya `Authenticate` middleware memanggil `route('login')` yang
+>   tidak ada di aplikasi ini (API-only, login dilakukan di Flutter), sehingga
+>   hasilnya `500` dan mobile tidak bisa membedakan "sesi habis" dari
+>   "server rusak". Diperbaiki lewat `redirectGuestsTo` di `bootstrap/app.php`.
 > - Nama ibu dikirim sebagai nested object `mother` (bukan `parent_name`) pada
 >   **keduanya** `/children` (Ibu maupun Kader) dan `/kader/children`, sehingga
 >   dashboard Ibu tidak lagi menampilkan `-`.
@@ -339,6 +585,22 @@ Rincian perhitungan, klasifikasi `status_gizi`, dan cara rollback ada di
 >
 >   Untuk riwayat penimbangan lengkap, Ibu belum punya endpoint sendiri -
 >   `GET /kader/measurements?child_id=` masih restricted Kader.
+
+### Layar Flutter yang memakai endpoint baru
+
+| Layar | File | Endpoint |
+| :--- | :--- | :--- |
+| Status imunisasi (Ibu) | `lib/screens/ibu/status_imunisasi_screen.dart` | `GET /children/{id}/immunizations` |
+| Imunisasi + input (Kader) | `lib/screens/kader/imunisasi_screen.dart` | `GET /children/{id}/immunizations`, `POST` + `PATCH` |
+| Jadwal posyandu (Ibu) | `lib/screens/ibu/jadwal_posyandu_screen.dart` | `GET /schedules` |
+| Jadwal posyandu (Kader) | `lib/screens/kader/jadwal_posyandu_screen.dart` | `GET /schedules`, `GET /petugas`, `POST`/`PATCH`/`DELETE` |
+
+Entry point di dashboard:
+
+- **Ibu** — tombol "Jadwal Posyandu" di Menu Cepat, kartu "Status Imunisasi"
+  di bawahnya, untuk anak yang sedang dipilih.
+- **Kader** — tombol "Jadwal Posyandu" di Menu Utama, dan ikon vaksin di
+  AppBar `detail_anak_screen.dart` untuk mencatat/mengoreksi suntikan.
 
 ## Kode Error Seragam (Aturan #8)
 

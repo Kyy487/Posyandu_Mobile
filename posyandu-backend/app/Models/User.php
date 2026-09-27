@@ -19,15 +19,13 @@ class User extends Authenticatable
         'password',
         'role',
         'phone_number',
+        'jabatan',
     ];
 
     protected $hidden = [
         'password',
         'remember_token',
     ];
-
-   
-
     // Relasi: Satu Ibu memiliki banyak Anak
     public function children()
     {
@@ -38,5 +36,28 @@ class User extends Authenticatable
     public function measurements()
     {
         return $this->hasMany(Measurement::class, 'kader_id');
+    }
+
+    // Relasi: Satu Kader mencatat banyak Imunisasi
+    public function immunizationRecords()
+    {
+        return $this->hasMany(ImmunizationRecord::class, 'kader_id');
+    }
+
+    // Relasi: Satu Kader membuat banyak Agenda Posyandu
+    public function createdSchedules()
+    {
+        return $this->hasMany(PosyanduSchedule::class, 'created_by');
+    }
+
+    // Relasi: Satu Kader bisa ditugaskan menangani banyak Agenda
+    public function schedules()
+    {
+        return $this->belongsToMany(
+            PosyanduSchedule::class,
+            'posyandu_schedule_petugas',
+            'petugas_id',
+            'schedule_id'
+        )->withTimestamps();
     }
 }

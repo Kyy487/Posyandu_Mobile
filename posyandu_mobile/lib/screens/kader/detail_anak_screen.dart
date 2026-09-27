@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../models/child.dart';
 import '../../models/measurement_model.dart';
 import '../../services/kader_service.dart';
+import 'imunisasi_screen.dart';
 import 'input_penimbangan_screen.dart';
 
 class DetailAnakScreen extends StatefulWidget {
@@ -95,6 +96,21 @@ class _DetailAnakScreenState extends State<DetailAnakScreen> {
         title: const Text('Profil Medis Anak', style: TextStyle(color: Colors.white, fontSize: 18)),
         iconTheme: const IconThemeData(color: Colors.white),
         actions: [
+          IconButton(
+            tooltip: 'Imunisasi',
+            icon: const Icon(Icons.vaccines),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => ImunisasiScreen(
+                    childId: widget.childData.id,
+                    childName: widget.childData.name,
+                  ),
+                ),
+              );
+            },
+          ),
           IconButton(
             icon: const Icon(Icons.edit),
             onPressed: () {

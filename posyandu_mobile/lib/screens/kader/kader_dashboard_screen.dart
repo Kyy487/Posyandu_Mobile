@@ -4,6 +4,7 @@ import '../../services/child_service.dart'; // Sesuaikan path service anak Anda
 import '../../services/auth_service.dart';   // Untuk logout jika diperlukan
 import '../login_screen.dart';        // Sesuaikan path login
 import 'detail_anak_screen.dart';
+import 'jadwal_posyandu_screen.dart';
 
 class DashboardKaderScreen extends StatefulWidget {
   const DashboardKaderScreen({super.key});
@@ -144,8 +145,10 @@ class _DashboardKaderScreenState extends State<DashboardKaderScreen> {
                     // 2. MENU FITUR CEPAT (SHORTCUTS) DISESUAIKAN MVP
                     const Text('Menu Utama', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
                     const SizedBox(height: 12),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceAround,
+                    Wrap(
+                      alignment: WrapAlignment.spaceAround,
+                      spacing: 4,
+                      runSpacing: 8,
                       children: [
                         _buildMenuButton(Icons.monitor_heart, 'Triage', Colors.red, () {
                           ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Fitur Smart Triage segera hadir')));
@@ -158,6 +161,12 @@ class _DashboardKaderScreenState extends State<DashboardKaderScreen> {
                         }),
                         _buildMenuButton(Icons.qr_code_scanner, 'Scan NIK', Colors.indigo, () {
                           ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Fitur Scan segera hadir')));
+                        }),
+                        _buildMenuButton(Icons.event_note, 'Jadwal\nPosyandu', Colors.green, () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(builder: (context) => const JadwalPosyanduScreen()),
+                          );
                         }),
                       ],
                     ),

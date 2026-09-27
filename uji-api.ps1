@@ -433,6 +433,204 @@ $r = Req 'GET' "$base/children" $tA $null
 Check "  anak terhapus tidak muncul lagi" $false (Contains $r.Body.data $idA2)
 Check "  anak Ibu A lainnya tetap ada" $true (Contains $r.Body.data $idA)
 
+# =====================================================================
+Group "9b. Imunisasi (master, checklist, catat, koreksi)"
+# Checklist dihitung di PHP dari tanggal lahir anak; tidak ada kolom status
+# di database. Unique constraint (child_id, immunization_type_id) yang
+# mencegah satu anak punya dua record untuk dosis yang sama.
+# =====================================================================
+
+$r = Req 'GET' "$base/immunization-types" $tK $null
+Check "GET /immunization-types -> 200" 200 $r.Status
+Check "  master berisi 16 dosis" 16 $r.Body.data.Count
+$typeHB0 = $null
+$typeMR1 = $null
+foreach ($d in $r.Body.data) {
+    if ($d.code -eq 'HB'  -and $d.dose_number -eq 1) { $typeHB0 = $d.id }
+    if ($d.code -eq 'MR'  -and $d.dose_number -eq 1) { $typeMR1 = $d.id }
+}
+Check "  ada master HB dosis 1" $true ($typeHB0 -ne $null)
+Check "  ada master MR dosis 1" $true ($typeMR1 -ne $null)
+
+$r = Req 'GET' "$base/immunization-types" $tA $null
+Check "Ibu boleh baca master -> 200" 200 $r.Status
+
+# Anak uji: lahir 2024-01-15, jadi ~32 bulan pada 2026-09.
+$r = Req 'GET' "$base/children/$idA/immunizations" $tA $null
+Check "GET checklist anak -> 200" 200 $r.Status
+Check "  checklist 16 baris" 16 $r.Body.data.checklist.Count
+Check "  summary total 16" 16 $r.Body.data.summary.total
+Check "  belum ada yang suntik" 0 $r.Body.data.summary.sudah
+Check "  anak jauh lewat target -> terlambat" 16 $r.Body.data.summary.terlambat
+Check "  tidak ada sisa 'belum'" 0 $r.Body.data.summary.belum
+Check "  tanggal lahir anak ikut dikirim" '2024-01-15' $r.Body.data.child.date_of_birth
+
+# Anak yang baru lahir: semua dosis masih di masa depan -> belum.
+$idBayi = (Req 'POST' "$base/children" $tA @{ name = "Bayi Baru $s"; date_of_birth = (Get-Date -Format 'yyyy-MM-dd'); gender = 'P' }).Body.data.id
+$r = Req 'GET' "$base/children/$idBayi/immunizations" $tA $null
+Check "checklist bayi baru -> semua belum" 16 $r.Body.data.summary.belum
+Check "  tidak ada yang terlambat" 0 $r.Body.data.summary.terlambat
+Note "sisa_bulan = sisa bulan menuju status terlambat, negatif = sudah lewat"
+
+# Kader mencatat suntikan.
+$r = Req 'POST' "$base/kader/children/$idBayi/immunizations" $tK @{ immunization_type_id = $typeHB0; date_given = (Get-Date -Format 'yyyy-MM-dd'); batch_number = 'BATCH-001'; notes = 'uji otomatis' }
+Check "POST suntikan -> 201" 201 $r.Status
+Check "  kader_id = akun yg login" $kader.Id $r.Body.data.kader_id
+Check "  tanggal terkirim Y-m-d" (Get-Date -Format 'yyyy-MM-dd') $r.Body.data.date_given
+Check "  label dosis ikut dikirim" 'Hepatitis B' $r.Body.data.immunization_type.label
+$idImun = $r.Body.data.id
+
+# Dosis sama tidak boleh dicatat dua kali.
+$r = Req 'POST' "$base/kader/children/$idBayi/immunizations" $tK @{ immunization_type_id = $typeHB0; date_given = (Get-Date -Format 'yyyy-MM-dd') }
+Check "suntik dosis sama dua kali -> 422" 422 $r.Status
+Note "unique constraint immunization_child_type_unique yang menahan"
+
+# Ibu tidak boleh mencatat.
+$r = Req 'POST' "$base/kader/children/$idBayi/immunizations" $tA @{ immunization_type_id = $typeMR1; date_given = (Get-Date -Format 'yyyy-MM-dd') }
+Check "Ibu catat suntikan -> 403" 403 $r.Status
+
+# Ibu tidak boleh melihat checklist anak orang.
+$r = Req 'GET' "$base/children/$idK1/immunizations" $tA $null
+Check "Ibu lihat checklist anak orang -> 403" 403 $r.Status
+
+# Validasi.
+$r = Req 'POST' "$base/kader/children/$idBayi/immunizations" $tK @{ immunization_type_id = 'bukan-uuid'; date_given = '2024-01-01' }
+Check "tipe dosis ngawur -> 422" 422 $r.Status
+$r = Req 'POST' "$base/kader/children/$idBayi/immunizations" $tK @{ immunization_type_id = $typeMR1; date_given = '01-15-2024' }
+Check "tanggal format salah -> 422" 422 $r.Status
+Note "date_format:Y-m-d mencegah 500 dari PostgreSQL"
+$r = Req 'POST' "$base/kader/children/$idBayi/immunizations" $tK @{ immunization_type_id = $typeMR1; date_given = '2099-01-01' }
+Check "tanggal masa depan -> 422" 422 $r.Status
+
+# Status checklist berubah jadi 'sudah'.
+$r = Req 'GET' "$base/children/$idBayi/immunizations" $tA $null
+Check "setelah suntik: summary sudah = 1" 1 $r.Body.data.summary.sudah
+$itemHB0 = $null
+foreach ($d in $r.Body.data.checklist) { if ($d.immunization_type_id -eq $typeHB0) { $itemHB0 = $d } }
+Check "  item HB0 status = sudah" 'sudah' $itemHB0.status
+Check "  item HB0 punya record" $true ($itemHB0.record -ne $null)
+Check "  sisa_bulan null setelah suntik" $null $itemHB0.sisa_bulan
+
+# Koreksi lewat PATCH (bukan hapus-lalu-simpan).
+$r = Req 'PATCH' "$base/kader/immunizations/$idImun" $tK @{ date_given = '2024-01-20'; notes = 'dikoreksi' }
+Check "PATCH koreksi suntikan -> 200" 200 $r.Status
+Check "  tanggal berubah" '2024-01-20' $r.Body.data.date_given
+Check "  notes berubah" 'dikoreksi' $r.Body.data.notes
+
+$r = Req 'PATCH' "$base/kader/immunizations/$idImun" $tA @{ date_given = '2024-01-25' }
+Check "Ibu koreksi suntikan -> 403" 403 $r.Status
+$r = Req 'PATCH' "$base/kader/immunizations/$idImun" $tK @{}
+Check "PATCH tanpa field -> 422" 422 $r.Status
+$r = Req 'PATCH' "$base/kader/immunizations/bukan-uuid" $tK @{ date_given = '2024-01-20' }
+Check "PATCH id ngawur -> 404" 404 $r.Status
+
+# =====================================================================
+Group "9c. Daftar petugas (privasi NIK)"
+# Endpoint terbuka untuk Ibu & Kader, jadi NIK tidak boleh bocor.
+# =====================================================================
+$r = Req 'GET' "$base/petugas" $tA $null
+Check "GET /petugas -> 200" 200 $r.Status
+Check "  ada petugas" $true ($r.Body.data.Count -gt 0)
+$adaNik = $false
+foreach ($d in $r.Body.data) { if ($d.PSObject.Properties.Name -contains 'nik') { $adaNik = $true } }
+Check "  TIDAK ada field nik" $false $adaNik
+Note "Ibu hanya melihat nama, jabatan, dan nomor HP petugas"
+$r = Req 'GET' "$base/petugas" $tK $null
+Check "Kader juga boleh baca -> 200" 200 $r.Status
+Check "  tidak ada NIK juga untuk kader" $false ($r.Raw -match '"nik"')
+
+# =====================================================================
+Group "9d. Jadwal posyandu"
+# =====================================================================
+$r = Req 'GET' "$base/schedules" $tA $null
+Check "GET /schedules -> 200" 200 $r.Status
+Check "  success true" $true $r.Body.success
+
+$petugasIds = @()
+$r2 = Req 'GET' "$base/petugas" $tK $null
+foreach ($d in $r2.Body.data) { $petugasIds += $d.id }
+Check "  punya minimal 1 petugas untuk uji" $true ($petugasIds.Count -gt 0)
+
+$r = Req 'POST' "$base/kader/schedules" $tK @{ title = "Agenda Uji $s"; description = 'dibuat uji-api'; scheduled_date = '2026-12-25'; start_time = '08:00'; end_time = '10:00'; petugas_ids = @($petugasIds[0]) }
+Check "POST jadwal -> 201" 201 $r.Status
+Check "  status default terjadwal" 'terjadwal' $r.Body.data.status
+Check "  petugas terpasang 1" 1 $r.Body.data.petugas_ids.Count
+Check "  ada location_name" $true ($r.Body.data.location_name -ne $null)
+Note "location_name jatuh ke config posyandu.posyandu_name saat location kosong"
+$idSch = $r.Body.data.id
+
+# Ibu hanya boleh membaca.
+$r = Req 'POST' "$base/kader/schedules" $tA @{ title = "Ibu Coba"; scheduled_date = '2026-12-26' }
+Check "Ibu buat jadwal -> 403" 403 $r.Status
+$r = Req 'PATCH' "$base/kader/schedules/$idSch" $tA @{ status = 'selesai' }
+Check "Ibu ubah jadwal -> 403" 403 $r.Status
+$r = Req 'DELETE' "$base/kader/schedules/$idSch" $tA $null
+Check "Ibu hapus jadwal -> 403" 403 $r.Status
+
+# Status harus salah satu dari empat yang diizinkan CHECK constraint.
+$r = Req 'PATCH' "$base/kader/schedules/$idSch" $tK @{ status = 'ngada' }
+Check "status ngawur -> 422" 422 $r.Status
+$r = Req 'PATCH' "$base/kader/schedules/$idSch" $tK @{ status = 'berlangsung' }
+Check "PATCH status -> 200" 200 $r.Status
+Check "  status berubah" 'berlangsung' $r.Body.data.status
+$r = Req 'PATCH' "$base/kader/schedules/$idSch" $tK @{}
+Check "PATCH tanpa field -> 422" 422 $r.Status
+
+# Hanya akun kader boleh ditugaskan.
+$r = Req 'POST' "$base/kader/schedules" $tK @{ title = "Petugas Salah $s"; scheduled_date = '2026-12-27'; petugas_ids = @($ibuA.Id) }
+Check "petugas_ids role ibu -> 422" 422 $r.Status
+Note "akun ibu tidak boleh masuk daftar petugas"
+
+# Ganti daftar petugas.
+$r = Req 'PATCH' "$base/kader/schedules/$idSch" $tK @{ petugas_ids = @($petugasIds[0], $kader2.Id) }
+Check "PATCH petugas_ids -> 200" 200 $r.Status
+Check "  dua petugas terpasang" 2 $r.Body.data.petugas_ids.Count
+$r = Req 'PATCH' "$base/kader/schedules/$idSch" $tK @{ petugas_ids = @() }
+Check "PATCH kosongkan petugas -> 200" 200 $r.Status
+Check "  tidak ada petugas" 0 $r.Body.data.petugas_ids.Count
+
+# Filter tanggal.
+$r = Req 'GET' "$base/schedules?date=2026-12-25" $tA $null
+Check "filter per tanggal -> 200" 200 $r.Status
+Check "  ketemu 1 agenda" 1 $r.Body.data.Count
+Check "  judul benar" "Agenda Uji $s" $r.Body.data[0].title
+$r = Req 'GET' "$base/schedules?date=2020-01-01" $tA $null
+Check "tanggal tanpa agenda -> 0 hasil" 0 $r.Body.data.Count
+
+# Validasi & validasi id.
+$r = Req 'POST' "$base/kader/schedules" $tK @{ title = 'Tanpa Tanggal' }
+Check "jadwal tanpa tanggal -> 422" 422 $r.Status
+$r = Req 'POST' "$base/kader/schedules" $tK @{ title = 'Jam Ngawur'; scheduled_date = '2026-12-25'; start_time = '10:00'; end_time = '08:00' }
+Check "end sebelum start -> 422" 422 $r.Status
+$r = Req 'PATCH' "$base/kader/schedules/bukan-uuid" $tK @{ status = 'selesai' }
+Check "id ngawur -> 404" 404 $r.Status
+$r = Req 'DELETE' "$base/kader/schedules/bukan-uuid" $tK $null
+Check "hapus id ngawur -> 404" 404 $r.Status
+
+# Hapus agenda -> pivot ikut terhapus.
+$r = Req 'DELETE' "$base/kader/schedules/$idSch" $tK $null
+Check "DELETE jadwal -> 200" 200 $r.Status
+$r = Req 'GET' "$base/schedules?date=2026-12-25" $tA $null
+Check "  agenda hilang" 0 $r.Body.data.Count
+$r = Req 'DELETE' "$base/kader/schedules/$idSch" $tK $null
+Check "  hapus kedua kali -> 404" 404 $r.Status
+
+# Bersihkan agenda uji yang gagal dihapus (mis. aborted di tengah).
+if (Test-Path $php) {
+    $cleanSch = @"
+<?php
+require '$backend/vendor/autoload.php';
+`$app = require '$backend/bootstrap/app.php';
+`$app->make(Illuminate\Contracts\Console\Kernel::class)->bootstrap();
+`$n = Illuminate\Support\Facades\DB::table('posyandu_schedules')->where('title', 'like', '%$s%')->delete();
+echo '  agenda uji dihapus: ' . `$n . PHP_EOL;
+"@
+    $tmpS = Join-Path $env:TEMP 'posyandu_cleanup_sched.php'
+    Set-Content -Path $tmpS -Value $cleanSch -Encoding UTF8
+    & $php $tmpS 2>&1 | ForEach-Object { Write-Host "  $_" }
+    Remove-Item $tmpS -Force -ErrorAction SilentlyContinue
+}
+
 $r = Req 'DELETE' "$base/kader/measurements/$idUkur" $tK $null
 Check "hapus penimbangan -> 200" 200 $r.Status
 
@@ -442,6 +640,30 @@ $r = Req 'POST' "$base/logout" $tK2 $null
 Check "logout -> 200" 200 $r.Status
 $r = Req 'GET' "$base/children" $tK2 $null
 Check "token dibatalkan -> 401" 401 $r.Status
+
+# =====================================================================
+Group "10b. Request API tanpa header Accept: application/json"
+# Aplikasi ini API-only, jadi tidak ada route web `login`. Kalau middleware
+# Authenticate tetap memanggil route('login') untuk tamu, hasilnya 500 dan
+# Flutter tidak bisa membedakan "sesi habis" dari "server rusak".
+$plain = @()
+foreach ($p in @(
+        @{ M = 'GET'; U = "$base/immunization-types" }
+        @{ M = 'GET'; U = "$base/children" }
+        @{ M = 'GET'; U = "$base/schedules" }
+        @{ M = 'GET'; U = "$base/petugas" })) {
+    try {
+        $resp = Invoke-WebRequest -Uri $p.U -Method $p.M -UseBasicParsing -TimeoutSec 20
+        $plain += $resp.StatusCode
+    } catch {
+        if ($_.Exception.Response) { $plain += $_.Exception.Response.StatusCode.value__ }
+        else { $plain += 0 }
+    }
+}
+Check "tamu tanpa Accept dapat 401" 401 $plain[0]
+Check "tamu tanpa Accept dapat 401" 401 $plain[1]
+Check "tamu tanpa Accept dapat 401" 401 $plain[2]
+Check "tamu tanpa Accept dapat 401" 401 $plain[3]
 
 # =====================================================================
 Group "11. Tidak ada kebocoran pesan internal"
@@ -472,6 +694,8 @@ echo '  user uji dihapus: ' . `$users->count() . PHP_EOL;
 echo '  sisa user    : ' . Illuminate\Support\Facades\DB::table('users')->count() . PHP_EOL;
 echo '  sisa anak    : ' . Illuminate\Support\Facades\DB::table('children')->count() . PHP_EOL;
 echo '  sisa archived: ' . Illuminate\Support\Facades\DB::table('children')->whereNotNull('deleted_at')->count() . PHP_EOL;
+echo '  sisa suntikan: ' . Illuminate\Support\Facades\DB::table('immunization_records')->count() . PHP_EOL;
+echo '  sisa jadwal  : ' . Illuminate\Support\Facades\DB::table('posyandu_schedules')->count() . PHP_EOL;
 "@
     $tmp = Join-Path $env:TEMP 'posyandu_cleanup.php'
     Set-Content -Path $tmp -Value $cleanup -Encoding UTF8
