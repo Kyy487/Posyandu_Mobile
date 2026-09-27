@@ -96,3 +96,43 @@ Perbaikan ini menutup lubang privilege escalation dan menhomogenkan JSON envelop
 - [x] **`flutter analyze`: No issues found** (dari 32 issue).
       **`flutter test`: 11/11 lulus** (dari 6 lulus + 1 gagal).
 
+## Imunisasi & Jadwal Posyandu (Selesai — 26 Sep 2026, commit `23d0702`)
+- [x] Migration `2026_09_26_030000` s.d. `034000`: kolom `jabatan` pada
+      `users`, master `immunization_types` (16 dosis), penataan ulang
+      `immunization_records`, tabel `posyandu_schedules`, dan pivot
+      `posyandu_schedule_petugas`.
+- [x] `immunization_records.kader_id` jadi nullable + `ON DELETE SET NULL`:
+      riwayat suntikan tidak lagi ikut terhapus saat akun petugas dihapus.
+- [x] Unique `immunization_child_type_unique (child_id, immunization_type_id)`.
+      Koreksi salah input lewat `PATCH`, bukan hapus-lalu-simpan.
+- [x] `ImmunizationChecklistService` — status `sudah`/`belum`/`terlambat`
+      **dihitung tiap request, tidak disimpan** (karena bergantung pada
+      tanggal lahir anak). Toleransi default 2 bulan dari
+      `config('posyandu.immunization.terlambat_setelah_bulan')`.
+- [x] 9 endpoint baru; total API jadi 23 route. `GET /petugas` tidak pernah
+      mengirim NIK.
+- [x] **Tidak ada `GET /kader/schedules`** — baca agenda memakai
+      `GET /api/schedules` yang sama untuk Ibu dan Kader.
+- [x] `bootstrap/app.php` — tamu API tanpa `Accept: application/json` kini
+      dapat JSON 401, bukan 500 dari `route('login')` yang tidak ada.
+- [x] Seeder idempotent. Kunci agenda = `title` (bukan `title` +
+      `scheduled_date`) supaya `db:seed` pada hari berbeda tidak menambah
+      baris. Diverifikasi pada selisih `+0`/`+3`/`+30` hari.
+- [x] Mobile: checklist imunisasi (Kader catat/koreksi, Ibu read-only),
+      CRUD agenda dengan penugasan banyak petugas, navigasi dashboard.
+- [x] `uji-api.ps1` +4 pemeriksaan tamu tanpa header JSON.
+      **210/210 lulus**, DB kembali ke baseline.
+- [x] **`flutter test`: 49/49 lulus**, `flutter analyze`: No issues found.
+- [x] Rincian lengkap: `docs/LAPORAN_IMUNISASI_JADWAL.md`.
+
+### Masih terbuka (belum dikerjakan)
+- [ ] `interval_months` belum divalidasi server — dosis 2 masih bisa
+      dicatat sebelum dosis 1.
+- [ ] Belum ada endpoint `DELETE` untuk suntikan.
+- [ ] `vendor/bin/pint --test` gagal repo-wide (sudah ada sebelum fase ini;
+      sengaja tidak diperbaiki agar diff tidak membengkak).
+- [ ] `laravel/boost` belum dipasang.
+- [ ] Commit belum di-push (`main` masih `ahead 3` dari `origin/main`).
+- [ ] Akun nyasar `Haji haji` (NIK `1111222233334446`) ada di DB lokal;
+      sisa pengujian manual, tidak ada di source code.
+

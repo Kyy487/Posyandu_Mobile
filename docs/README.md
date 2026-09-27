@@ -32,3 +32,4 @@ Sistem Informasi Manajemen Terpadu untuk mendigitalisasi proses pencatatan keseh
 * `docs/API_CONTRACT.md` - Dokumentasi Endpoint API.
 * `docs/SETUP_LOG.md` - Riwayat konfigurasi dan fitur yang sudah selesai.
 * `docs/LAPORAN_ZSCORE_TRIGGER.md` - Laporan implementasi Z-Score WHO Weight-for-Age (backend + mobile).
+* `docs/LAPORAN_IMUNISASI_JADWAL.md` - Laporan fitur Imunisasi & Jadwal Posyandu (backend + mobile).
