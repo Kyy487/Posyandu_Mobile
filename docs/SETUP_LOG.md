@@ -125,14 +125,67 @@ Perbaikan ini menutup lubang privilege escalation dan menhomogenkan JSON envelop
 - [x] **`flutter test`: 49/49 lulus**, `flutter analyze`: No issues found.
 - [x] Rincian lengkap: `docs/LAPORAN_IMUNISASI_JADWAL.md`.
 
-### Masih terbuka (belum dikerjakan)
-- [ ] `interval_months` belum divalidasi server — dosis 2 masih bisa
-      dicatat sebelum dosis 1.
-- [ ] Belum ada endpoint `DELETE` untuk suntikan.
-- [ ] `vendor/bin/pint --test` gagal repo-wide (sudah ada sebelum fase ini;
-      sengaja tidak diperbaiki agar diff tidak membengkak).
-- [ ] `laravel/boost` belum dipasang.
-- [ ] Commit belum di-push (`main` masih `ahead 3` dari `origin/main`).
-- [ ] Akun nyasar `Haji haji` (NIK `1111222233334446`) ada di DB lokal;
-      sisa pengujian manual, tidak ada di source code.
+## Opsi A - Rapikan Kualitas (Selesai — 27 Sep 2026)
+- [x] Migration `2026_09_26_035000`: kolom `deleted_at` pada
+      `immunization_records`, unique penuh diganti **partial unique index**
+      `WHERE deleted_at IS NULL`. Rollback + apply ulang diverifikasi.
+- [x] Validasi urutan dosis di `ImmunizationController`: dosis N tidak boleh
+      lebih awal dari N-1, tidak boleh lebih baru dari N+1. Berlaku pada
+      `POST` dan `PATCH`. Error `422` + `errors.date_given`.
+- [x] `DELETE /kader/immunizations/{record}` (Kader-only, Ibu dapat `403`).
+      `ImmunizationRecord` memakai `SoftDeletes`, jadi pembatalan berjejak
+      audit dan dosing yang dibatalkan bisa dicatat ulang.
+- [x] Tombol "Batalkan suntikan" di form koreksi Kader, dengan dialog
+      konfirmasi. Endpoint saja tidak menyelesaikan masalah lapangan.
+- [x] `vendor/bin/pint` dijalankan repo-wide: 22 file dirapikan,
+      `pint --test` sekarang `passed`.
+- [x] `laravel/boost` v2.10.0 terpasang (`--dev`). `AGENTS.md` berisi guideline
+      tailored; MCP + 5 skill untuk OpenCode dan Claude Code.
+- [x] Data uji yang tertinggal di DB lokal dihapus (akun `Haji haji`, sisa
+      user `uji-api.ps1`, dan anak manual di luar whitelist seeder).
+      DB kembali ke baseline: **7 user, 3 anak, 0 archived, 0 suntikan, 3 agenda**.
+      DB kembali ke baseline: **7 user, 3 anak, 0 archived, 0 suntikan, 3 agenda**.
+- [x] `uji-api.ps1` +18 pemeriksaan (urutan dosis & pembatalan suntikan).
+      **228/228 lulus**, total API jadi **24 route**.
+- [x] **`flutter test`: 52/52 lulus** (3 contract test baru untuk respons
+      DELETE), `flutter analyze`: No issues found.
+- [x] `php -l` 53 file `app/database/config/routes/bootstrap`: 0 error.
+- [x] Scan karakter rusak 77 file: bersih.
+- [x] Scan karakter rusak: 7 sekuens mojibake diperbaiki di `Cara_menjalankan.md`
+      (`—`, `→`, `⋮` yang sebelumnya salah decode), 2 BOM UTF-8 dibuang, dan
+      working copy dinormalkan sesuai `.gitattributes`.
+- [x] `git push` — `main` sinkron dengan `origin/main`. Commit Opsi A:
+      `b856618` (fitur), `38d762b` (Pint), `4e15140` (Boost).
+
+### Masih terbuka
+- [ ] Notifikasi/pengingat agenda untuk Ibu (butuh push service).
+- [ ] Rekap suntikan per bulan untuk Kader.
+
+Rincian lengkap: `docs/LAPORAN_IMUNISASI_JADWAL.md` bagian 11.
+
+---
+
+## Catatan Environment
+
+| Config | Nilai |
+| :--- | :--- |
+| `API_BASE_URL` | `http://10.0.2.2:8000/api` (default emulator) |
+| `KADER_REGISTRATION_CODE` | isi di `.env` |
+| `POSYANDU_NAME` | `Posyandu Desa Sukamaju` |
+| `IMMUNIZATION_LATE_AFTER_MONTHS` | `2` |
+
+`php` dan `composer` **tidak ada di `PATH`** pada mesin ini. Path yang dipakai
+selama pengerjaan:
+
+| Tool | Path |
+| :--- | :--- |
+| PHP 8.4.25 | `C:\laragon\bin\php\php-8.4.25-Win32-vs17-x64\php.exe` |
+| Composer 2.4.1 | `C:\laragon\bin\composer\composer.phar` |
+| Flutter | `C:\src\flutter\bin\flutter.bat` |
+
+Akibatnya `vendor/bin/pint.bat` gagal dengan `'php' is not recognized`. Jalankan
+lewat path penuh, bukan `vendor/bin/pint.bat`.
+
+Efek sama untuk MCP server Boost: `.mcp.json` memanggil `php artisan boost:mcp`
+dengan command `php`, jadi PHP harus ada di `PATH` atau MCP tidak akan start.
 

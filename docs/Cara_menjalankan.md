@@ -1,4 +1,4 @@
-﻿# Cara Menjalankan Project
+# Cara Menjalankan Project
 
 Aplikasi mobile Smart Posyandu berbasis Flutter + backend Laravel.
 
@@ -22,7 +22,7 @@ http://127.0.0.1:8000/api/login
 ```
 
 Yang benar membalas `422` dengan `{"success":false,"message":"Validasi gagal.",...}`
-â€” itu artinya server sudah hidup, bukan error.
+— itu artinya server sudah hidup, bukan error.
 
 ## 2. Membuat Akun Kader
 
@@ -146,7 +146,7 @@ flutter pub get
 
 ### Nyalakan Android Emulator
 
-Buka Android Studio â†’ Device Manager, lalu jalankan emulator
+Buka Android Studio → Device Manager, lalu jalankan emulator
 (mis. `Posyandu API 37.2`). Tunggu sampai selesai booting dan sudah di
 Home Screen. Jangan jalankan Flutter saat emulator masih booting.
 
@@ -194,7 +194,7 @@ Cek IP komputer:
 ipconfig
 ```
 
-> Jangan pakai `localhost` atau `127.0.0.1` di device fisik â€” itu menunjuk ke
+> Jangan pakai `localhost` atau `127.0.0.1` di device fisik — itu menunjuk ke
 > perangkatnya sendiri, bukan ke komputer.
 
 ## 7. Uji API (opsional tapi berguna)
@@ -219,8 +219,8 @@ uji. Kalau kosong, skrip berhenti dengan pesan agar Anda mengisinya dulu.
 
 ### `adb.exe: failed to install ...` / `Can't find service: package`
 
-Emulator belum selesai booting. Lakukan **Cold Boot**: Android Studio â†’ Device
-Manager â†’ klik menu `â‹®` pada emulator â†’ **Cold Boot Now**.
+Emulator belum selesai booting. Lakukan **Cold Boot**: Android Studio → Device
+Manager → klik menu `⋮` pada emulator → **Cold Boot Now**.
 
 ### Aplikasi stuck di "Terjadi kesalahan koneksi jaringan"
 

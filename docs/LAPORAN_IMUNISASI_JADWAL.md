@@ -5,6 +5,10 @@
 **Tanggal:** 26 September 2026
 **Lingkup:** Backend (Laravel 13) + Mobile (Flutter)
 
+> **Catatan:** angka-angka pada dokumen ini menunjuk commit `23d0702`.
+> Dilanjutkan dengan **Opsi A (rapikan kualitas)** pada 27 September 2026 -
+> lihat bagian 11. Daftar temuan terbuka di bagian 7 juga sudah diperbarui.
+
 ---
 
 ## 1. Ringkasan
@@ -203,6 +207,10 @@ Dashboard Kader & Ibu, serta tombol imunisasi di `detail_anak_screen.dart`.
 
 ## 6. Hasil Verifikasi
 
+Angka di bawah adalah hasil pada commit `23d0702`. Setelah Opsi A, angka
+tersebut menjadi: **228/228** pemeriksaan API dan **52/52** test Flutter
+(lihat bagian 11).
+
 | Pemeriksaan | Hasil |
 | :--- | :--- |
 | `uji-api.ps1` | **210/210 lulus** |
@@ -224,18 +232,28 @@ Pemeriksaan idempotensi seeder (tanggal `+0`/`+3`/`+30`) — lulus.
 
 ## 7. Temuan yang Masih Terbuka
 
-Belum dikerjakan. Disimpan di sini supaya tidak hilang.
+Dua temuan masih terbuka. Sisanya sudah ditutup pada Opsi A (bagian 11).
 
 | # | Temuan | Dampak | Saran |
 | :--- | :--- | :--- | :--- |
-| 1 | **`interval_months` belum divalidasi server.** Dosis 2 masih bisa dicatat sebelum dosis 1 | Data urutan suntikan bisa tidak masuk akal | Validasi di `ImmunizationController@store`: `date_given` dosis N harus >= `date_given` dosis N-1 |
-| 2 | Tidak ada endpoint `DELETE` untuk suntikan | Salah input yang tidak bisa dikoreksi (misal salah pilih dosis) hanya bisa dibiarkan | Pertimbangkan `DELETE` khusus Kader, atau alasan bisnis kenapa cukup `PATCH` |
-| 3 | `vendor/bin/pint --test` gagal untuk seluruh repo | Style tidak seragam | Failure ini **sudah ada sebelum fase ini**. Sengaja tidak diperbaiki supaya diff tidak membengkak. Perbaiki di commit terpisah |
-| 4 | `laravel/boost` belum dipasang | AI tidak punya guideline tailored | Di luar scope; `AGENTS.md` masih berisi instruksi generik |
-| 5 | Commit belum di-push | `main` masih `ahead 3` dari `origin/main` | `git push` setelah Anda yakin |
-| 6 | Ada akun nyasar di DB lokal: `Haji haji` (NIK `1111222233334446`) | Tidak dari seeder, sisa pengujian manual | Aman dihapus; tidak ada di source code |
 | 7 | Tidak ada notifikasi/pengingat agenda | Ibu tidak tahu ada kegiatan posyandu tanpa membuka aplikasi | Lihat rencana Fase 4 |
 | 8 | Rekap jumlah suntikan per bulan untuk Kader | Kader tidak punya vista cepat "berapa anak yang belum lengkap" | Lihat rencana Fase 4 |
+
+### 7.1 Temuan yang Sudah Ditutup (Opsi A)
+
+| # | Temuan | Bagaimana ditutup |
+| :--- | :--- | :--- |
+| 1 | `interval_months` belum divalidasi server | `ImmunizationController` membandingkan `date_given` dengan dosis tetangga N-1 dan N+1 pada `POST` dan `PATCH` |
+| 2 | Tidak ada endpoint `DELETE` untuk suntikan | `DELETE /kader/immunizations/{record}` + soft delete + tombol di aplikasi |
+| 3 | `vendor/bin/pint --test` gagal untuk seluruh repo | Pint dijalankan untuk 22 file, sekarang lulus |
+| 4 | `laravel/boost` belum dipasang | Terpasang v2.10.0, guideline tailored masuk ke `AGENTS.md` |
+| 5 | Commit belum di-push | `git push` dijalankan, `main` sinkron dengan `origin/main` |
+| 6 | Akun nyasar `Haji haji` di DB lokal | Dihapus, DB kembali ke baseline seeder |
+
+**Catatan soal temuan #1:** validasi yang dipasang membandingkan tanggal yang
+benar-benar dicatat, bukan mengukum dari master `interval_months`. Alasannya
+anak boleh datang dengan dosis 2 tanpa dose 1 (dosis 1 diberikan di fasilitas
+lain), dan menolak kasus itu akan menghambat kerja lapangan.
 
 ---
 
@@ -279,14 +297,27 @@ powershell -ExecutionPolicy Bypass -File .\uji-api.ps1
 
 ## 9. Cara Rollback
 
+Untuk membatalkan **Fase 3** saja:
+
 ```powershell
 cd C:\laragon\www\posyandu\posyandu-backend
-php artisan migrate:rollback --step=5
+php artisan migrate:rollback --step=6   # 5 migration Fase 3 + 1 Opsi A
 ```
 
-Rollback menghapus 5 tabel/kolom fase ini. **Data imunisasi dan agenda akan
-hilang** — tabel `immunization_records` lama ikut dikembalikan ke bentuk
-sebelumnya. Backup dulu bila datanya sudah dipakai sungguhan.
+Untuk membatalkan **Opsi A** saja:
+
+```powershell
+php artisan migrate:rollback --step=1
+```
+
+Rollback `--step=1` mengembalikan unique constraint penuh pada
+`immunization_records` dan menghapus kolom `deleted_at`. Dijaga agar gagal
+dengan pesan jelas bila sudah ada suntikan yang dibatalkan, karena mengembalikan
+constraint penuh bisa melanggar unique.
+
+Rollback `--step=6` menghapus 5 tabel/kolom fase ini. **Data imunisasi dan
+agenda akan hilang** - tabel `immunization_records` lama ikut dikembalikan ke
+bentuk sebelumnya. Backup dulu bila datanya sudah dipakai sungguhan.
 
 Tidak perlu `migrate:fresh`.
 
@@ -340,3 +371,110 @@ docs/API_CONTRACT.md     (diubah — +270 baris)
 docs/Cara_menjalankan.md (diubah — +92 baris)
 docs/LAPORAN_IMUNISASI_JADWAL.md  (dokumen ini)
 ```
+
+---
+
+## 11. Opsi A - Rapikan Kualitas (27 September 2026)
+
+Fase lanjutan. Menutup 6 dari 8 temuan terbuka di bagian 7.
+
+| | |
+| :--- | :--- |
+| Migration baru | 1 |
+| Endpoint API baru | 1 (total API jadi **24 route**) |
+| File disentuh Pint | 22 |
+| Pemeriksaan API | **228/228 lulus** (dari 210) |
+| Test Flutter | **52/52 lulus** (dari 49) |
+| Commit | `b856618` fitur, `38d762b` Pint, `4e15140` Boost |
+
+Semua sudah di-push; `main` sinkron dengan `origin/main`.
+
+### 11.1 Validasi urutan dosis
+
+`ImmunizationController` menolak suntikan yang bertentangan dengan dosis
+tetangga pada vaksin yang sama:
+
+- Dosis N tidak boleh lebih awal dari dosis N-1 yang sudah tercatat
+- Dosis N tidak boleh lebih baru dari dosis N+1 yang sudah tercatat
+
+Berlaku pada `POST` dan `PATCH`. Record yang sedang diedit dikecualikan dari
+perbandingan. Error `422` dengan `errors.date_given`.
+
+Yang dibandingkan hanya dosis yang **sudah ada record-nya** - dosis yang belum
+dicatat tidak menghalangi, karena anak boleh datang dengan dosis 2 tanpa
+dose 1 (misalnya dosis 1 diberikan di fasilitas lain).
+
+### 11.2 Pembatalan suntikan (soft delete)
+
+Migration `2026_09_26_035000_add_soft_delete_to_immunization_records_table`
+menambahkan `deleted_at` dan mengganti unique constraint penuh dengan
+**partial unique index**:
+
+```sql
+CREATE UNIQUE INDEX immunization_child_type_unique
+  ON immunization_records (child_id, immunization_type_id)
+  WHERE deleted_at IS NULL;
+```
+
+Konsekuensinya: satu anak hanya bisa punya satu record **aktif** per dosis,
+tetapi boleh punya riwayat suntikan yang dibatalkan. Dosis yang dibatalkan
+bisa dicatat ulang tanpa bentrok.
+
+`ImmunizationRecord` memakai `SoftDeletes`, jadi pembatalan:
+
+- Tidak menghapus data fisik - ada jejak audit
+- Mengembalikan status dosis di checklist ke `belum` / `terlambat` sesuai
+  tanggal target
+- Otomatis membuat `findRecord` membalas `404` untuk record yang sudah
+  dibatalkan
+
+### 11.3 Tombol "Batalkan suntikan"
+
+Endpoint saja tidak menyelesaikan masalah asli - di lapangan kader hanya
+pakai aplikasi. Tombol ditambahkan di form koreksi (`imunisasi_screen.dart`),
+hanya muncul saat dosis sudah punya record, dengan dialog konfirmasi.
+
+Kasus yang ditangani: yang salah adalah **dosisnya**, bukan tanggal/batch.
+Solusinya tetap dua operasi terpisah - batalkan, lalu catat ulang.
+
+### 11.4 Kualitas alat
+
+| Yang dikerjakan | Hasil |
+| :--- | :--- |
+| `vendor/bin/pint` | 22 file dirapikan, `pint --test` sekarang `passed` |
+| `laravel/boost` v2.10.0 | Guideline tailored menggantikan instruksi generik di `AGENTS.md` |
+| `php -l` (53 file `app/database/config/routes/bootstrap`) | 0 error |
+| Scan karakter rusak (97 file) | 7 mojibake diperbaiki, 2 BOM dibuang, 0 tersisa |
+| Line ending | Working copy dinormalkan sesuai `.gitattributes` |
+| DB lokal | Kembali ke 7 user, 3 anak, 0 archived, 0 suntikan |
+
+Pint memperbaiki antara lain `line_ending` (CRLF → LF), `concat_space`,
+`ordered_imports`, dan `heredoc_to_nowdoc`. Semua perubahan bersifat format;
+`php -l`, `migrate:status`, `route:list`, dan `uji-api.ps1` dijalankan ulang
+sesudahnya.
+
+### 11.5 Temuan tambahan: mojibake yang terlewat
+
+Scan karakter rusak di fase sebelumnya hanya mencari huruf CJK, sehingga tidak
+menangkap mojibake. Yang ditemukan: 7 sekuens di `Cara_menjalankan.md` yang
+mestinya `—` (em dash), `→`, dan `⋮`, tapi muncul sebagai tiga karakter
+berantakan karena UTF-8 pernah dibaca sebagai Windows-1252 lalu ditulis ulang.
+
+Detector yang dipakai sekarang mengenali pola yang lebih umum: 3 karakter
+yang kalau di-encode ke CP1252 membentuk satu sekuens UTF-8 3-byte yang valid,
+atau 2 karakter membentuk sekuens 2-byte. Seluruh repo (97 file) sudah
+bersih; emoji yang ada di dokumen terbaca sebagai surrogate pair dan tidak
+terganggu.
+
+Dua file juga punya BOM UTF-8 di awal file (`Cara_menjalankan.md`,
+`form_agenda.dart`) - dibuang supaya konsisten dengan file lain.
+
+### 11.6 Catatan menjalankan Boost di mesin ini
+
+`boost:install` menulis `.mcp.json` dan `opencode.json` yang memanggil
+`php artisan boost:mcp` dengan command `php`. Command itu harus ada di `PATH`.
+Kalau tidak, MCP server tidak akan start - tambahkan PHP ke `PATH` atau panggil
+dengan path penuh.
+
+`.agents/` dan `.claude/` berisi salinan skill yang sama (~148 KB masing-masing)
+untuk agent berbeda. Keduanya memang di-generate dan wajar di-commit.

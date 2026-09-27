@@ -91,6 +91,7 @@ Header Wajib: `Authorization: Bearer {token}` & `Accept: application/json`
 | `DELETE` | `/kader/measurements/{id}` | Hapus penimbangan |
 | `POST` | `/kader/children/{child}/immunizations` | Catat suntikan — **[lihat bagian imunisasi](#imunisasi)** |
 | `PATCH` | `/kader/immunizations/{record}` | Koreksi suntikan yang sudah tercatat |
+| `DELETE` | `/kader/immunizations/{record}` | Batalkan suntikan (soft delete) |
 | `POST` | `/kader/schedules` | **[Agenda posyandu](#jadwal-posyandu-agenda-kegiatan)** — buat agenda |
 | `PATCH`/`DELETE` | `/kader/schedules/{id}` | Ubah / hapus agenda |
 
@@ -378,12 +379,43 @@ Bila dosis sudah disuntik, `record` berisi `id`, `date_given`, `batch_number`,
 
 Respons `201` berisi objek suntikan yang baru dibuat.
 
+### Validasi urutan dosis (POST dan PATCH)
+
+Server membandingkan `date_given` dengan suntikan yang **sudah tercatat** pada
+dosis tetangga N-1 dan N+1 untuk vaksin dengan `code` yang sama.
+
+Aturan: dosis N tidak boleh lebih awal dari dosis N-1, dan tidak boleh lebih
+baru dari dosis N+1.
+
+```json
+{
+  "success": false,
+  "message": "Validasi gagal.",
+  "errors": {
+    "date_given": [
+      "Tanggal suntikan tidak boleh lebih awal dari Hepatitis B (Dosis 1) yang tercatat pada 2026-03-01."
+    ]
+  }
+}
+```
+
+**Kenapa tidak mengukum dari master `interval_months`:** anak boleh datang
+dengan dosis 2 tanpa dose 1 di sistem ini, misalnya karena dosis 1 diberikan
+di fasilitas lain atau catatan hilang. Menolak kasus itu akan menghambat
+pekerjaan di lapangan, jadi yang dibandingkan hanya dosis yang ada record-nya.
+
+Record yang sudah dibatalkan (soft delete) tidak ikut dibandingkan.
+
 ### `PATCH /kader/immunizations/{record}`
 
 Partial update: `date_given`, `batch_number`, `notes`. **Dosis tidak bisa
-dipindah lewat endpoint ini** — memindahkan catatan ke dosis lain berarti
-membatalkan satu dosis dan mencatat yang lain, dua operasi terpisah di
+dipindah lewat endpoint ini** - memindahkan catatan ke dosis lain berarti
+membatalkan satu dosis lalu mencatat yang lain, dua operasi terpisah di
 lapangan. Bila tidak ada field yang dikirim, `422`.
+
+Validasi urutan dosis di atas ikut dijalankan pada `PATCH`, dan record yang
+sedang diedit dikecualikan dari perbandingan agar tidak dibandingkan dengan
+dirinya sendiri.
 
 | HTTP | Kondisi | `message` |
 | :--- | :--- | :--- |
@@ -391,7 +423,41 @@ lapangan. Bila tidak ada field yang dikirim, `422`.
 | `404` | anak / record tidak ada | `Data yang diminta tidak ditemukan.` |
 | `422` | dosis sudah tercatat untuk anak ini | pesan `immunization_type_id` (dibatasi unique `immunization_child_type_unique`) |
 | `422` | tanggal bukan `YYYY-MM-DD` | pesan `date_given` |
+| `422` | tanggal mendahului / mendului dosis tetangga | `Validasi gagal.` + `errors.date_given` |
 | `422` | `PATCH` tanpa field | `Tidak ada data yang diperbarui.` |
+
+### `DELETE /kader/immunizations/{record}`
+
+Membatalkan suntikan yang tercatat. Record **tidak dihapus fisik** - hanya
+ditandai tidak aktif (soft delete), jadi ada jejak auditnya.
+
+Setelah dibatalkan, dosis tersebut kembali bisa dicatat ulang tanpa bentrok
+dengan unique constraint, karena `immunization_child_type_unique` sekarang
+huni oleh record aktif saja (`WHERE deleted_at IS NULL`).
+
+Kader-only. Di aplikasi, ini dipakai tombol "Batalkan suntikan" pada form
+koreksi - kasus ketika yang salah adalah dosisnya, bukan tanggal/batch.
+
+Request body: tidak ada.
+
+Respons `200`:
+
+```json
+{
+  "success": true,
+  "message": "Catatan imunisasi berhasil dibatalkan.",
+  "data": { "id": "01a0dc0d-67eb-71e5-81c9-edecb72edeed" }
+}
+```
+
+| HTTP | Kondisi | `message` |
+| :--- | :--- | :--- |
+| `403` | Ibu memanggil endpoint `/kader/*` | `Akses ditolak.` |
+| `404` | record tidak ada, **sudah pernah dibatalkan**, atau id bukan UUID | `Data imunisasi tidak ditemukan.` |
+| `500` | kesalahan server | `Terjadi kesalahan server. Silakan coba lagi.` |
+
+Tidak ada `422` di endpoint ini - tidak ada field yang divalidasi saat
+pembatalan.
 
 ## Jadwal Posyandu (Agenda Kegiatan)
 
@@ -591,7 +657,7 @@ Rincian perhitungan, klasifikasi `status_gizi`, dan cara rollback ada di
 | Layar | File | Endpoint |
 | :--- | :--- | :--- |
 | Status imunisasi (Ibu) | `lib/screens/ibu/status_imunisasi_screen.dart` | `GET /children/{id}/immunizations` |
-| Imunisasi + input (Kader) | `lib/screens/kader/imunisasi_screen.dart` | `GET /children/{id}/immunizations`, `POST` + `PATCH` |
+| Imunisasi + input (Kader) | `lib/screens/kader/imunisasi_screen.dart` | `GET /children/{id}/immunizations`, `POST` + `PATCH` + `DELETE` |
 | Jadwal posyandu (Ibu) | `lib/screens/ibu/jadwal_posyandu_screen.dart` | `GET /schedules` |
 | Jadwal posyandu (Kader) | `lib/screens/kader/jadwal_posyandu_screen.dart` | `GET /schedules`, `GET /petugas`, `POST`/`PATCH`/`DELETE` |
 

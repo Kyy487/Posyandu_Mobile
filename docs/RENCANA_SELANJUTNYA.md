@@ -29,24 +29,30 @@ fondasi data dan 2 fitur operasional.
 
 ---
 
-## Opsi A - Rapikan Kualitas (Disarankan)
+## Opsi A - Rapikan Kualitas (SELESAI)
 
 | | |
 | :--- | :--- |
 | Estimasi | 1 sampai 2 hari |
 | Kesulitan | Mudah |
 | Risiko | Sangat rendah |
+| Status | **Selesai - 27 September 2026** |
 
-- [ ] `vendor/bin/pint` diperbaiki untuk seluruh repo (commit terpisah)
-- [ ] `laravel/boost` dipasang
-- [ ] Validasi `interval_months` (dosis N tidak boleh sebelum dosis N-1)
-- [ ] Endpoint `DELETE /kader/immunizations/{id}`
-- [ ] `git push`
-- [ ] Hapus akun nyasar di DB lokal
+Rincian hasil ada di `LAPORAN_IMUNISASI_JADWAL.md`.
 
-**Kenapa disarankan:** 6 temuan terbuka di `LAPORAN_IMUNISASI_JADWAL.md`
-semuanya bisa ditutup. Setelah ini fondasi benar-benar bersih, jadi fitur
-berikutnya tidak menumpuk masalah.
+- [x] `vendor/bin/pint` dijalankan untuk seluruh repo (commit terpisah)
+- [x] `laravel/boost` dipasang
+- [x] Validasi urutan dosis (dosis N tidak boleh sebelum dosis N-1)
+- [x] Endpoint `DELETE /kader/immunizations/{id}` + tombol "Batalkan suntikan" di aplikasi
+- [x] Data uji yang tertinggal di DB lokal dihapus (kembali ke 7 user, 3 anak)
+- [x] Dokumentasi diperbarui
+- [x] `git push` — `main` sinkron dengan `origin/main`
+
+**Catatan:** validasi yang dipasang membandingkan tanggal yang dicatat pada
+dosis tetangga N-1 dan N+1, bukan mengukum dari master `interval_months`.
+Alasannya ada di bagian "Temuan Selesai" pada laporan.
+
+**Saran urutan berikutnya:** Opsi C (catatan keluhan), lalu Opsi E (rekap).
 
 ---
 
@@ -65,7 +71,7 @@ anak yang bisa dibuka kader kapan saja.
 - Layar timeline, contoh: "24 Sep 2026 - Penimbangan, BB 6.1 kg, Normal"
 - Export PDF sederhana
 
-**Dependensi:** Opsi A (terutama validasi `interval_months`)
+**Dependensi:** Opsi A sudah selesai, jadi penghalang di sini sudah terpecahkan.
 
 ---
 
@@ -164,7 +170,7 @@ terlebih dulu sebelum menambah kompleksitas sebesar ini.
 
 ## Saran Urutan
 
-1. **Opsi A** (rapikan) - 1 sampai 2 hari, menutup semua temuan terbuka
+1. ~~**Opsi A** (rapikan)~~ - **selesai 27 September 2026**
 2. **Opsi C** (catatan keluhan) - paling murah, paling sering dipakai
 3. **Opsi E** (rekap) - paling bernilai operasional
 4. **Opsi B** (buku medis) - fondasi rekam medis lengkap
