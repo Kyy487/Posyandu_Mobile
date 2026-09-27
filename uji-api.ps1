@@ -525,6 +525,85 @@ $r = Req 'PATCH' "$base/kader/immunizations/bukan-uuid" $tK @{ date_given = '202
 Check "PATCH id ngawur -> 404" 404 $r.Status
 
 # =====================================================================
+Group "9b-2. Urutan dosis & pembatalan suntikan"
+# Dua hal yang ditutup pada Opsi A:
+#  1. interval_months divalidasi: dosis N tidak boleh lebih tua dari
+#     dosis N-1 pada vaksin yang sama (divalidasi juga saat PATCH).
+#  2. DELETE /kader/immunizations/{record} untuk membatalkan suntikan yang
+#     salah pilih dosis. Soft delete + unique partial index, jadi dosis yang
+#     dibatalkan boleh dicatat ulang.
+# =====================================================================
+
+$r = Req 'GET' "$base/immunization-types" $tK $null
+$typeMR2 = $null
+foreach ($d in $r.Body.data) {
+    if ($d.code -eq 'MR' -and $d.dose_number -eq 2) { $typeMR2 = $d.id }
+}
+Check "ada master MR dosis 2" $true ($typeMR2 -ne $null)
+
+# Tanggal tetap, biar urutan assertion jelas dan tidak ikut berubah harian.
+$tMR1 = '2026-01-10'
+$tMR2 = '2026-01-20'
+
+$r = Req 'POST' "$base/kader/children/$idA/immunizations" $tK @{ immunization_type_id = $typeMR1; date_given = $tMR1 }
+Check "catat MR dosis 1 -> 201" 201 $r.Status
+$idMR1 = $r.Body.data.id
+
+# Dosis 2 dengan tanggal lebih tua dari dosis 1 harus ditolak.
+$r = Req 'POST' "$base/kader/children/$idA/immunizations" $tK @{ immunization_type_id = $typeMR2; date_given = '2026-01-05' }
+Check "dosis 2 lebih tua dari dosis 1 -> 422" 422 $r.Status
+Check "  pesan ditaruh di date_given" $true ($r.Body.errors.date_given -ne $null)
+Note "sebelumnya tanggal 2026-01-05 untuk dosis 2 diterima begitu saja"
+
+# Tanggal sama dengan dosis sebelumnya tetap boleh: suntik massal bisa
+# di hari yang sama.
+$r = Req 'POST' "$base/kader/children/$idA/immunizations" $tK @{ immunization_type_id = $typeMR2; date_given = $tMR2 }
+Check "dosis 2 tanggal wajar -> 201" 201 $r.Status
+$idMR2 = $r.Body.data.id
+
+# PATCH tidak boleh dipakai menembus validasi urutan.
+$r = Req 'PATCH' "$base/kader/immunizations/$idMR1" $tK @{ date_given = '2026-01-25' }
+Check "PATCH dosis 1 ke tanggal setelah dosis 2 -> 422" 422 $r.Status
+$r = Req 'PATCH' "$base/kader/immunizations/$idMR1" $tK @{ date_given = '2026-01-15' }
+Check "PATCH dosis 1 ke tanggal antara -> 200" 200 $r.Status
+
+# Pembatalan suntikan.
+$r = Req 'DELETE' "$base/kader/immunizations/$idMR2" $tA $null
+Check "Ibu batalkan suntikan -> 403" 403 $r.Status
+$r = Req 'DELETE' "$base/kader/immunizations/bukan-uuid" $tK $null
+Check "DELETE id ngawur -> 404" 404 $r.Status
+$r = Req 'DELETE' "$base/kader/immunizations/11111111-2222-3333-4444-555555555555" $tK $null
+Check "DELETE id uuid tidak ada -> 404" 404 $r.Status
+$r = Req 'DELETE' "$base/kader/immunizations/$idMR2" $tK $null
+Check "DELETE suntikan -> 200" 200 $r.Status
+Check "  id agenda dikembalikan" $idMR2 $r.Body.data.id
+
+# Setelah dibatalkan, dosis itu tidak lagi 'sudah' dan record-nya null.
+# Anak uji berumur ~32 bulan, sedangkan MR dosis 2 punya target 18 bulan,
+# jadi tanpa record statusnya 'terlambat', bukan 'belum'.
+$r = Req 'GET' "$base/children/$idA/immunizations" $tA $null
+# Item checklist tidak punya field `id`; penandanya `immunization_type_id`.
+$itemMR2 = $null
+foreach ($d in $r.Body.data.checklist) { if ($d.immunization_type_id -eq $typeMR2) { $itemMR2 = $d } }
+Check "dosis dibatalkan -> bukan 'sudah' lagi" 'terlambat' $itemMR2.status
+Check "  record jadi null" $null $itemMR2.record
+Note "soft delete: baris tetap ada di DB, hanya deleted_at terisi"
+
+# Partial unique index: dosis yang dibatalkan boleh dicatat ulang.
+$r = Req 'POST' "$base/kader/children/$idA/immunizations" $tK @{ immunization_type_id = $typeMR2; date_given = $tMR2 }
+Check "catat ulang dosis yang dibatalkan -> 201" 201 $r.Status
+$idMR2b = $r.Body.data.id
+$r = Req 'GET' "$base/children/$idA/immunizations" $tA $null
+$itemMR2 = $null
+foreach ($d in $r.Body.data.checklist) { if ($d.immunization_type_id -eq $typeMR2) { $itemMR2 = $d } }
+Check "  setelah dicatat ulang -> 'sudah'" 'sudah' $itemMR2.status
+Check "  sisa_bulan null lagi" $null $itemMR2.sisa_bulan
+
+# Batalkan dua kali harus 404, bukan diam-diam sukses.
+$r = Req 'DELETE' "$base/kader/immunizations/$idMR2" $tK $null
+Check "DELETE record yang sudah dibatalkan -> 404" 404 $r.Status
+
+# =====================================================================
 Group "9c. Daftar petugas (privasi NIK)"
 # Endpoint terbuka untuk Ibu & Kader, jadi NIK tidak boleh bocor.
 # =====================================================================

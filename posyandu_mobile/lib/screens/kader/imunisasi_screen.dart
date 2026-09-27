@@ -222,8 +222,8 @@ class _ImunisasiScreenState extends State<ImunisasiScreen> {
 /// Form pencatatan / koreksi satu dosis.
 ///
 /// Mengubah dosis yang sudah ada memakai PATCH ke record tersebut, bukan
-/// POST baru. Dosis tidak bisa dipindah lewat form ini karena backend
-/// tidak punya endpoint untuk memindahkan catatan antar dosis.
+/// POST baru. Memindahkan catatan ke dosis lain tetap dua operasi terpisah:
+/// batalkan dulu, lalu catat ulang pada dosis yang benar.
 class _FormImunisasi extends StatefulWidget {
   final String childId;
   final ImmunizationItem item;
@@ -247,6 +247,7 @@ class _FormImunisasiState extends State<_FormImunisasi> {
   late DateTime _tanggal;
 
   bool _isSaving = false;
+  bool _isDeleting = false;
 
   @override
   void initState() {
@@ -327,6 +328,76 @@ class _FormImunisasiState extends State<_FormImunisasi> {
 
     String pesan = result['message']?.toString() ?? 'Gagal menyimpan.';
     final errors = result['errors'];
+    if (errors is Map) {
+      pesan = errors.values
+          .map((e) => e is List ? e.join(', ') : e.toString())
+          .join('\n');
+    }
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(pesan),
+        backgroundColor: Colors.red,
+        duration: const Duration(seconds: 4),
+      ),
+    );
+  }
+
+  /// Membatalkan suntikan yang tercatat.
+  ///
+  /// Dipakai saat yang salah adalah dosisnya, bukan tanggal/batch/catatan -
+  /// kasus yang tidak bisa ditangani PATCH. Konfirmasi obligatory karena
+  /// di lapangan orang salah ketuk bisa berakibat membatalkan catatan benar.
+  Future<void> _hapus() async {
+    final record = widget.item.record;
+    if (record == null) return;
+
+    final konfirmasi = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Batalkan suntikan?'),
+        content: Text(
+          'Catatan suntikan untuk "${widget.item.label}" akan dibatalkan.\n\n'
+          'Data tidak dihapus permanen, dan dosis ini bisa dicatat ulang '
+          'nanti bila memang belum diberikan.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Batal'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text('Ya, batalkan'),
+          ),
+        ],
+      ),
+    );
+
+    if (konfirmasi != true) return;
+
+    setState(() => _isDeleting = true);
+
+    final result = await widget.service.deleteRecord(recordId: record.id);
+
+    if (!mounted) return;
+
+    setState(() => _isDeleting = false);
+
+    if (result['success'] == true) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(result['message']?.toString() ?? 'Suntikan dibatalkan.'),
+          backgroundColor: Colors.green,
+        ),
+      );
+      Navigator.of(context).pop(true);
+      return;
+    }
+
+    final errors = result['errors'];
+    var pesan = result['message']?.toString() ?? 'Gagal membatalkan suntikan.';
     if (errors is Map) {
       pesan = errors.values
           .map((e) => e is List ? e.join(', ') : e.toString())
@@ -445,10 +516,33 @@ class _FormImunisasiState extends State<_FormImunisasi> {
               ),
               if (isEdit) ...[
                 const SizedBox(height: 4),
-                const Text(
-                  'Catatan: bila yang salah adalah dosisnya, hapus catatan ini '
-                  'lewat backend - dosis tidak bisa dipindah dari layar ini.',
+                Text(
+                  'Bila yang salah adalah dosisnya, gunakan "Batalkan suntikan" '
+                  'di bawah lalu catat ulang pada dosis yang benar.',
                   style: TextStyle(fontSize: 11, color: Colors.grey),
+                ),
+                const SizedBox(height: 12),
+                OutlinedButton.icon(
+                  onPressed: _isSaving || _isDeleting ? null : _hapus,
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: Colors.red,
+                    side: const BorderSide(color: Colors.red),
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                  ),
+                  icon: _isDeleting
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.red,
+                          ),
+                        )
+                      : const Icon(Icons.delete_outline),
+                  label: Text(
+                    'Batalkan suntikan',
+                    style: const TextStyle(fontSize: 14),
+                  ),
                 ),
               ],
               const SizedBox(height: 20),

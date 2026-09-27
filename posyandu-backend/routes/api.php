@@ -1,16 +1,15 @@
 <?php
 
-use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Route;
-use App\Http\Middleware\RoleCheck;
-
-//-- Area Controller --//
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\ChildController;
 use App\Http\Controllers\Api\ImmunizationController;
+// -- Area Controller --//
 use App\Http\Controllers\Api\MeasurementController;
 use App\Http\Controllers\Api\PetugasController;
 use App\Http\Controllers\Api\PosyanduScheduleController;
+use App\Http\Middleware\RoleCheck;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Route;
 
 /*
 |--------------------------------------------------------------------------
@@ -37,7 +36,6 @@ Route::post('/register', [AuthController::class, 'register'])
 
 Route::post('/login', [AuthController::class, 'login'])
     ->middleware('throttle:'.config('posyandu.login_throttle'));
-
 
 // ---------------------------------------------------------------------
 // Route Terlindungi (Protected) - Wajib Bearer Token
@@ -116,6 +114,11 @@ Route::middleware('auth:sanctum')->group(function () {
         // unique constraint `immunization_child_type_unique` melarang dua
         // record untuk dosis yang sama pada satu anak.
         Route::patch('/kader/immunizations/{record}', [ImmunizationController::class, 'update']);
+
+        // Batalkan suntikan (soft delete). Endpoint ini yang menutup kasus
+        // "salah pilih dosis": PATCH sengaja tidak bisa memindahkan
+        // `immunization_type_id`, jadi tanpa DELETE salah pilihan jadi permanen.
+        Route::delete('/kader/immunizations/{record}', [ImmunizationController::class, 'destroy']);
 
         // -----------------------------------------------------------------
         // AREA JADWAL POSYANDU - Kader membuat, mengubah, menghapus

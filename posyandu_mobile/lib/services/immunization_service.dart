@@ -190,6 +190,32 @@ class ImmunizationService {
     }
   }
 
+  /// Membatalkan suntikan yang tercatat, misalnya karena salah pilih dosis.
+  ///
+  /// Record tidak dihapus fisik di server, hanya ditandai tidak aktif
+  /// (soft delete). Karena itu dosis yang sama bisa dicatat ulang tanpa
+  /// bentrok dengan unique constraint.
+  Future<Map<String, dynamic>> deleteRecord({
+    required String recordId,
+  }) async {
+    final headers = await _authHeaders(json: true);
+    if (headers == null) return _sessionEnded();
+
+    try {
+      final response = await http.delete(
+        Uri.parse('$baseUrl${ApiConstants.kaderImmunizationsEndpoint}'
+            '/$recordId'),
+        headers: headers,
+      );
+
+      if (response.statusCode == 401) return _sessionEnded();
+
+      return _result(response, 'Gagal membatalkan imunisasi.');
+    } on SocketException {
+      return _offlineError();
+    }
+  }
+
   /// Bentuk hasil seragam dari respons server.
   Map<String, dynamic> _result(
     http.Response response,

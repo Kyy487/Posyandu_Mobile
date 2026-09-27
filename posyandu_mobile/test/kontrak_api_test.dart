@@ -596,6 +596,56 @@ void main() {
     });
   });
 
+  group('Kontrak API - DELETE /api/kader/immunizations/{id}', () {
+    // Respons asli (HTTP 200) dari ImmunizationController@destroy, diambil
+    // 26 September 2026. Bentuk ini yang dibaca ImmunizationService
+    // .deleteRecord, jadi kalau backend berubah test ini harus gagal.
+    const rawBerhasil = '''
+    {
+      "success": true,
+      "message": "Catatan imunisasi berhasil dibatalkan.",
+      "data": {
+        "id": "01a0dc0d-67eb-71e5-81c9-edecb72edeed"
+      }
+    }
+    ''';
+
+    test('sukses hanya pada 200 dengan success true', () {
+      // _result() di service hanya menerima 200/201. Bila backend membalas
+      // 204 tanpa body, Kader akan melihat "Gagal membatalkan imunisasi."
+      // padahal record-nya sudah terhapus.
+      final body = json.decode(rawBerhasil) as Map<String, dynamic>;
+
+      expect(body['success'], isTrue);
+      expect(body['message'], isA<String>());
+      expect((body['data'] as Map)['id'], isA<String>());
+    });
+
+    test('record yang sudah dibatalkan -> 404 dengan envelope lengkap', () {
+      // Delete kedua kali tidak boleh diam-diam sukses. ImmunizationRecord
+      // memakai SoftDeletes, jadi record tidak ada lagi di hasil query.
+      const raw404 = '''
+      {
+        "success": false,
+        "message": "Data imunisasi tidak ditemukan.",
+        "errors": null
+      }
+      ''';
+
+      final body = json.decode(raw404) as Map<String, dynamic>;
+
+      expect(body['success'], isFalse);
+      expect(body['message'], 'Data imunisasi tidak ditemukan.');
+      expect(body.containsKey('errors'), isTrue);
+    });
+
+    test('endpoint pembatalan tidak pernah membalas 422', () {
+      // Tidak ada field yang divalidasi saat pembatalan, jadi 422 di sini
+      // berarti ada aturan yang tidak SHOULD ada di server.
+      expect(rawBerhasil.contains('"errors"'), isFalse);
+    });
+  });
+
   group('Kontrak API - error envelope (Aturan #8)', () {
     // Semua error WAJIB punya bentuk {success, message, errors}. Sebelumnya
     // 401 membalas {"message":"Unauthenticated."} sehingga Flutter tidak

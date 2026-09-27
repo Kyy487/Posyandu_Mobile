@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 /**
  * Satu catatan suntikan untuk satu anak pada satu dosis master.
@@ -19,12 +20,20 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * Catatan: satu anak hanya boleh punya satu baris untuk satu dosis, dijamin
  * unique constraint `immunization_child_type_unique` di database. Karena itu
  * koreksi salah input dilakukan lewat PATCH tanggal/batch, bukan hapus lalu
- * catat ulang. Soft delete sengaja tidak dipakai, konsisten dengan
- * `Measurement`.
+ * catat ulang.
+ *
+ * Soft delete dipakai sejak migration `2026_09_26_035000`. Alasannya `PATCH`
+ * memang tidak bisa memindahkan `immunization_type_id`, jadi kasus "kader
+ * salah pilih dosis" tidak punya jalur perbaikan tanpa pembatalan. Baris yang
+ * dibatalkan tidak hilang fisik, jadi riwayat kesehatan tetap bisa diaudit.
+ *
+ * Soft delete butuh partial unique index: `immunization_child_type_unique`
+ * hanya berlaku untuk baris dengan `deleted_at IS NULL`. Tanpa itu, dosis yang
+ * sudah dibatalkan akan tetap memblokir pencatatan ulang.
  */
 class ImmunizationRecord extends Model
 {
-    use HasFactory, HasUuids;
+    use HasFactory, HasUuids, SoftDeletes;
 
     protected $fillable = [
         'child_id',

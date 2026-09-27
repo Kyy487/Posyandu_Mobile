@@ -80,7 +80,7 @@ class DatabaseSeeder extends Seeder
     {
         $user = User::firstOrNew(['nik' => $nik]);
 
-        if (!$user->exists) {
+        if (! $user->exists) {
             $user->name = $name;
             $user->role = $role;
             $user->password = Hash::make('password123');
@@ -109,7 +109,7 @@ class DatabaseSeeder extends Seeder
         ];
 
         foreach ($anak as [$nik, $name, $dob, $gender, $weight, $height, $userId]) {
-            if (!$userId) {
+            if (! $userId) {
                 continue;
             }
 
@@ -136,10 +136,15 @@ class DatabaseSeeder extends Seeder
      * tidak pernah bisa membuat dua baris untuk dosis yang sama.
      *
      * `interval_months` = jarak dari dosis sebelumnya dalam bulan; null untuk
-     * dosis pertama. Saat ini hanya dikirim ke klien untuk ditampilkan di
-     * form (jarak antar dosis). Validasi "dosis 2 tidak boleh dicatat sebelum
-     * dosis 1" BELUM ada di server - lihat bagian Temuan Terbuka di
-     * docs/LAPORAN_IMUNISASI_JADWAL.md.
+     * dosis pertama. Nilai ini hanya dikirim ke klien untuk ditampilkan di
+     * form (jarak antar dosis).
+     *
+     * Catatan: nilai `interval_months` ini TIDAK dipakai server untuk
+     * menghitung tanggal ideal. Validasi yang ada membandingkan tanggal yang
+     * benar-benar dicatat pada dosis tetangga N-1 dan N+1 pada vaksin yang
+     * sama - bukan mengukum dari `interval_months`. Anak boleh datang dengan
+     * dosis 2 tanpa dose 1 (misalnya dosis 1 diberikan di fasilitas lain),
+     * jadi menolak berdasarkan master interval akan menghambat.
      */
     private function seedImmunizationTypes(): void
     {
@@ -204,7 +209,7 @@ class DatabaseSeeder extends Seeder
         $creator = User::where('role', 'kader')->orderBy('nik')->first();
         $petugas = User::where('role', 'kader')->pluck('id');
 
-        if (!$creator || $petugas->isEmpty()) {
+        if (! $creator || $petugas->isEmpty()) {
             return;
         }
 

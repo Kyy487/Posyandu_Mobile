@@ -11,6 +11,7 @@ use App\Services\ImmunizationChecklistService;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
+use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
@@ -20,23 +21,23 @@ use Illuminate\Validation\ValidationException;
  * Pencatatan imunisasi anak.
  *
  * Endpoint yang tersedia:
- *  - `GET  /children/{child}/immunizations`        checklist (Ibu & Kader)
- *  - `GET  /immunization-types`                   master dosis (Ibu & Kader)
- *  - `POST /kader/children/{child}/immunizations` catat suntikan (Kader)
- *  - `PATCH /kader/immunizations/{record}`        koreksi suntikan (Kader)
+ *  - `GET    /children/{child}/immunizations`        checklist (Ibu & Kader)
+ *  - `GET    /immunization-types`                   master dosis (Ibu & Kader)
+ *  - `POST   /kader/children/{child}/immunizations` catat suntikan (Kader)
+ *  - `PATCH  /kader/immunizations/{record}`        koreksi suntikan (Kader)
+ *  - `DELETE /kader/immunizations/{record}`        batalkan suntikan (Kader)
  *
  * Catatan desain penting:
  *  - Status `sudah`/`belum`/`terlambat` DI HITUNG di PHP
  *    (`ImmunizationChecklistService`), tidak disimpan di database.
- *  - Koreksi memakai PATCH, bukan hapus-lalu-simpan, karena unique constraint
- *    `immunization_child_type_unique` melarang dua record untuk dosis yang
- *    sama pada satu anak.
+ *  - Koreksi field biasa memakai PATCH. Dose tidak bisa dipindah lewat PATCH,
+ *    jadi kasus "salah pilih dosis" ditangani DELETE (soft delete).
+ *  - `assertDoseOrder` menjaga agar tanggal suntikan tidak lebih tua dari
+ *    dosis sebelumnya pada vaksin yang sama.
  */
 class ImmunizationController extends Controller
 {
-    public function __construct(private readonly ImmunizationChecklistService $checklist)
-    {
-    }
+    public function __construct(private readonly ImmunizationChecklistService $checklist) {}
 
     /**
      * Checklist imunisasi untuk satu anak.
@@ -49,7 +50,7 @@ class ImmunizationController extends Controller
 
         $child = $this->findAccessibleChild($childId, $user, 'melihat');
 
-        if (!$child instanceof Child) {
+        if (! $child instanceof Child) {
             return $child;
         }
 
@@ -107,7 +108,7 @@ class ImmunizationController extends Controller
 
         $child = $this->findAccessibleChild($childId, $user, 'mencatat imunisasi');
 
-        if (!$child instanceof Child) {
+        if (! $child instanceof Child) {
             return $child;
         }
 
@@ -145,6 +146,16 @@ class ImmunizationController extends Controller
                 ], 422);
             }
 
+            // Tanggal harus masuk akal terhadap dosis tetangga: tidak boleh lebih
+            // tua dari dosis sebelumnya, tidak boleh lebih baru dari dosis
+            // berikutnya.
+            $type = ImmunizationType::find($validated['immunization_type_id']);
+            $orderError = $this->assertDoseOrder($child, $type, $validated['date_given']);
+
+            if ($orderError !== null) {
+                return $orderError;
+            }
+
             $record = ImmunizationRecord::create([
                 'child_id' => $child->id,
                 'kader_id' => $user->id,
@@ -179,7 +190,7 @@ class ImmunizationController extends Controller
                 ], 422);
             }
 
-            Log::error('Gagal menyimpan imunisasi: ' . $e->getMessage(), [
+            Log::error('Gagal menyimpan imunisasi: '.$e->getMessage(), [
                 'user_id' => $user->id,
                 'child_id' => $child->id,
                 'exception' => $e,
@@ -191,7 +202,7 @@ class ImmunizationController extends Controller
                 'errors' => null,
             ], 500);
         } catch (\Throwable $e) {
-            Log::error('Gagal menyimpan imunisasi: ' . $e->getMessage(), [
+            Log::error('Gagal menyimpan imunisasi: '.$e->getMessage(), [
                 'user_id' => $user->id,
                 'child_id' => $child->id,
                 'exception' => $e,
@@ -219,7 +230,7 @@ class ImmunizationController extends Controller
 
         $record = $this->findRecord($recordId);
 
-        if (!$record instanceof ImmunizationRecord) {
+        if (! $record instanceof ImmunizationRecord) {
             return $record;
         }
 
@@ -238,6 +249,20 @@ class ImmunizationController extends Controller
                 ], 422);
             }
 
+            // PATCH tanggal harus tetap menjaga urutan dosis. Kalau tidak
+            // diperiksa di sini, validasi `store` bisa dilewati: catat dosis 1
+            // dan 2 dengan urutan benar, lalu ubah tanggal dosis 1 ke belakang.
+            $orderError = $this->assertDoseOrder(
+                $record->child,
+                $record->immunizationType,
+                $validated['date_given'] ?? $record->date_given->format('Y-m-d'),
+                $record->id,
+            );
+
+            if ($orderError !== null) {
+                return $orderError;
+            }
+
             $record->fill($validated)->save();
 
             return response()->json([
@@ -253,7 +278,7 @@ class ImmunizationController extends Controller
                 'errors' => $e->errors(),
             ], 422);
         } catch (\Throwable $e) {
-            Log::error('Gagal memperbarui imunisasi: ' . $e->getMessage(), [
+            Log::error('Gagal memperbarui imunisasi: '.$e->getMessage(), [
                 'user_id' => $user->id,
                 'record_id' => $recordId,
                 'exception' => $e,
@@ -267,9 +292,112 @@ class ImmunizationController extends Controller
         }
     }
 
+    /**
+     * Membatalkan satu catatan suntikan (soft delete).
+     *
+     * Endpoint ini menutup kasus yang tidak bisa ditangani PATCH: kader salah
+     * memilih dosis. `PATCH` sengaja tidak bisa memindahkan
+     * `immunization_type_id`, jadi tanpa endpoint ini salah pilihan itu permanen.
+     *
+     * Baris tidak dihapus fisik, hanya ditandai `deleted_at`, jadi riwayat
+     * kesehatan anak tetap bisa diaudit. Setelah dibatalkan, dosis yang sama
+     * boleh dicatat ulang karena unique constraint-nya partial.
+     */
+    public function destroy(string $recordId)
+    {
+        $record = $this->findRecord($recordId);
+
+        if (! $record instanceof ImmunizationRecord) {
+            return $record;
+        }
+
+        $record->delete();
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Catatan imunisasi berhasil dibatalkan.',
+            'data' => ['id' => $record->id],
+        ], 200);
+    }
+
     // -----------------------------------------------------------------
     // Helper
     // -----------------------------------------------------------------
+
+    /**
+     * Memastikan tanggal suntikan masuk akal terhadap dosis tetangganya.
+     *
+     * Aturan: dosis N tidak boleh lebih tua dari dosis N-1 pada vaksin yang
+     * sama, dan tidak boleh lebih baru dari dosis N+1.
+     *
+     * Hanya dosis tetangga yang SUDAH tercatat yang dibandingkan. Dosis yang
+     * belum ada record-nya tidak menghalangi: anak bisa saja datang dengan
+     * dosis 2 tanpa dose 1 di sistem ini, misalnya karena dosis 1 diberikan di
+     * fasilitas lain. Menolak kasus seperti itu akan menghambat pekerjaan
+     * lapangan tanpa benefit.
+     *
+     * @return Response|null null bila tidak ada pelanggaran
+     */
+    private function assertDoseOrder(
+        ?Child $child,
+        ?ImmunizationType $type,
+        string $dateGiven,
+        ?string $ignoreRecordId = null,
+    ) {
+        if (! $child || ! $type) {
+            return null;
+        }
+
+        // `label` sengaja tidak ikut: itu accessor (`getLabelAttribute`),
+        // bukan kolom di database. Meminta kolom yang tidak ada akan
+        // PostgreSQL melempar 42703 dan jadi 500.
+        $tetangga = ImmunizationType::where('code', $type->code)
+            ->whereIn('dose_number', [(int) $type->dose_number - 1, (int) $type->dose_number + 1])
+            ->get(['id', 'code', 'name', 'dose_number']);
+
+        if ($tetangga->isEmpty()) {
+            return null;
+        }
+
+        $records = ImmunizationRecord::where('child_id', $child->id)
+            ->whereIn('immunization_type_id', $tetangga->pluck('id'))
+            ->when($ignoreRecordId !== null, fn ($q) => $q->where('id', '!=', $ignoreRecordId))
+            ->get(['immunization_type_id', 'date_given']);
+
+        foreach ($records as $record) {
+            $tetanggaType = $tetangga->firstWhere('id', $record->immunization_type_id);
+            $sebelum = (int) $tetanggaType->dose_number < (int) $type->dose_number;
+            $tanggalTetangga = $record->date_given->format('Y-m-d');
+
+            // Tanggal suntikan tidak boleh mendahului dosis sebelumnya.
+            if ($sebelum && $tanggalTetangga > $dateGiven) {
+                return $this->doseOrderError(
+                    "Tanggal suntikan tidak boleh lebih awal dari {$tetanggaType->label} "
+                    ."yang tercatat pada {$tanggalTetangga}."
+                );
+            }
+
+            // Maupun mendahului dosis berikutnya.
+            if (! $sebelum && $tanggalTetangga < $dateGiven) {
+                return $this->doseOrderError(
+                    "Tanggal suntikan tidak boleh lebih baru dari {$tetanggaType->label} "
+                    ."yang tercatat pada {$tanggalTetangga}."
+                );
+            }
+        }
+
+        return null;
+    }
+
+    /** Bentuk respons 422 untuk pelanggaran urutan dosis. */
+    private function doseOrderError(string $reason)
+    {
+        return response()->json([
+            'success' => false,
+            'message' => 'Validasi gagal.',
+            'errors' => ['date_given' => [$reason]],
+        ], 422);
+    }
 
     /**
      * Mencari anak sekaligus memeriksa otorisasi.
@@ -277,7 +405,7 @@ class ImmunizationController extends Controller
      * Kolom `id` bertipe UUID, sehingga id yang bukan UUID ditolak lebih dulu -
      * jika tidak, PostgreSQL melempar error dan endpoint membalas 500.
      *
-     * @return Child|\Illuminate\Http\Response
+     * @return Child|Response
      */
     private function findAccessibleChild(string $childId, User $user, string $action)
     {
@@ -287,13 +415,13 @@ class ImmunizationController extends Controller
             'errors' => null,
         ], 404);
 
-        if (!Str::isUuid($childId)) {
+        if (! Str::isUuid($childId)) {
             return $notFound;
         }
 
         $child = Child::find($childId);
 
-        if (!$child) {
+        if (! $child) {
             return $notFound;
         }
 
@@ -313,7 +441,7 @@ class ImmunizationController extends Controller
      *
      * Route sudah dijaga middleware `kader`, jadi di sini tidak ada OwnershipException.
      *
-     * @return ImmunizationRecord|\Illuminate\Http\Response
+     * @return ImmunizationRecord|Response
      */
     private function findRecord(string $recordId)
     {
@@ -323,13 +451,13 @@ class ImmunizationController extends Controller
             'errors' => null,
         ], 404);
 
-        if (!Str::isUuid($recordId)) {
+        if (! Str::isUuid($recordId)) {
             return $notFound;
         }
 
         $record = ImmunizationRecord::with('immunizationType')->find($recordId);
 
-        if (!$record) {
+        if (! $record) {
             return $notFound;
         }
 
