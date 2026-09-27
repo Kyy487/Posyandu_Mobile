@@ -4,6 +4,7 @@ import '../../models/child.dart';
 import '../../services/auth_service.dart';
 import '../../services/child_service.dart';
 import '../login_screen.dart';
+import 'catatan_keluhan_screen.dart';
 import 'jadwal_posyandu_screen.dart';
 import 'status_imunisasi_screen.dart';
 import 'tambah_anak_dialog.dart';
@@ -163,6 +164,8 @@ class _DashboardIbuScreenState extends State<DashboardIbuScreen> {
               _buildQuickMenu(),
               const SizedBox(height: 16),
               _buildImunisasiMenu(),
+              const SizedBox(height: 16),
+              _buildKeluhanMenu(),
               const SizedBox(height: 24),
               _buildStatusGizi(),
                   const SizedBox(height: 20),
@@ -362,6 +365,85 @@ class _DashboardIbuScreenState extends State<DashboardIbuScreen> {
         builder: (context) => StatusImunisasiScreen(
           childId: anak.id,
           childName: anak.name,
+        ),
+      ),
+    );
+  }
+
+  void _bukaCatatanKeluhan() {
+    final anak = _anakAktif;
+    if (anak == null) return;
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => CatatanKeluhanScreen(
+          childId: anak.id,
+          childName: anak.name,
+        ),
+      ),
+    );
+  }
+
+  /// Entri catatan keluhan memakai kartu penuh seperti imunisasi, karena
+  /// orang tua perlu tahu kalau kader melihat keluhan pada kunjungan
+  /// terakhir. Read-only: hanya kader yang boleh mencatat.
+  Widget _buildKeluhanMenu() {
+    final nama = _anakAktif?.name ?? 'anak';
+
+    return InkWell(
+      onTap: _bukaCatatanKeluhan,
+      borderRadius: BorderRadius.circular(20),
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(20),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.pink.withValues(alpha: 0.05),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.red.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: const Icon(
+                Icons.monitor_heart_outlined,
+                color: Colors.red,
+                size: 26,
+              ),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Catatan Keluhan $nama',
+                    style: const TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.black87,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  const Text(
+                    'Keluhan yang dilihat kader, dan tindak lanjut yang disarankan.',
+                    style: TextStyle(fontSize: 12, color: Colors.grey),
+                  ),
+                ],
+              ),
+            ),
+            const Icon(Icons.chevron_right, color: Colors.grey),
+          ],
         ),
       ),
     );

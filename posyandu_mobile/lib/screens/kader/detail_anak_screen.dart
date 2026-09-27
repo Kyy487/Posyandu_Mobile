@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../models/child.dart';
 import '../../models/measurement_model.dart';
 import '../../services/kader_service.dart';
+import 'catatan_keluhan_screen.dart';
 import 'imunisasi_screen.dart';
 import 'input_penimbangan_screen.dart';
 
@@ -96,6 +97,21 @@ class _DetailAnakScreenState extends State<DetailAnakScreen> {
         title: const Text('Profil Medis Anak', style: TextStyle(color: Colors.white, fontSize: 18)),
         iconTheme: const IconThemeData(color: Colors.white),
         actions: [
+          IconButton(
+            tooltip: 'Catatan Keluhan',
+            icon: const Icon(Icons.monitor_heart_outlined),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => CatatanKeluhanScreen(
+                    childId: widget.childData.id,
+                    childName: widget.childData.name,
+                  ),
+                ),
+              );
+            },
+          ),
           IconButton(
             tooltip: 'Imunisasi',
             icon: const Icon(Icons.vaccines),
@@ -264,7 +280,43 @@ class _DetailAnakScreenState extends State<DetailAnakScreen> {
             ],
             const SizedBox(height: 24),
 
-            // 3. RIWAYAT PEMERIKSAAN BERKESINAMBUNGAN (dari API)
+            // 3. CATATAN KELUHAN (dari API, Opsi C)
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text(
+                  '\u{1F3E5} Catatan Keluhan',
+                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+                ),
+                TextButton.icon(
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => CatatanKeluhanScreen(
+                          childId: widget.childData.id,
+                          childName: widget.childData.name,
+                        ),
+                      ),
+                    );
+                  },
+                  icon: const Icon(Icons.arrow_forward, size: 16),
+                  label: const Text(
+                    'Buka',
+                    style: TextStyle(fontSize: 12),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              'Keluhan yang dilihat kader saat penimbangan. Satu anak punya '
+              'satu catatan per tanggal.',
+              style: TextStyle(fontSize: 12, color: Colors.grey, height: 1.4),
+            ),
+            const SizedBox(height: 24),
+
+            // 4. RIWAYAT PEMERIKSAAN BERKESINAMBUNGAN (dari API)
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
@@ -317,7 +369,7 @@ class _DetailAnakScreenState extends State<DetailAnakScreen> {
         ),
       ),
 
-      // 4. TOMBOL AKSI INPUT e-KMS
+      // 5. TOMBOL AKSI INPUT e-KMS
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () async {
           final saved = await Navigator.push<bool>(

@@ -574,6 +574,149 @@ petugas yang menangani agendasnya.
 > `jabatan` (`"Bidan"` / `"Kader Posyandu"`) murni deskriptif untuk ditampilkan.
 > Otorisasi tetap memakai `role`, yang hanya punya dua nilai: `ibu` / `kader`.
 
+## Catatan Keluhan Kader (Opsi C)
+
+Keluhan yang dilihat kader saat penimbangan. Satu anak punya **satu catatan per
+tanggal**, dan catatan bisa berdiri sendiri tanpa penimbangan.
+
+Empat endpoint, bukan lima: endpoint baca sengaja dipakai bersama Ibu dan Kader
+(pola yang sama seperti `/children/{id}/immunizations`), jadi tidak perlu route
+`/kader/children/{id}/medical-notes` yang isinya akan identik.
+
+| Method | Path | Akses |
+| :--- | :--- | :--- |
+| `GET` | `/children/{id}/medical-notes` | Ibu (anaknya sendiri) + Kader |
+| `POST` | `/kader/children/{child}/medical-notes` | Kader |
+| `PATCH` | `/kader/medical-notes/{note}` | Kader |
+| `DELETE` | `/kader/medical-notes/{note}` | Kader |
+
+### Kenapa keluhan disimpan sebagai tiga kolom boolean
+
+Kolomnya `demam`, `rewel`, `diare` — bukan satu daftar STRING dan bukan satu baris
+per keluhan. Alasannya rekap bulanan (Opsi E) nanti harus bisa menjawab "berapa
+anak bulan ini punya demam" dengan satu aggregate:
+
+```sql
+SELECT count(DISTINCT child_id) FROM medical_notes
+WHERE demam = true AND note_date BETWEEN '2026-09-01' AND '2026-09-30';
+```
+
+Kalau keluhan disimpan sebagai array atau baris per keluhan, hitungan itu jadi
+jauh lebih mahal dan tidak bisa dijawab lewat index. Konsekuensinya, menambah
+jenis keluhan baru berarti menambah kolom boolean lewat migration baru.
+
+### `GET /children/{id}/medical-notes`
+
+| Query | Tipe | Default | Keterangan |
+| :--- | :--- | :--- | :--- |
+| `month` | `string \| null` | bulan berjalan | Format `YYYY-MM` |
+| `all` | `boolean` | `false` | `all=1` mengabaikan `month` |
+
+```json
+{
+  "success": true,
+  "message": "Data catatan keluhan berhasil diambil.",
+  "data": {
+    "child": { "id": "01a0d979-c11f-705b-8dd8-a245652c7aa4", "name": "Budi Santoso" },
+    "filter": { "month": "2026-09", "all": false },
+    "summary": {
+      "total": 2,
+      "demam": 1,
+      "rewel": 1,
+      "diare": 1,
+      "perlu_rujuk": 1
+    },
+    "notes": [
+      {
+        "id": "01a0d979-c33f-705b-8dd8-a245652c7bb5",
+        "child_id": "01a0d979-c11f-705b-8dd8-a245652c7aa4",
+        "measurement_id": "01a0d979-c22f-705b-8dd8-a245652c7cc6",
+        "kader_id": "01a0d979-c0f7-727e-903e-fc1892439685",
+        "note_date": "2026-09-27",
+        "demam": true,
+        "rewel": false,
+        "diare": false,
+        "keluhan": ["Demam"],
+        "catatan": "Demam sejak semalam, masih mau makan.",
+        "tindak_lanjut": "rujuk",
+        "ringkasan": "Demam; Perlu rujukan",
+        "kader": { "id": "01a0d979-c0f7-727e-903e-fc1892439685", "name": "Kader Rina" }
+      }
+    ]
+  }
+}
+```
+
+> **`keluhan` dan `ringkasan` dihitung server, jangan dihitung ulang di mobile.**
+> Keduanya berasal dari tiga kolom boolean yang sama, jadi menghitungnya lagi
+> di Flutter hanya membuka pintu untuk tampilan yang berbeda antara Kader dan Ibu.
+>
+> **`summary` juga dibaca apa adanya.** Kalau mobile menjumlahkan sendiri dari
+> `notes`, angkanya bisa berbeda dari database tanpa error yang terasa.
+>
+> `catatan` boleh `null` atau string kosong. `tindak_lanjut` `null` berarti kader
+> belum memutuskan — itu kondisi normal, **bukan** data rusak, jadi jangan
+> ditampilkan sebagai "Tidak diketahui".
+
+### `POST /kader/children/{child}/medical-notes`
+
+```json
+{
+  "note_date": "2026-09-27",
+  "demam": true,
+  "rewel": false,
+  "diare": false,
+  "catatan": "Demam sejak semalam, masih mau makan.",
+  "tindak_lanjut": "rujuk",
+  "measurement_id": "01a0d979-c22f-705b-8dd8-a245652c7cc6"
+}
+```
+
+Membalas `201`. Field yang perlu diperhatikan:
+
+- **`kader_id` tidak pernah dikirim.** Server selalu mengisinya dari user yang
+  login, jadi tidak ada cara bagi Kader A untuk menuliskan nama Kader B.
+- **`measurement_id` opsional.** Keluhan tetap sah tanpa penimbangan; kalau
+  filled, server memverifikasi measurement itu memang milik anak tersebut.
+- **`catatan` dan `tindak_lanjut` boleh dihilangkan** (null-safe di sisi
+  mobile). Field yang bernilai kosong tidak ikut dikirim ke server.
+- `note_date` maksimal hari ini, format `YYYY-MM-DD`.
+
+### `PATCH /kader/medical-notes/{note}`
+
+Partial update, hanya field yang dikirim yang berubah. Membalas `200`.
+
+> **`note_date` BOLEH diubah** — berbeda dari koreksi suntikan yang mengunci
+> tanggal. Salah pilih hari di kalender adalah kesalahan yang wajar terjadi,
+> jadi cara memperbaikinya adalah mengoreksi tanggal, bukan membatalkan catatan
+> lalu mencatat ulang.
+>
+> Bila tanggal hasil koreksi sudah dipakai catatan lain, `422` dengan
+> `errors.note_date`.
+
+### `DELETE /kader/medical-notes/{note}`
+
+Soft delete, membalas `200` berisi `id` yang dibatalkan. Baris tidak hilang dari
+database sehingga riwayat kesehatan anak tetap bisa diaudit, dan tanggal yang
+sama boleh dicatat ulang setelahnya.
+
+### Kode error
+
+| HTTP | Kondisi | `message` / `errors` |
+| :--- | :--- | :--- |
+| `403` | Ibu memanggil endpoint `/kader/*` | `Akses ditolak.` |
+| `403` | Ibu membaca catatan anak orang lain | `Akses ditolak.` |
+| `422` | tidak ada keluhan dicentang **dan** `catatan` kosong | pesan `catatan` |
+| `422` | `tindak_lanjut` di luar enum | pesan `tindak_lanjut` |
+| `422` | satu anak sudah punya catatan pada `note_date` itu | pesan `note_date` |
+| `422` | `measurement_id` bukan milik anak tersebut | pesan `measurement_id` |
+| `422` | `note_date` di masa depan | pesan `note_date` |
+| `404` | `child` / `note` tidak ada, atau UUID tidak valid | `Data yang diminta tidak ditemukan.` |
+
+> Pesan duplikat tanggal sengaja menjelaskan bahwa anak "sudah punya catatan pada
+> tanggal tersebut", karena jawaban yang benar dari kader adalah **mengoreksi**
+> catatan lama, bukan membuat catatan kedua.
+
 ## Respons Penimbangan (Penting untuk mobile)
 
 `POST /api/kader/measurements` mengembalikan `age_in_months`, `z_score_wfa`, dan `status_gizi`
@@ -660,13 +803,17 @@ Rincian perhitungan, klasifikasi `status_gizi`, dan cara rollback ada di
 | Imunisasi + input (Kader) | `lib/screens/kader/imunisasi_screen.dart` | `GET /children/{id}/immunizations`, `POST` + `PATCH` + `DELETE` |
 | Jadwal posyandu (Ibu) | `lib/screens/ibu/jadwal_posyandu_screen.dart` | `GET /schedules` |
 | Jadwal posyandu (Kader) | `lib/screens/kader/jadwal_posyandu_screen.dart` | `GET /schedules`, `GET /petugas`, `POST`/`PATCH`/`DELETE` |
+| Catatan keluhan (Ibu) | `lib/screens/ibu/catatan_keluhan_screen.dart` | `GET /children/{id}/medical-notes` |
+| Catatan keluhan (Kader) | `lib/screens/kader/catatan_keluhan_screen.dart` | `GET /children/{id}/medical-notes`, `POST` + `PATCH` + `DELETE` |
 
 Entry point di dashboard:
 
-- **Ibu** — tombol "Jadwal Posyandu" di Menu Cepat, kartu "Status Imunisasi"
-  di bawahnya, untuk anak yang sedang dipilih.
+- **Ibu** — tombol "Jadwal Posyandu" di Menu Cepat, kartu "Status Imunisasi" dan
+  "Catatan Keluhan" di bawahnya, untuk anak yang sedang dipilih.
 - **Kader** — tombol "Jadwal Posyandu" di Menu Utama, dan ikon vaksin di
   AppBar `detail_anak_screen.dart` untuk mencatat/mengoreksi suntikan.
+- **Catatan keluhan** — ikon denyut jantung di AppBar `detail_anak_screen.dart`
+  dan baris "Buka Catatan Keluhan" di halaman profil anak (Kader).
 
 ## Kode Error Seragam (Aturan #8)
 

@@ -157,9 +157,44 @@ Perbaikan ini menutup lubang privilege escalation dan menhomogenkan JSON envelop
 - [x] `git push` — `main` sinkron dengan `origin/main`. Commit Opsi A:
       `b856618` (fitur), `38d762b` (Pint), `4e15140` (Boost).
 
+---
+
+## Opsi C - Catatan Keluhan Kader (Selesai — 27 Sep 2026)
+
+- [x] Migration `2026_09_27_010000_create_medical_notes_table.php`. Tabel
+      `medical_notes` satu baris per anak per tanggal. Partial unique index
+      `(child_id, note_date) WHERE deleted_at IS NULL`, plus dua CHECK
+      (nilai `tindak_lanjut`, dan isi tidak boleh kosong). Rollback + apply
+      ulang diverifikasi.
+- [x] Empat endpoint (`GET` bersama Ibu/Kader, `POST`/`PATCH`/`DELETE`
+      khusus Kader). Catatan **boleh diperbarui** - `note_date` tidak dikunci
+      seperti pada koreksi suntikan, karena salah pilih hari di kalender adalah
+      kesalahan yang wajar.
+- [x] `kader_id` selalu berasal dari user login, tidak pernah diambil dari
+      request. Ibu hanya bisa membaca catatan anaknya sendiri.
+- [x] Model `MedicalNote` + relasi di `Child`, `User`, `Measurement`.
+      Factory `MedicalNoteFactory` (5 state) dan `ChildFactory`.
+- [x] Seeder 3 catatan demo, idempotent: dua kali `db:seed` tetap 3 baris.
+- [x] `uji-api.ps1` +60 pemeriksaan (grup 9e). **288/288 lulus**,
+      total API jadi **28 route** (34 termasuk non-API).
+- [x] Mobile: `MedicalNote`, `MedicalNoteList`, `MedicalNoteSummary`,
+      `TindakLanjut`, `MedicalNoteService`, widget
+      `medical_note_list_view.dart`, layar Kader (tulis) dan Ibu (read-only
+      + filter bulan).
+- [x] `flutter analyze`: No issues found. **`flutter test`: 67/67 lulus**
+      (15 contract test baru).
+- [x] `vendor/bin/pint` bersih; `php -l` 63 file 0 error.
+- [x] Dokumentasi: `API_CONTRACT.md`, `DATABASE_SCHEMA.md`,
+      `LAPORAN_MEDICAL_NOTES.md`, `RENCANA_SELANJUTNYA.md`.
+
 ### Masih terbuka
-- [ ] Notifikasi/pengingat agenda untuk Ibu (butuh push service).
-- [ ] Rekap suntikan per bulan untuk Kader.
+- Notifikasi/pengingat agenda untuk Ibu (butuh push service).
+- Rekap suntikan per bulan untuk Kader (Opsi E).
+- Rekap keluhan per bulan lintas anak (Opsi E) — sekarang `summary` hanya
+  per satu anak, aggregate lintas anak belum ada.
+- Paginasi pada daftar catatan keluhan.
+- Riwayat perubahan catatan (siapa mengubah apa) belum ada; `updated_at` hanya
+  menyimpan waktu terakhir.
 
 Rincian lengkap: `docs/LAPORAN_IMUNISASI_JADWAL.md` bagian 11.
 

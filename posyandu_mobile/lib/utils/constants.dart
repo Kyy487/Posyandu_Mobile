@@ -29,6 +29,18 @@ class ApiConstants {
   static const String schedulesEndpoint = '/schedules';
   static const String kaderSchedulesEndpoint = '/kader/schedules';
 
+  // Catatan keluhan: Ibu read-only, Kader boleh tulis.
+  //
+  // Path BACA dipakai bersama Ibu dan Kader, mengikuti pola yang sama dengan
+  // `/children/{id}/immunizations`. Path TULIS memakai prefix `/kader/`
+  // sehingga role `ibu` ditolak oleh middleware sebelum sampai ke controller.
+  //
+  // Bentuk lengkapnya:
+  //   baca  : {childrenEndpoint}/{id}/medical-notes
+  //   tulis : {kaderChildrenEndpoint}/{id}/medical-notes
+  //           {kaderMedicalNotesEndpoint}/{id}
+  static const String kaderMedicalNotesEndpoint = '/kader/medical-notes';
+
   // Daftar petugas. NIK tidak pernah ikut respons.
   static const String petugasEndpoint = '/petugas';
 }

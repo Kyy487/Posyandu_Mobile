@@ -303,9 +303,9 @@ class DatabaseSeeder extends Seeder
                 'catatan' => 'Demam sejak dua hari, suhu 38,5C. Sudah diberi paracetamol.',
                 'tindak_lanjut' => MedicalNote::TINDAK_LANJUT_RUJUK,
             ],
-            // Catatan saran tanpa keluhan yang dicentang. Kasus ini yang
-            // membuat CHECK constraint ikut memeriksa `catatan`, bukan hanya
-            // kolom boolean.
+            // Keluhan rewel tanpa tanda bahaya. Tindak lanjut "ringan"
+            // karena kasus ini paling sering muncul dan tidak perlu rujukan,
+            // berguna sebagai pembanding dengan kasus demam di atas.
             [
                 'nik' => '1234567890123459',
                 'note_date' => $bulanIni,

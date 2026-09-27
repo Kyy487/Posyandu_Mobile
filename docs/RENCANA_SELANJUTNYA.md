@@ -75,12 +75,13 @@ anak yang bisa dibuka kader kapan saja.
 
 ---
 
-## Opsi C - Catatan Keluhan Kader
+## Opsi C - Catatan Keluhan Kader (SELESAI — 27 Sep 2026)
 
 | | |
 | :--- | :--- |
 | Estimasi | 3 sampai 4 hari |
 | Kesulitan | Mudah |
+| Status | **Selesai** — backend + mobile + dokumentasi |
 
 Kolom keluhan saat kunjungan: demam, rewel, diare, dan catatan saran. Ini
 paling murah dari RANCANGAN.md tapi paling sering dipakai di lapangan.
@@ -89,6 +90,24 @@ paling murah dari RANCANGAN.md tapi paling sering dipakai di lapangan.
 - Form keluhan di layar penimbangan
 - Ibu bisa read-only
 - Filter keluhan per bulan
+
+**Yang berubah dari rancangan awal:**
+
+- Keluhan disimpan sebagai tiga kolom boolean terpisah (`demam`, `rewel`,
+  `diare`), bukan satu daftar — supaya rekap bulanan (Opsi E) bisa dijawab
+  dengan satu aggregate. Tidak ada `jenis_keluhan` terpisah.
+- Ditambah `tindak_lanjut` (`ringan`/`sedang`/`rujuk`) yang tidak ada di daftar
+  awal, karena Posyandu perlu tahu apakah anak cukup diobati di tempat atau
+  perlu dirujuk.
+- Satu anak satu catatan per tanggal, dengan soft delete supaya tanggal yang
+  sama bisa dipakai lagi setelah catatan lama dibatalkan.
+- Layar catatan keluhan berdiri sendiri, tidak ditempelkan ke form penimbangan.
+  Alasannya: keluhan sering muncul di hari yang sama dengan penimbangan, tapi
+  tidak selalu. Catatan juga harus bisa diperbarui atau dibatalkan tanpa
+  mencatat berat badan baru.
+
+Rincian endpoint, constraint, dan cara rollback ada di
+`docs/LAPORAN_MEDICAL_NOTES.md`.
 
 ---
 

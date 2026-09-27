@@ -50,6 +50,37 @@ Tabel acuan perhitungan Z-Score berat badan menurut umur. Dihasilkan oleh migrat
 * `kader_id` (UUID, FK -> users.id)
 * `vaccine_name` (String), `date_given` (Date)
 
+## 5.1 `medical_notes` (Catatan Keluhan Kader — Opsi C)
+
+Migration `2026_09_27_010000_create_medical_notes_table.php`. Satu anak punya
+**satu baris per tanggal**.
+
+* `id` (UUID, PK)
+* `child_id` (UUID, FK -> children.id, **cascade delete**)
+* `measurement_id` (UUID, FK -> measurements.id, nullable, **set null**) — boleh kosong karena keluhan bisa dicatat tanpa menimbang
+* `kader_id` (UUID, FK -> users.id, nullable, **set null**) — nullable agar catatan lama tetap utuh walau akun kader dihapus
+* `note_date` (Date)
+* `demam`, `rewel`, `diare` (Boolean, default `false`)
+* `catatan` (Text, nullable)
+* `tindak_lanjut` (String(20), nullable) — enum `ringan` / `sedang` / `rujuk`
+* `deleted_at` (Timestamp, nullable) — soft delete
+* `created_at`, `updated_at`
+
+**Index dan constraint:**
+
+* Index biasa `(child_id, note_date)`
+* **Partial unique** `(child_id, note_date) WHERE deleted_at IS NULL` — satu
+  anak satu catatan per tanggal, tapi catatan yang sudah dibatalkan tidak
+  menghalangi pencatatan ulang tanggal yang sama
+* CHECK `tindak_lanjut IN ('ringan','sedang','rujuk')` bila tidak null
+* CHECK isi: minimal satu dari `demam`/`rewel`/`diare` true, **atau** `catatan`
+  tidak kosong. Ini mencegah baris kosong tanpa perlu memvalidasi di aplikasi
+
+> Keluhan disimpan sebagai **tiga kolom boolean terpisah**, bukan array/string
+> dan bukan satu baris per keluhan, supaya rekap bulanan nanti bisa dijawab
+> dengan satu aggregate yang memakai index. Lihat penjelasan di
+> `docs/API_CONTRACT.md` bagian Catatan Keluhan.
+
 ## 6. `spatial_zones` (Pemetaan - PostGIS) *Coming Soon*
 * `id` (UUID, PK), `child_id` (UUID, FK)
 * `coordinate` (Geometry/Point)

@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:posyandu_mobile/models/child.dart';
 import 'package:posyandu_mobile/models/immunization.dart';
 import 'package:posyandu_mobile/models/measurement_model.dart';
+import 'package:posyandu_mobile/models/medical_note.dart';
 import 'package:posyandu_mobile/models/posyandu_schedule.dart';
 
 /// Test ini memakai JSON ASLI yang diambil langsung dari API Laravel
@@ -699,6 +700,313 @@ void main() {
 
       expect(body['success'], isFalse);
       expect((body['errors'] as Map)['kader_code'], isNotNull);
+    });
+  });
+
+  group('Kontrak API - GET /api/children/{id}/medical-notes', () {
+    // Respons asli MedicalNoteController@index pada 27 September 2026.
+    // Bentuk `notes`, `summary`, `child`, dan `filter` ini yang dibaca
+    // MedicalNoteList.fromJson, jadi JSON di bawah disalin apa adanya dari
+    // respons server - bukan karangan.
+    const rawDaftar = '''
+    {
+      "success": true,
+      "message": "Data catatan keluhan berhasil diambil.",
+      "data": {
+        "child": {
+          "id": "01a0d979-c11f-705b-8dd8-a245652c7aa4",
+          "name": "Budi Santoso"
+        },
+        "filter": {
+          "month": "2026-09",
+          "all": false
+        },
+        "summary": {
+          "total": 2,
+          "demam": 1,
+          "rewel": 1,
+          "diare": 1,
+          "perlu_rujuk": 1
+        },
+        "notes": [
+          {
+            "id": "01a0d979-c33f-705b-8dd8-a245652c7bb5",
+            "child_id": "01a0d979-c11f-705b-8dd8-a245652c7aa4",
+            "measurement_id": "01a0d979-c22f-705b-8dd8-a245652c7cc6",
+            "kader_id": "01a0d979-c0f7-727e-903e-fc1892439685",
+            "note_date": "2026-09-27",
+            "demam": true,
+            "rewel": false,
+            "diare": false,
+            "keluhan": ["Demam"],
+            "catatan": "Demam sejak semalam, masih mau makan.",
+            "tindak_lanjut": "rujuk",
+            "ringkasan": "Demam; Perlu rujukan",
+            "kader": {
+              "id": "01a0d979-c0f7-727e-903e-fc1892439685",
+              "name": "Kader Rina"
+            },
+            "created_at": "2026-09-27T08:12:00.000000Z",
+            "updated_at": "2026-09-27T08:12:00.000000Z"
+          },
+          {
+            "id": "01a0d979-c44f-705b-8dd8-a245652c7dd7",
+            "child_id": "01a0d979-c11f-705b-8dd8-a245652c7aa4",
+            "measurement_id": null,
+            "kader_id": "01a0d979-c0f7-727e-903e-fc1892439685",
+            "note_date": "2026-09-20",
+            "demam": false,
+            "rewel": false,
+            "diare": false,
+            "keluhan": [],
+            "catatan": "Rewel saat ASI, lalu rewel lagi sore.",
+            "tindak_lanjut": "ringan",
+            "ringkasan": "Catatan: Rewel saat ASI",
+            "kader": {
+              "id": "01a0d979-c0f7-727e-903e-fc1892439685",
+              "name": "Kader Rina"
+            },
+            "created_at": "2026-09-20T09:00:00.000000Z",
+            "updated_at": "2026-09-20T09:00:00.000000Z"
+          }
+        ]
+      }
+    }
+    ''';
+
+    late MedicalNoteList daftar;
+
+    setUp(() {
+      final body = json.decode(rawDaftar) as Map<String, dynamic>;
+      daftar = MedicalNoteList.fromJson(
+        Map<String, dynamic>.from(body['data'] as Map),
+      );
+    });
+
+    test('membaca identitas anak dan filter aktif dari server', () {
+      expect(daftar.childId, '01a0d979-c11f-705b-8dd8-a245652c7aa4');
+      expect(daftar.childName, 'Budi Santoso');
+      expect(daftar.month, '2026-09');
+      expect(daftar.all, isFalse);
+      expect(daftar.labelFilter, 'September 2026');
+    });
+
+    test('ringkasan dibaca apa adanya dari server, tidak dihitung ulang', () {
+      // Penting: Flutter tidak boleh menjumlahkan sendiri. Kalau server
+      // menyaring bulan berbeda dari yang dipanggil, angka UI akan salah
+      // tanpa/error yang terasa.
+      expect(daftar.summary.total, 2);
+      expect(daftar.summary.demam, 1);
+      expect(daftar.summary.rewel, 1);
+      expect(daftar.summary.diare, 1);
+      expect(daftar.summary.perluRujuk, 1);
+    });
+
+    test('keluhan dicentang dibaca dari daftar yang dikirim server', () {
+      final note = daftar.notes.first;
+      expect(note.demam, isTrue);
+      expect(note.rewel, isFalse);
+      expect(note.diare, isFalse);
+      expect(note.keluhan, ['Demam']);
+      expect(note.punyaKeluhan, isTrue);
+      expect(note.jumlahKeluhan, 1);
+      expect(note.measurementId, isNotNull);
+      expect(note.kaderName, 'Kader Rina');
+    });
+
+    test('catatan tanpa keluhan dicentang tetap valid', () {
+      final note = daftar.notes[1];
+      expect(note.keluhan, isEmpty);
+      expect(note.punyaKeluhan, isFalse);
+      expect(note.catatan, 'Rewel saat ASI, lalu rewel lagi sore.');
+      // measurement_id null itu sah: keluhan bisa dicatat tanpa ditimbang.
+      expect(note.measurementId, isNull);
+    });
+
+    test('perlu rujukan dibaca dari tindak_lanjut, bukan dari keluhan', () {
+      // Catatan kedua butuh rujukan? Tidak. Yang kedua 'ringan'.
+      // Yang pertama 'rujuk' meski hanya satu keluhan.
+      expect(daftar.notes.first.perluRujukan, isTrue);
+      expect(daftar.notes.first.tindakLanjut, TindakLanjut.rujuk);
+      expect(daftar.notes[1].perluRujukan, isFalse);
+      expect(daftar.notes[1].tindakLanjut, TindakLanjut.ringan);
+    });
+
+    test('ringkasan string dari server dipakai, bukan dibangun ulang', () {
+      expect(daftar.notes.first.ringkasan, 'Demam; Perlu rujukan');
+    });
+
+    test('kader_id tanpa relasi kader tidak membuat parser error', () {
+      final note = MedicalNote.fromJson({
+        'id': 'x',
+        'child_id': 'y',
+        'note_date': '2026-09-27',
+        'demam': false,
+        'rewel': false,
+        'diare': false,
+        'kader_id': 'ada-id-tapi-tanpa-nama',
+        'kader': null,
+      });
+
+      expect(note.kaderId, 'ada-id-tapi-tanpa-nama');
+      expect(note.kaderName, isNull);
+    });
+  });
+
+  group('Kontrak API - POST/PATCH medical-notes', () {
+    // Catatan yang dikoreksi lewat PATCH: `note_date` BOLEH berubah,
+    // berbeda dari koreksi suntikan yang mengunci tanggal.
+    const rawCatatan = '''
+    {
+      "success": true,
+      "message": "Catatan keluhan berhasil diperbarui.",
+      "data": {
+        "id": "01a0d979-c33f-705b-8dd8-a245652c7bb5",
+        "child_id": "01a0d979-c11f-705b-8dd8-a245652c7aa4",
+        "measurement_id": "01a0d979-c22f-705b-8dd8-a245652c7cc6",
+        "kader_id": "01a0d979-c0f7-727e-903e-fc1892439685",
+        "note_date": "2026-09-26",
+        "demam": false,
+        "rewel": true,
+        "diare": true,
+        "keluhan": ["Rewel", "Diare"],
+        "catatan": "Rewel dan diare sejak pagi.",
+        "tindak_lanjut": "sedang",
+        "ringkasan": "Rewel, Diare; Perawatan aktif",
+        "kader": {
+          "id": "01a0d979-c0f7-727e-903e-fc1892439685",
+          "name": "Kader Rina"
+        }
+      }
+    }
+    ''';
+
+    test('PATCH mengembalikan catatan dengan tanggal yang sudah dikoreksi', () {
+      final body = json.decode(rawCatatan) as Map<String, dynamic>;
+      final note = MedicalNote.fromJson(
+        Map<String, dynamic>.from(body['data'] as Map),
+      );
+
+      expect(body['success'], isTrue);
+      expect(note.noteDate, '2026-09-26');
+      expect(note.demam, isFalse);
+      expect(note.rewel, isTrue);
+      expect(note.diare, isTrue);
+      expect(note.keluhan, ['Rewel', 'Diare']);
+      expect(note.tindakLanjut, TindakLanjut.sedang);
+      expect(note.perluRujukan, isFalse);
+    });
+
+    test('422 tanggal ganda menunjuk field note_date', () {
+      // Inilah jawaban yang harus muncul saat kader mencatat tanggal sama
+      // dua kali: koreksi catatan lama, bukan insert baru.
+      const raw = '''
+      {
+        "success": false,
+        "message": "Validasi gagal.",
+        "errors": {
+          "note_date": ["Anak ini sudah punya catatan keluhan pada tanggal tersebut."]
+        }
+      }
+      ''';
+
+      final body = json.decode(raw) as Map<String, dynamic>;
+      final errors = body['errors'] as Map<String, dynamic>;
+
+      expect(body['success'], isFalse);
+      expect(errors['note_date'], isA<List>());
+    });
+
+    test('422 isi kosong ditolak server, sama seperti CHECK di database', () {
+      // Tidak ada keluhan dicentang DAN catatan kosong.
+      const raw = '''
+      {
+        "success": false,
+        "message": "Validasi gagal.",
+        "errors": {
+          "catatan": ["Isi minimal satu keluhan yang dicentang atau catatan teks."]
+        }
+      }
+      ''';
+
+      final body = json.decode(raw) as Map<String, dynamic>;
+      expect((body['errors'] as Map)['catatan'], isA<List>());
+    });
+
+    test('422 tindak_lanjut di luar CHECK ditolak server', () {
+      const raw = '''
+      {
+        "success": false,
+        "message": "Validasi gagal.",
+        "errors": {
+          "tindak_lanjut": ["Tindak lanjut tidak valid."]
+        }
+      }
+      ''';
+
+      final body = json.decode(raw) as Map<String, dynamic>;
+      expect((body['errors'] as Map)['tindak_lanjut'], isA<List>());
+    });
+  });
+
+  group('Kontrak API - parser boolean catatan keluhan', () {
+    // Ini bug yang harus dihindari sejak awal: `json['demam'] == true`
+    // bernilai false bila server mengirim "true" sebagai string, sehingga
+    // checkbox di UI tampil terbalik.
+    test('boolean string "true" tetap dibaca true', () {
+      final note = MedicalNote.fromJson({
+        'id': 'x',
+        'child_id': 'y',
+        'note_date': '2026-09-27',
+        'demam': 'true',
+        'rewel': 'false',
+        'diare': 1,
+        'keluhan': ['Demam', 'Diare'],
+      });
+
+      expect(note.demam, isTrue);
+      expect(note.rewel, isFalse);
+      expect(note.diare, isTrue);
+    });
+
+    test('boolean null dan string kosong dianggap false', () {
+      final note = MedicalNote.fromJson({
+        'id': 'x',
+        'child_id': 'y',
+        'note_date': '2026-09-27',
+        'demam': null,
+        'rewel': '',
+        'diare': '0',
+      });
+
+      expect(note.demam, isFalse);
+      expect(note.rewel, isFalse);
+      expect(note.diare, isFalse);
+      expect(note.keluhan, isEmpty);
+    });
+  });
+
+  group('Kontrak API - label tindak lanjut', () {
+    // Label ini dipakai di kartu catatan Kader maupun Ibu. Keduanya harus
+    // konsisten, jadi label dipusatkan di satu tempat.
+    test('ketiga nilai CHECK punya label dan petunjuk', () {
+      expect(TindakLanjut.semua, ['ringan', 'sedang', 'rujuk']);
+
+      for (final nilai in TindakLanjut.semua) {
+        expect(TindakLanjut.label(nilai), isNot('-'));
+        expect(TindakLanjut.petunjuk(nilai), isNotEmpty);
+      }
+
+      expect(TindakLanjut.label(TindakLanjut.ringan), 'Observasi dan saran');
+      expect(TindakLanjut.label(TindakLanjut.sedang), 'Perawatan aktif');
+      expect(TindakLanjut.label(TindakLanjut.rujuk), 'Perlu rujukan');
+    });
+
+    test('null berarti kader belum memutuskan, bukan error', () {
+      // Penting: null tidak boleh tampil sebagai "Tidak diketahui" karena
+      // itu menyiratkan ada data yang rusak.
+      expect(TindakLanjut.label(null), '-');
+      expect(TindakLanjut.label(''), '-');
     });
   });
 }
