@@ -1,4 +1,4 @@
-<#
+﻿<#
   =====================================================================
   SKRIP UJI API - SMART POSYANDU
   =====================================================================
@@ -710,8 +710,192 @@ echo '  agenda uji dihapus: ' . `$n . PHP_EOL;
     Remove-Item $tmpS -Force -ErrorAction SilentlyContinue
 }
 
-$r = Req 'DELETE' "$base/kader/measurements/$idUkur" $tK $null
-Check "hapus penimbangan -> 200" 200 $r.Status
+# =====================================================================
+Group "9e. Catatan keluhan (Opsi C)"
+# Keluhan disimpan sebagai KOLOM BOOLEAN TERPISAIN (demam/rewel/diare), bukan
+# JSON dan bukan satu baris per keluhan - supaya rekap bulan ini ("berapa anak
+# demam?") nanti bisa jadi satu aggregate di database.
+# Yang diuji di sini:
+#  1. Satu anak satu catatan per hari (unique partial
+#     medical_notes_child_date_unique).
+#  2. Catatan tidak boleh kosong: minimal satu keluhan dicentang ATAU `catatan`
+#     terisi. Diperiksa di PHP (422) DAN di CHECK constraint database.
+#  3. Ibu baca saja; menulis hanya lewat prefix /kader/.
+#  4. `note_date` BOLEH diubah lewat PATCH - berbeda dari suntikan, karena
+#     kesalahan tanggal di sini adalah salah pilih hari di kalender.
+#  5. `measurement_id` milik anak lain ditolak, dan catatan TETAP ADA walau
+#     penimbangan yang ditautkan dihapus (nullOnDelete).
+# =====================================================================
+
+# Tanggal uji: mundur beberapa hari supaya tidak bentrok dengan data seed
+# seeder, yang memakai tanggal hari ini dan tanggal bulan lalu.
+$tglUji  = (Get-Date).AddDays(-4).ToString('yyyy-MM-dd')
+$tglUji2 = (Get-Date).AddDays(-5).ToString('yyyy-MM-dd')
+$blnIni  = (Get-Date).ToString('yyyy-MM')
+$blnLalu = (Get-Date).AddMonths(-1).ToString('yyyy-MM')
+
+$r = Req 'GET' "$base/children/$idA/medical-notes" $tK $null
+Check "GET daftar keluhan -> 200" 200 $r.Status
+Check "  default filter = bulan berjalan" $blnIni $r.Body.data.filter.month
+Check "  default bukan mode all" $false $r.Body.data.filter.all
+Check "  awal: tidak ada catatan" 0 $r.Body.data.summary.total
+Check "  respons kirim info anak" $idA $r.Body.data.child.id
+
+$r = Req 'GET' "$base/children/$idA/medical-notes?month=$blnLalu" $tK $null
+Check "filter ?month= -> 200" 200 $r.Status
+Check "  bulan yang diminta" $blnLalu $r.Body.data.filter.month
+
+$r = Req 'GET' "$base/children/$idA/medical-notes?all=1" $tK $null
+Check "filter ?all=1 -> 200" 200 $r.Status
+Check "  month = null saat all" $null $r.Body.data.filter.month
+Check "  all = true" $true $r.Body.data.filter.all
+
+# month tidak valid harus 422, bukan 500 dari PostgreSQL.
+$r = Req 'GET' "$base/children/$idA/medical-notes?month=2026-13" $tK $null
+Check "?month=2026-13 -> 422" 422 $r.Status
+Note "date_format:Y-m menolak bulan yang tidak ada"
+$r = Req 'GET' "$base/children/$idA/medical-notes?month=202602" $tK $null
+Check "?month=202602 (tanpa garis) -> 422" 422 $r.Status
+
+# Penimbangan milik anak uji ini, untuk menguji tautan opsional.
+$r = Req 'POST' "$base/kader/measurements" $tK @{ child_id = $idA; measurement_date = $tglUji2; weight_kg = 7.2; height_cm = 75 }
+$idUkurKeluhan = $r.Body.data.id
+
+# POST valid, ditautkan ke penimbangan anak yang sama.
+$r = Req 'POST' "$base/kader/children/$idA/medical-notes" $tK @{
+    measurement_id = $idUkurKeluhan
+    note_date      = $tglUji
+    demam          = $true
+    rewel          = $false
+    diare          = $false
+    catatan        = 'Demam 38,5C sejak sore'
+    tindak_lanjut  = 'rujuk'
+}
+Check "POST catatan keluhan -> 201" 201 $r.Status
+$idKeluhan = $r.Body.data.id
+Check "  kader_id = akun yg login" $kader.Id $r.Body.data.kader_id
+Check "  boolean demam terkirim true" $true $r.Body.data.demam
+Check "  boolean rewel terkirim false" $false $r.Body.data.rewel
+Check "  tanggal terkirim Y-m-d" $tglUji $r.Body.data.note_date
+Check "  daftar keluhan ikut dikirim" 'Demam' $r.Body.data.keluhan[0]
+Check "  ringkasan digabung di server" 'Demam - Demam 38,5C sejak sore' $r.Body.data.ringkasan
+Check "  nama kader ikut dikirim" "Uji Kader $s" $r.Body.data.kader.name
+Check "  measurement_id ikut tersimpan" $true ($null -ne $r.Body.data.measurement_id)
+
+# Satu anak satu catatan per hari.
+$r = Req 'POST' "$base/kader/children/$idA/medical-notes" $tK @{ note_date = $tglUji; demam = $true }
+Check "catat tanggal sama dua kali -> 422" 422 $r.Status
+Note "medical_notes_child_date_unique yang menahan"
+
+# Catatan kosong: tidak ada keluhan dicentang dan `catatan` hanya spasi.
+$r = Req 'POST' "$base/kader/children/$idA/medical-notes" $tK @{ note_date = $tglUji2; demam = $false; rewel = $false; diare = $false; catatan = '   ' }
+Check "catatan kosong -> 422" 422 $r.Status
+Check "  pesan ramah" 'Catatan keluhan masih kosong.' $r.Body.message
+Check "  ada petunjuk di field Demam" $true ($null -ne $r.Body.errors.demam)
+
+# Tidak ada keluhan dicentang, tapi `catatan` terisi: harus diterima. Inilah
+# kasus yang membuat CHECK constraint ikut memeriksa `catatan`.
+$r = Req 'POST' "$base/kader/children/$idA/medical-notes" $tK @{
+    note_date     = $tglUji2
+    demam         = $false
+    rewel         = $false
+    diare         = $false
+    catatan       = 'Ibu diminta lebih sering menyusui'
+    tindak_lanjut = 'ringan'
+}
+Check "hanya catatan saran (tanpa keluhan) -> 201" 201 $r.Status
+Check "  keluhan kosong" 0 $r.Body.data.keluhan.Count
+Check "  ringkasan jatuh ke catatan" 'Ibu diminta lebih sering menyusui' $r.Body.data.ringkasan
+$idCatatanSaja = $r.Body.data.id
+
+# Validasi lain.
+$r = Req 'POST' "$base/kader/children/$idA/medical-notes" $tK @{ note_date = (Get-Date).AddDays(2).ToString('yyyy-MM-dd'); demam = $true }
+Check "tanggal masa depan -> 422" 422 $r.Status
+$r = Req 'POST' "$base/kader/children/$idA/medical-notes" $tK @{ note_date = '05-10-2026'; demam = $true }
+Check "tanggal format salah -> 422" 422 $r.Status
+$r = Req 'POST' "$base/kader/children/$idA/medical-notes" $tK @{ note_date = $tglUji; demam = $true; tindak_lanjut = 'semangat' }
+Check "tindak_lanjut ngawur -> 422" 422 $r.Status
+$r = Req 'POST' "$base/kader/children/$idA/medical-notes" $tK @{ note_date = $tglUji; demam = $true; measurement_id = 'bukan-uuid' }
+Check "measurement_id ngawur -> 422" 422 $r.Status
+
+# Penimbangan milik anak lain tidak boleh dilampirkan.
+$ukurAnakLain = (Req 'POST' "$base/kader/measurements" $tK @{ child_id = $idB; measurement_date = $tglUji2; weight_kg = 7.3; height_cm = 76 }).Body.data.id
+$r = Req 'POST' "$base/kader/children/$idA/medical-notes" $tK @{ note_date = $tglUji2; demam = $true; measurement_id = $ukurAnakLain }
+Check "lampirkan penimbangan anak lain -> 422" 422 $r.Status
+Check "  pesan menyebut milik anak tersebut" $true ($null -ne $r.Body.errors.measurement_id)
+Req 'DELETE' "$base/kader/measurements/$ukurAnakLain" $tK $null | Out-Null
+
+# Ibu: baca boleh, tulis tidak.
+$r = Req 'GET' "$base/children/$idA/medical-notes" $tA $null
+Check "Ibu baca keluhan anaknya -> 200" 200 $r.Status
+Check "  2 catatan" 2 $r.Body.data.summary.total
+Check "  1 demam" 1 $r.Body.data.summary.demam
+Check "  1 perlu rujuk" 1 $r.Body.data.summary.perlu_rujuk
+$r = Req 'GET' "$base/children/$idB/medical-notes" $tA $null
+Check "Ibu baca keluhan anak orang -> 403" 403 $r.Status
+$r = Req 'POST' "$base/kader/children/$idA/medical-notes" $tA @{ note_date = $tglUji; demam = $true }
+Check "Ibu catat keluhan -> 403" 403 $r.Status
+$r = Req 'PATCH' "$base/kader/medical-notes/$idKeluhan" $tA @{ demam = $false }
+Check "Ibu koreksi keluhan -> 403" 403 $r.Status
+$r = Req 'DELETE' "$base/kader/medical-notes/$idKeluhan" $tA $null
+Check "Ibu batalkan keluhan -> 403" 403 $r.Status
+
+# PATCH: koreksi keluhan, termasuk menggeser tanggal.
+$r = Req 'PATCH' "$base/kader/medical-notes/$idKeluhan" $tK @{ demam = $false; diare = $true; catatan = 'Ternyata diare' }
+Check "PATCH koreksi keluhan -> 200" 200 $r.Status
+Check "  demam mati" $false $r.Body.data.demam
+Check "  diare nyala" $true $r.Body.data.diare
+Check "  ringkasan dihitung ulang" 'Diare - Ternyata diare' $r.Body.data.ringkasan
+
+$r = Req 'PATCH' "$base/kader/medical-notes/$idKeluhan" $tK @{ note_date = (Get-Date).AddDays(-7).ToString('yyyy-MM-dd') }
+Check "PATCH geser tanggal -> 200" 200 $r.Status
+Check "  tanggal berubah" (Get-Date).AddDays(-7).ToString('yyyy-MM-dd') $r.Body.data.note_date
+Note "berbeda dari suntikan, tanggal boleh digeser lewat PATCH"
+
+# PATCH yang membuat catatan kosong harus ditolak.
+$r = Req 'PATCH' "$base/kader/medical-notes/$idKeluhan" $tK @{ diare = $false; catatan = '' }
+Check "PATCH jadi catatan kosong -> 422" 422 $r.Status
+Note "isi dinilai dari gabungan nilai lama + baru, bukan hanya field yang dikirim"
+
+$r = Req 'PATCH' "$base/kader/medical-notes/$idKeluhan" $tK @{}
+Check "PATCH tanpa field -> 422" 422 $r.Status
+$r = Req 'PATCH' "$base/kader/medical-notes/bukan-uuid" $tK @{ demam = $true }
+Check "PATCH id ngawur -> 404" 404 $r.Status
+$r = Req 'GET' "$base/children/bukan-uuid/medical-notes" $tK $null
+Check "GET child id ngawur -> 404" 404 $r.Status
+Note "Str::isUuid dicek dulu supaya bukan 500 dari PostgreSQL"
+
+# PATCH ke tanggal milik catatan lain.
+$r = Req 'PATCH' "$base/kader/medical-notes/$idKeluhan" $tK @{ note_date = $tglUji2 }
+Check "PATCH tabrak tanggal catatan lain -> 422" 422 $r.Status
+
+# Catatan yang dibatalkan (soft delete) tidak muncul lagi di daftar.
+$r = Req 'DELETE' "$base/kader/medical-notes/$idCatatanSaja" $tK $null
+Check "DELETE batalkan catatan -> 200" 200 $r.Status
+$r = Req 'GET' "$base/children/$idA/medical-notes?all=1" $tA $null
+Check "catatan dibatalkan hilang dari daftar" 1 $r.Body.data.summary.total
+Note "soft delete: baris tetap ada di DB, hanya ditandai deleted_at"
+
+# Tanggal yang sama boleh dicatat ulang setelah pembatalan.
+$r = Req 'POST' "$base/kader/children/$idA/medical-notes" $tK @{ note_date = $tglUji2; rewel = $true; catatan = 'Dicatat ulang setelah pembatalan' }
+Check "catat ulang tanggal yang dibatalkan -> 201" 201 $r.Status
+$idCatatUlang = $r.Body.data.id
+Req 'DELETE' "$base/kader/medical-notes/$idCatatUlang" $tK $null | Out-Null
+Note "unique index-nya partial (WHERE deleted_at IS NULL)"
+
+# Catatan tetap hidup walau penimbangan yang ditautkan dihapus.
+$r = Req 'DELETE' "$base/kader/measurements/$idUkurKeluhan" $tK $null
+Check "hapus penimbangan tertaut -> 200" 200 $r.Status
+$r = Req 'GET' "$base/children/$idA/medical-notes?all=1" $tK $null
+$catatanHidup = FindById $r.Body.data.notes $idKeluhan
+Check "catatan tetap ada setelah penimbangan dihapus" $true ($null -ne $catatanHidup)
+Check "  measurement_id jadi null (nullOnDelete)" $null $catatanHidup.measurement_id
+Check "  keluhan tetap utuh" $true $catatanHidup.diare
+Note "keluhan adalah informasi kesehatan, tidak boleh ikut hilang"
+
+$r = Req 'GET' "$base/children/$idA/medical-notes?all=1" $tK $null
+Check "total akhir: 1 catatan aktif" 1 $r.Body.data.summary.total
+Note "sisa baris fisik 3 (1 aktif + 2 dibatalkan), dicek di grup 12"
 
 # =====================================================================
 Group "10. Logout"
@@ -775,6 +959,8 @@ echo '  sisa anak    : ' . Illuminate\Support\Facades\DB::table('children')->cou
 echo '  sisa archived: ' . Illuminate\Support\Facades\DB::table('children')->whereNotNull('deleted_at')->count() . PHP_EOL;
 echo '  sisa suntikan: ' . Illuminate\Support\Facades\DB::table('immunization_records')->count() . PHP_EOL;
 echo '  sisa jadwal  : ' . Illuminate\Support\Facades\DB::table('posyandu_schedules')->count() . PHP_EOL;
+echo '  sisa keluhan : ' . Illuminate\Support\Facades\DB::table('medical_notes')->count() . PHP_EOL;
+echo '  sisa keluhan dibatalkan: ' . Illuminate\Support\Facades\DB::table('medical_notes')->whereNotNull('deleted_at')->count() . PHP_EOL;
 "@
     $tmp = Join-Path $env:TEMP 'posyandu_cleanup.php'
     Set-Content -Path $tmp -Value $cleanup -Encoding UTF8

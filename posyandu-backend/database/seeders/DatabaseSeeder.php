@@ -4,6 +4,7 @@ namespace Database\Seeders;
 
 use App\Models\Child;
 use App\Models\ImmunizationType;
+use App\Models\MedicalNote;
 use App\Models\PosyanduSchedule;
 use App\Models\User;
 use Illuminate\Database\Seeder;
@@ -36,6 +37,7 @@ class DatabaseSeeder extends Seeder
         $this->seedAnak();
         $this->seedImmunizationTypes();
         $this->seedSchedules();
+        $this->seedMedicalNotes();
     }
 
     /**
@@ -249,6 +251,103 @@ class DatabaseSeeder extends Seeder
 
             // Sinkronkan petugas: agenda contoh ditangani 3 kader pertama.
             $schedule->petugas()->sync($petugas->take(3));
+        }
+    }
+
+    /**
+     * Catatan keluhan contoh.
+     *
+     * Satu anak satu catatan per hari, jadi kuncinya adalah pasangan
+     * `(child_id, note_date)` - persis sama dengan unique constraint
+     * `medical_notes_child_date_unique` di database. Dengan begitu seeder ini
+     * tidak mungkin membuat baris yang melanggar constraint-nya sendiri, dan
+     * aman dijalankan berkali-kali.
+     *
+     * Tanggal sengaja dihitung relatif terhadap hari ini, bukan tanggal tetap.
+     * `subMonthNoOverflow()` dipakai untuk bulan lalu supaya tanggalnya tidak
+     * pernah melompat ke bulan yang lebih kecil (31 -> 28/29, bukan 3), dan
+     * `now()` untuk bulan ini supaya tanggalnya tidak pernah berada di masa
+     * depan ketika `db:seed` dijalankan tanggal 1 - catatan besok bukan
+     * riwayat yang masuk akal.
+     *
+     * Effect-nya: endpoint tanpa filter (default bulan berjalan) langsung punya
+     * isi, dan filter `?month=` bulan lalu juga bisa diuji.
+     *
+     * `measurement_id` sengaja dibiarkan null: keluhan bisa dicatat tanpa
+     * penimbangan, dan seeder ini tidak membuat data penimbangan. Kolom yang
+     * nullable pun ikut terkexercise.
+     */
+    private function seedMedicalNotes(): void
+    {
+        $kader = User::where('role', 'kader')->orderBy('nik')->first();
+
+        if (! $kader) {
+            return;
+        }
+
+        $bulanIni = now()->toDateString();
+        $bulanLalu = now()->subMonthNoOverflow()->toDateString();
+
+        // Ditulis lewat NIK anak, bukan `Child::all()`, supaya data contohnya
+        // deterministik dan tidak ikut bertambah kalau tabel anak berisi data
+        // lain.
+        $catatan = [
+            // Demam + rujukan: kasus yang paling sering membuat Ibu bertanya
+            // "anak saya harus dirujuk atau tidak", jadi harus ada di data demo.
+            [
+                'nik' => '1234567890123456',
+                'note_date' => $bulanIni,
+                'demam' => true,
+                'rewel' => false,
+                'diare' => false,
+                'catatan' => 'Demam sejak dua hari, suhu 38,5C. Sudah diberi paracetamol.',
+                'tindak_lanjut' => MedicalNote::TINDAK_LANJUT_RUJUK,
+            ],
+            // Catatan saran tanpa keluhan yang dicentang. Kasus ini yang
+            // membuat CHECK constraint ikut memeriksa `catatan`, bukan hanya
+            // kolom boolean.
+            [
+                'nik' => '1234567890123459',
+                'note_date' => $bulanIni,
+                'demam' => false,
+                'rewel' => true,
+                'diare' => false,
+                'catatan' => 'Rewel saat ASI. Ibu diminta lebih sering menyusui.',
+                'tindak_lanjut' => MedicalNote::TINDAK_LANJUT_RINGAN,
+            ],
+            // Bulan lalu, supaya filter `?month=` punya isi untuk diuji.
+            [
+                'nik' => '1234567890123457',
+                'note_date' => $bulanLalu,
+                'demam' => false,
+                'rewel' => false,
+                'diare' => true,
+                'catatan' => 'Diare 5 kali sehari. Cascara oral 1 sachet per hari.',
+                'tindak_lanjut' => MedicalNote::TINDAK_LANJUT_SEDANG,
+            ],
+        ];
+
+        foreach ($catatan as $item) {
+            $anak = Child::where('nik', $item['nik'])->first();
+
+            if (! $anak) {
+                continue;
+            }
+
+            MedicalNote::updateOrCreate(
+                [
+                    'child_id' => $anak->id,
+                    'note_date' => $item['note_date'],
+                ],
+                [
+                    'kader_id' => $kader->id,
+                    'demam' => $item['demam'],
+                    'rewel' => $item['rewel'],
+                    'diare' => $item['diare'],
+                    'catatan' => $item['catatan'],
+                    'tindak_lanjut' => $item['tindak_lanjut'],
+                ]
+            );
         }
     }
 }
