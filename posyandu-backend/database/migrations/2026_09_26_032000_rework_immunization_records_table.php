@@ -36,8 +36,8 @@ return new class extends Migration
         if ($ada > 0) {
             throw new RuntimeException(
                 "immunization_records masih berisi {$ada} baris dengan format lama "
-                . '(vaccine_name teks bebas). Pindahkan datanya ke immunization_types '
-                . 'sebelum menjalankan migration ini.'
+                .'(vaccine_name teks bebas). Pindahkan datanya ke immunization_types '
+                .'sebelum menjalankan migration ini.'
             );
         }
 

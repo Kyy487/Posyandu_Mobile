@@ -8,7 +8,7 @@ return new class extends Migration
     public function up(): void
     {
         // 1. Membuat Stored Procedure / Function di PostgreSQL
-        $function = <<<SQL
+        $function = <<<'SQL'
         CREATE OR REPLACE FUNCTION calculate_measurement_data()
         RETURNS TRIGGER AS $$
         DECLARE
@@ -41,7 +41,7 @@ return new class extends Migration
         SQL;
 
         // 2. Memasang Trigger ke tabel measurements
-        $trigger = <<<SQL
+        $trigger = <<<'SQL'
         CREATE TRIGGER before_insert_measurement_trigger
         BEFORE INSERT ON measurements
         FOR EACH ROW
@@ -56,8 +56,7 @@ return new class extends Migration
     public function down(): void
     {
         // Untuk rollback/reset database
-        DB::unprepared("DROP TRIGGER IF EXISTS before_insert_measurement_trigger ON measurements;");
-        DB::unprepared("DROP FUNCTION IF EXISTS calculate_measurement_data();");
+        DB::unprepared('DROP TRIGGER IF EXISTS before_insert_measurement_trigger ON measurements;');
+        DB::unprepared('DROP FUNCTION IF EXISTS calculate_measurement_data();');
     }
 };
-

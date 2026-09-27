@@ -80,7 +80,7 @@ class AuthController extends Controller
             return $this->validationFailed($e->errors());
         } catch (\Throwable $e) {
             // Aturan #10: pesan asli hanya ke log, tidak pernah ke klien.
-            Log::error('Gagal mendaftar akun: ' . $e->getMessage(), [
+            Log::error('Gagal mendaftar akun: '.$e->getMessage(), [
                 'nik' => $request->nik,
                 'exception' => $e,
             ]);
@@ -96,7 +96,7 @@ class AuthController extends Controller
     /**
      * Menentukan role baru dari server.
      *
-     * @return string|null  'ibu' | 'kader', atau null bila permintaan kader ditolak.
+     * @return string|null 'ibu' | 'kader', atau null bila permintaan kader ditolak.
      */
     private function resolveRegistrationRole(Request $request): ?string
     {
@@ -108,7 +108,7 @@ class AuthController extends Controller
         $expected = config('posyandu.kader_registration_code');
 
         // Kode belum diisi di .env -> pendaftaran kader sengaja dimatikan.
-        if (!is_string($expected) || $expected === '') {
+        if (! is_string($expected) || $expected === '') {
             return null;
         }
 
@@ -125,11 +125,11 @@ class AuthController extends Controller
     {
         $expected = config('posyandu.kader_registration_code');
 
-        if (!is_string($expected) || $expected === '') {
+        if (! is_string($expected) || $expected === '') {
             return [
                 'kader_code' => [
                     'Pendaftaran akun kader sedang dinonaktifkan. '
-                    . 'Akun kader dibuat oleh petugas posyandu, hubungi koordinator.',
+                    .'Akun kader dibuat oleh petugas posyandu, hubungi koordinator.',
                 ],
             ];
         }
@@ -161,7 +161,7 @@ class AuthController extends Controller
         try {
             $user = User::where('nik', $request->nik)->first();
 
-            if (!$user || !Hash::check($request->password, $user->password)) {
+            if (! $user || ! Hash::check($request->password, $user->password)) {
                 // Satu pesan untuk "tidak ada" dan "salah password" supaya
                 // NIK terdaftar atau tidak tidak bisa ditebak.
                 return response()->json([
@@ -186,7 +186,7 @@ class AuthController extends Controller
             ], 200);
 
         } catch (\Throwable $e) {
-            Log::error('Gagal login: ' . $e->getMessage(), [
+            Log::error('Gagal login: '.$e->getMessage(), [
                 'nik' => $request->nik,
                 'exception' => $e,
             ]);
@@ -213,7 +213,7 @@ class AuthController extends Controller
                 'data' => null,
             ], 200);
         } catch (\Throwable $e) {
-            Log::error('Gagal logout: ' . $e->getMessage(), ['exception' => $e]);
+            Log::error('Gagal logout: '.$e->getMessage(), ['exception' => $e]);
 
             return response()->json([
                 'success' => false,

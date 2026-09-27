@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\PosyanduSchedule;
 use App\Models\User;
 use Illuminate\Http\Request;
+use Illuminate\Http\Response;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -54,7 +55,7 @@ class PosyanduScheduleController extends Controller
             ], 200);
 
         } catch (\Throwable $e) {
-            Log::error('Gagal mengambil jadwal posyandu: ' . $e->getMessage(), [
+            Log::error('Gagal mengambil jadwal posyandu: '.$e->getMessage(), [
                 'exception' => $e,
             ]);
 
@@ -119,7 +120,7 @@ class PosyanduScheduleController extends Controller
 
                 // Sync petugas bila dikirim. `sync` aman dipanggil dengan array
                 // kosong (mengosongkan penugasan) maupun tanpa argumen.
-                if (!empty($petugasIds)) {
+                if (! empty($petugasIds)) {
                     $schedule->petugas()->sync($petugasIds);
                 }
 
@@ -141,7 +142,7 @@ class PosyanduScheduleController extends Controller
                 'errors' => $e->errors(),
             ], 422);
         } catch (\Throwable $e) {
-            Log::error('Gagal membuat jadwal posyandu: ' . $e->getMessage(), [
+            Log::error('Gagal membuat jadwal posyandu: '.$e->getMessage(), [
                 'user_id' => $user->id,
                 'exception' => $e,
             ]);
@@ -167,7 +168,7 @@ class PosyanduScheduleController extends Controller
 
         $schedule = $this->findSchedule($id);
 
-        if (!$schedule instanceof PosyanduSchedule) {
+        if (! $schedule instanceof PosyanduSchedule) {
             return $schedule;
         }
 
@@ -240,7 +241,7 @@ class PosyanduScheduleController extends Controller
                 'errors' => $e->errors(),
             ], 422);
         } catch (\Throwable $e) {
-            Log::error('Gagal memperbarui jadwal posyandu: ' . $e->getMessage(), [
+            Log::error('Gagal memperbarui jadwal posyandu: '.$e->getMessage(), [
                 'user_id' => $user->id,
                 'schedule_id' => $id,
                 'exception' => $e,
@@ -266,7 +267,7 @@ class PosyanduScheduleController extends Controller
 
         $schedule = $this->findSchedule($id);
 
-        if (!$schedule instanceof PosyanduSchedule) {
+        if (! $schedule instanceof PosyanduSchedule) {
             return $schedule;
         }
 
@@ -280,7 +281,7 @@ class PosyanduScheduleController extends Controller
             ], 200);
 
         } catch (\Throwable $e) {
-            Log::error('Gagal menghapus jadwal posyandu: ' . $e->getMessage(), [
+            Log::error('Gagal menghapus jadwal posyandu: '.$e->getMessage(), [
                 'user_id' => $user->id,
                 'schedule_id' => $id,
                 'exception' => $e,
@@ -306,7 +307,7 @@ class PosyanduScheduleController extends Controller
      * supaya caller membalas 422.
      *
      * @param  array<int, string>  $ids
-     * @return array<int, string>|null  daftar UUID(unique, valid) atau null bila tidak valid
+     * @return array<int, string>|null daftar UUID(unique, valid) atau null bila tidak valid
      */
     private function validatePetugasAreKader(array $ids): ?array
     {
@@ -333,7 +334,7 @@ class PosyanduScheduleController extends Controller
     /**
      * Mencari agenda berdasarkan UUID, membalas 404 bila tidak ada.
      *
-     * @return PosyanduSchedule|\Illuminate\Http\Response
+     * @return PosyanduSchedule|Response
      */
     private function findSchedule(string $id)
     {
@@ -343,13 +344,13 @@ class PosyanduScheduleController extends Controller
             'errors' => null,
         ], 404);
 
-        if (!Str::isUuid($id)) {
+        if (! Str::isUuid($id)) {
             return $notFound;
         }
 
         $schedule = PosyanduSchedule::find($id);
 
-        if (!$schedule) {
+        if (! $schedule) {
             return $notFound;
         }
 

@@ -3,8 +3,9 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
-use App\Models\Measurement;
 use App\Models\Child;
+use App\Models\Measurement;
+use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
@@ -21,7 +22,7 @@ class MeasurementController extends Controller
      */
     private function isTriggerRuleViolation(\Throwable $e): bool
     {
-        return $e instanceof \Illuminate\Database\QueryException
+        return $e instanceof QueryException
             && isset($e->errorInfo[0])
             && $e->errorInfo[0] === 'P0001';
     }
@@ -34,8 +35,8 @@ class MeasurementController extends Controller
             $validated = $request->validate([
                 'child_id' => 'required|uuid|exists:children,id',
                 // date_format:Y-m-d mencegah rule `date` meloloskan format
-            // seperti "26-09-2026" yang ditolak PostgreSQL jadi 500.
-            'measurement_date' => 'required|date_format:Y-m-d|before_or_equal:today',
+                // seperti "26-09-2026" yang ditolak PostgreSQL jadi 500.
+                'measurement_date' => 'required|date_format:Y-m-d|before_or_equal:today',
                 'weight_kg' => 'required|numeric|min:0.5|max:50',
                 'height_cm' => 'required|numeric|min:20|max:150',
                 'head_circumference_cm' => 'nullable|numeric|min:20|max:60',
@@ -65,14 +66,14 @@ class MeasurementController extends Controller
             return response()->json([
                 'success' => true,
                 'message' => 'Data penimbangan (e-KMS) berhasil dicatat.',
-                'data' => $measurement
+                'data' => $measurement,
             ], 201);
 
         } catch (ValidationException $e) {
             return response()->json([
                 'success' => false,
                 'message' => 'Validasi gagal. Periksa kembali angka yang diinputkan.',
-                'errors' => $e->errors()
+                'errors' => $e->errors(),
             ], 422);
         } catch (\Throwable $e) {
             // Aturan bisnis dari trigger (mis. tanggal ukur sebelum tanggal lahir)
@@ -86,7 +87,7 @@ class MeasurementController extends Controller
             }
 
             // Pesan exception asli hanya masuk log, tidak dikirim ke client.
-            Log::error('Gagal menyimpan penimbangan: ' . $e->getMessage(), [
+            Log::error('Gagal menyimpan penimbangan: '.$e->getMessage(), [
                 'user_id' => $request->user()?->id,
                 'exception' => $e,
             ]);
@@ -94,7 +95,7 @@ class MeasurementController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => 'Terjadi kesalahan server. Silakan coba lagi.',
-                'errors' => null
+                'errors' => null,
             ], 500);
         }
     }
@@ -110,7 +111,8 @@ class MeasurementController extends Controller
             $message = trim($m[1]);
             // Ganti nama kolom/tabel internal dengan istilah yang dipahami pengguna.
             $message = str_replace(['date_of_birth', 'children'], ['tanggal lahir anak', 'data anak'], $message);
-            return rtrim($message, '.') . '.';
+
+            return rtrim($message, '.').'.';
         }
 
         return 'Data penimbangan tidak valid.';
@@ -122,29 +124,29 @@ class MeasurementController extends Controller
         try {
             $childId = $request->query('child_id');
 
-            if (!$childId) {
+            if (! $childId) {
                 return response()->json([
                     'success' => false,
                     'message' => 'Parameter child_id diperlukan.',
-                    'errors' => ['child_id' => ['Parameter child_id wajib diisi.']]
+                    'errors' => ['child_id' => ['Parameter child_id wajib diisi.']],
                 ], 400);
             }
 
             // child_id kolomnya bertipe UUID; string sembarang akan membuat
             // PostgreSQL melempar error dan endpoint membalas 500.
-            if (!Str::isUuid($childId)) {
+            if (! Str::isUuid($childId)) {
                 return response()->json([
                     'success' => false,
                     'message' => 'Parameter child_id tidak valid.',
-                    'errors' => ['child_id' => ['child_id harus berupa UUID.']]
+                    'errors' => ['child_id' => ['child_id harus berupa UUID.']],
                 ], 422);
             }
 
-            if (!Child::where('id', $childId)->exists()) {
+            if (! Child::where('id', $childId)->exists()) {
                 return response()->json([
                     'success' => false,
                     'message' => 'Data balita tidak ditemukan.',
-                    'errors' => null
+                    'errors' => null,
                 ], 404);
             }
 
@@ -157,18 +159,18 @@ class MeasurementController extends Controller
             return response()->json([
                 'success' => true,
                 'message' => 'Berhasil mengambil riwayat penimbangan.',
-                'data' => $measurements
+                'data' => $measurements,
             ], 200);
 
         } catch (\Throwable $e) {
-            Log::error('Gagal mengambil riwayat penimbangan: ' . $e->getMessage(), [
+            Log::error('Gagal mengambil riwayat penimbangan: '.$e->getMessage(), [
                 'exception' => $e,
             ]);
 
             return response()->json([
                 'success' => false,
                 'message' => 'Terjadi kesalahan server. Silakan coba lagi.',
-                'errors' => null
+                'errors' => null,
             ], 500);
         }
     }
@@ -178,21 +180,21 @@ class MeasurementController extends Controller
     {
         try {
             // id kolomnya bertipe UUID; validasi dulu agar URL rusak membalas 404.
-            if (!is_string($id) || !Str::isUuid($id)) {
+            if (! is_string($id) || ! Str::isUuid($id)) {
                 return response()->json([
                     'success' => false,
                     'message' => 'Data penimbangan tidak ditemukan.',
-                    'errors' => null
+                    'errors' => null,
                 ], 404);
             }
 
             $measurement = Measurement::find($id);
 
-            if (!$measurement) {
+            if (! $measurement) {
                 return response()->json([
                     'success' => false,
                     'message' => 'Data penimbangan tidak ditemukan.',
-                    'errors' => null
+                    'errors' => null,
                 ], 404);
             }
 
@@ -201,11 +203,11 @@ class MeasurementController extends Controller
             return response()->json([
                 'success' => true,
                 'message' => 'Riwayat penimbangan berhasil dihapus.',
-                'data' => null
+                'data' => null,
             ], 200);
 
         } catch (\Throwable $e) {
-            Log::error('Gagal menghapus penimbangan: ' . $e->getMessage(), [
+            Log::error('Gagal menghapus penimbangan: '.$e->getMessage(), [
                 'measurement_id' => $id,
                 'exception' => $e,
             ]);
@@ -213,7 +215,7 @@ class MeasurementController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => 'Terjadi kesalahan server. Silakan coba lagi.',
-                'errors' => null
+                'errors' => null,
             ], 500);
         }
     }

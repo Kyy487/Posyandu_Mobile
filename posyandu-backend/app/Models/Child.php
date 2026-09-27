@@ -105,8 +105,8 @@ class Child extends Model
         return $this->hasOne(Measurement::class)
             ->whereRaw(
                 'measurements.measurement_date = ('
-                . 'select max(m2.measurement_date) from measurements m2'
-                . ' where m2.child_id = measurements.child_id)'
+                .'select max(m2.measurement_date) from measurements m2'
+                .' where m2.child_id = measurements.child_id)'
             );
     }
 

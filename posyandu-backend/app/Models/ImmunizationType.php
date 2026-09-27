@@ -43,7 +43,9 @@ class ImmunizationType extends Model
      * cepat basi begitu anak bertambah umurnya.
      */
     public const STATUS_DONE = 'sudah';
+
     public const STATUS_PENDING = 'belum';
+
     public const STATUS_OVERDUE = 'terlambat';
 
     /** Master diurutkan sesuai urutan suntikan, bukan urutan abjad. */

@@ -38,7 +38,7 @@ class ChildController extends Controller
         return response()->json([
             'success' => true,
             'message' => 'Data balita berhasil diambil.',
-            'data' => $children
+            'data' => $children,
         ], 200);
     }
 
@@ -111,7 +111,7 @@ class ChildController extends Controller
             ], 422);
         } catch (\Throwable $e) {
             // Pesan exception asli hanya masuk log, tidak dikirim ke client.
-            Log::error('Gagal menambah data balita: ' . $e->getMessage(), [
+            Log::error('Gagal menambah data balita: '.$e->getMessage(), [
                 'user_id' => $user->id,
                 'role' => $user->role,
                 'exception' => $e,
@@ -131,7 +131,7 @@ class ChildController extends Controller
      */
     private function explainNikConflict(array $errors): array
     {
-        if (!isset($errors['nik'])) {
+        if (! isset($errors['nik'])) {
             return $errors;
         }
 
@@ -144,7 +144,7 @@ class ChildController extends Controller
 
         if ($archived) {
             $errors['nik'] = ["NIK sudah dipakai oleh anak yang datanya sudah dihapus ({$archived->name}). "
-                . 'Pulihkan data tersebut atau gunakan NIK lain.'];
+                .'Pulihkan data tersebut atau gunakan NIK lain.'];
         }
 
         return $errors;
@@ -165,11 +165,11 @@ class ChildController extends Controller
             return [$user, null];
         }
 
-        $hasId = !empty($validated['user_id']);
-        $hasNik = !empty($validated['ibu_nik']);
+        $hasId = ! empty($validated['user_id']);
+        $hasNik = ! empty($validated['ibu_nik']);
 
-        if (!$hasId && !$hasNik) {
-            if (!$required) {
+        if (! $hasId && ! $hasNik) {
+            if (! $required) {
                 return [null, null]; // tidak ada perubahan ibu
             }
 
@@ -186,7 +186,7 @@ class ChildController extends Controller
         if ($hasNik) {
             $byNik = User::where('nik', $validated['ibu_nik'])->first();
 
-            if (!$byNik) {
+            if (! $byNik) {
                 return [null, response()->json([
                     'success' => false,
                     'message' => 'NIK Ibu tidak ditemukan di sistem. Pastikan akun Ibu sudah terdaftar.',
@@ -206,7 +206,7 @@ class ChildController extends Controller
 
         $mother = $byNik ?? $byId;
 
-        if (!$mother) {
+        if (! $mother) {
             return [null, response()->json([
                 'success' => false,
                 'message' => 'Ibu pemilik anak tidak ditemukan.',
@@ -243,7 +243,7 @@ class ChildController extends Controller
 
             // findChildForUser() mengembalikan response error (404/403) bila
             // tidak ditemukan atau tidak berhak diakses.
-            if (!$child instanceof Child) {
+            if (! $child instanceof Child) {
                 return $child;
             }
 
@@ -270,7 +270,7 @@ class ChildController extends Controller
             // Buang key yang tidak berubah agar tidak menimpa nilai lama.
             foreach (['nik', 'birth_weight', 'birth_height'] as $optional) {
                 if (array_key_exists($optional, $validated) && $validated[$optional] === null
-                    && !array_key_exists($optional, $request->all())) {
+                    && ! array_key_exists($optional, $request->all())) {
                     unset($validated[$optional]);
                 }
             }
@@ -324,7 +324,7 @@ class ChildController extends Controller
                 'errors' => $this->explainNikConflict($e->errors()),
             ], 422);
         } catch (\Throwable $e) {
-            Log::error('Gagal memperbarui data balita: ' . $e->getMessage(), [
+            Log::error('Gagal memperbarui data balita: '.$e->getMessage(), [
                 'user_id' => $user->id,
                 'child_id' => $id,
                 'exception' => $e,
@@ -361,7 +361,7 @@ class ChildController extends Controller
                 ], 403);
             }
 
-            if (!is_string($id) || !Str::isUuid($id)) {
+            if (! is_string($id) || ! Str::isUuid($id)) {
                 return response()->json([
                     'success' => false,
                     'message' => 'Data balita tidak ditemukan.',
@@ -371,7 +371,7 @@ class ChildController extends Controller
 
             $child = Child::find($id);
 
-            if (!$child) {
+            if (! $child) {
                 return response()->json([
                     'success' => false,
                     'message' => 'Data balita tidak ditemukan.',
@@ -396,7 +396,7 @@ class ChildController extends Controller
             ], 200);
 
         } catch (\Throwable $e) {
-            Log::error('Gagal menghapus data balita: ' . $e->getMessage(), [
+            Log::error('Gagal menghapus data balita: '.$e->getMessage(), [
                 'user_id' => $user->id,
                 'child_id' => $id,
                 'exception' => $e,
@@ -409,13 +409,14 @@ class ChildController extends Controller
             ], 500);
         }
     }
+
     /**
      * Mencari anak sekaligus memeriksa otorisasi.
      *
      * Kolom `id` bertipe UUID, sehingga id yang bukan UUID harus ditolak lebih
      * dulu — jika tidak, PostgreSQL melempar error dan endpoint membalas 500.
      *
-     * @return Child|\Illuminate\Http\Response  Model bila boleh diakses, atau response error.
+     * @return Child|\Illuminate\Http\Response Model bila boleh diakses, atau response error.
      */
     private function findChildForUser($id, User $user, string $action = 'mengubah')
     {
@@ -425,13 +426,13 @@ class ChildController extends Controller
             'errors' => null,
         ], 404);
 
-        if (!is_string($id) || !Str::isUuid($id)) {
+        if (! is_string($id) || ! Str::isUuid($id)) {
             return $notFound;
         }
 
         $child = Child::find($id);
 
-        if (!$child) {
+        if (! $child) {
             return $notFound;
         }
 
@@ -452,16 +453,17 @@ class ChildController extends Controller
     {
         $child = $this->findChildForUser($id, $request->user(), 'melihat');
 
-        if (!$child instanceof Child) {
+        if (! $child instanceof Child) {
             return $child;
         }
 
         return response()->json([
             'success' => true,
             'message' => 'Detail balita berhasil diambil.',
-            'data' => $child->load('mother:id,name,nik')
+            'data' => $child->load('mother:id,name,nik'),
         ], 200);
     }
+
     public function indexKader()
     {
         try {
@@ -478,18 +480,18 @@ class ChildController extends Controller
             return response()->json([
                 'success' => true,
                 'message' => 'Berhasil mengambil daftar anak',
-                'data' => $children
+                'data' => $children,
             ], 200);
 
         } catch (\Throwable $e) {
-            Log::error('Gagal mengambil daftar anak: ' . $e->getMessage(), [
+            Log::error('Gagal mengambil daftar anak: '.$e->getMessage(), [
                 'exception' => $e,
             ]);
 
             return response()->json([
                 'success' => false,
                 'message' => 'Terjadi kesalahan server. Silakan coba lagi.',
-                'errors' => null
+                'errors' => null,
             ], 500);
         }
     }

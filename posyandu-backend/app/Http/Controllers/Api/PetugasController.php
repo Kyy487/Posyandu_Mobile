@@ -38,7 +38,7 @@ class PetugasController extends Controller
             ], 200);
 
         } catch (\Throwable $e) {
-            Log::error('Gagal mengambil daftar petugas: ' . $e->getMessage(), [
+            Log::error('Gagal mengambil daftar petugas: '.$e->getMessage(), [
                 'exception' => $e,
             ]);
 

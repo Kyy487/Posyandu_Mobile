@@ -10,12 +10,12 @@ use Laravel\Sanctum\HasApiTokens;
 
 class User extends Authenticatable
 {
-    use HasApiTokens, HasFactory, Notifiable, HasUuids;
+    use HasApiTokens, HasFactory, HasUuids, Notifiable;
 
     protected $fillable = [
         'nik',
         'name',
-        //'email',
+        // 'email',
         'password',
         'role',
         'phone_number',
@@ -26,6 +26,7 @@ class User extends Authenticatable
         'password',
         'remember_token',
     ];
+
     // Relasi: Satu Ibu memiliki banyak Anak
     public function children()
     {

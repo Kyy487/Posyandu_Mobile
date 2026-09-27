@@ -57,7 +57,7 @@ return new class extends Migration
         // CHECK constraint, bukan enum Postgres, supaya menambah status baru
         // tetap migration biasa dan nilainya terbaca apa adanya di API.
         DB::statement(
-            "ALTER TABLE posyandu_schedules ADD CONSTRAINT posyandu_schedules_status_check "
+            'ALTER TABLE posyandu_schedules ADD CONSTRAINT posyandu_schedules_status_check '
             ."CHECK (status IN ('terjadwal', 'berlangsung', 'selesai', 'dibatalkan'))"
         );
     }

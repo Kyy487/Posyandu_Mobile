@@ -76,8 +76,11 @@ class PosyanduSchedule extends Model
     // -----------------------------------------------------------------
 
     public const STATUS_TERJADWAL = 'terjadwal';
+
     public const STATUS_BERLANGSUNG = 'berlangsung';
+
     public const STATUS_SELESAI = 'selesai';
+
     public const STATUS_DIBATALKAN = 'dibatalkan';
 
     /**
