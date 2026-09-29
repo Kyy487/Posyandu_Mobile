@@ -121,6 +121,13 @@ Route::middleware('auth:sanctum')->group(function () {
         // /children/{id}` di group di atas; keduanya dibedakan oleh prefix
         // `/kader/`.
         // -----------------------------------------------------------------
+
+        // Rekap bulanan SELURUH Posyandu. Hanya untuk kader: Ibu boleh melihat
+        // checklist anaknya sendiri lewat `GET /children/{id}/immunizations`,
+        // tapi tidak boleh melihat status imunisasi anak lain. Karena itu
+        // route-nya tidak pernah memakai prefix `/children/{id}`.
+        Route::get('/kader/immunizations/recap', [ImmunizationController::class, 'recap']);
+
         Route::post('/kader/children/{child}/immunizations', [ImmunizationController::class, 'store']);
 
         // Koreksi suntikan memakai PATCH, bukan hapus-lalu-simpan, karena

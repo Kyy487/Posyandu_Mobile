@@ -202,7 +202,7 @@ class MeasurementController extends Controller
 
             return response()->json([
                 'success' => true,
-                'message' => 'Riwayat penimbangan berhasil dihapus.',
+                'message' => 'Riwayat penimbangan berhasil dibatalkan.',
                 'data' => null,
             ], 200);
 

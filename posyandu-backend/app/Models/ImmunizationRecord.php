@@ -2,6 +2,8 @@
 
 namespace App\Models;
 
+use Carbon\CarbonImmutable;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -77,5 +79,46 @@ class ImmunizationRecord extends Model
     public function immunizationType(): BelongsTo
     {
         return $this->belongsTo(ImmunizationType::class);
+    }
+
+    // -----------------------------------------------------------------
+    // Scope
+    // -----------------------------------------------------------------
+
+    /**
+     * Suntikan pada satu bulan, format `YYYY-MM`.
+     *
+     * Dipakai rekap bulanan. Batas akhir dihitung dari kalender, bukan
+     * `$month.'-31'`, karena PostgreSQL menolak tanggal yang tidak ada
+     * ("date/time field value out of range") sehingga bulan 30 atau 29 hari
+     * termasuk Februari dan April akan 500.
+     */
+    public function scopeForMonth(Builder $query, string $month): Builder
+    {
+        $awal = CarbonImmutable::createFromFormat('!Y-m', $month)->startOfMonth();
+
+        return $query->whereBetween('date_given', [
+            $awal->toDateString(),
+            $awal->endOfMonth()->toDateString(),
+        ]);
+    }
+
+    /** Suntikan dalam rentang tanggal, inklusif di kedua ujung (`Y-m-d`). */
+    public function scopeBetweenDates(Builder $query, string $from, string $to): Builder
+    {
+        return $query->whereBetween('date_given', [$from, $to]);
+    }
+
+    /**
+     * Suntikan yang sudah diberikan pada tanggal tertentu atau sebelumnya.
+     *
+     * Dipakai rekap historis. Tanpa scope ini, laporan "rekap September"
+     * yang dibuat di November akan menghitung suntikan tanggal 5 November
+     * sebagai bagian dari September, dan laporan yang sama akan menghasilkan
+     * angka berbeda tergantung kapan/pdfnya dibuat.
+     */
+    public function scopeGivenOnOrBefore(Builder $query, string $date): Builder
+    {
+        return $query->where('date_given', '<=', $date);
     }
 }

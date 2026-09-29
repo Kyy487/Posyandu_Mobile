@@ -64,18 +64,22 @@ function Req($method, $uri, $token, $body) {
     if ($null -ne $body) { $p.Body = ($body | ConvertTo-Json -Depth 5); $p.ContentType = 'application/json' }
     try {
         $r = Invoke-WebRequest @p -ErrorAction Stop
-        $code = $r.StatusCode; $raw = $r.Content
+        $code = $r.StatusCode; $raw = $r.Content; $hdr = $r.Headers
     } catch {
         if ($_.Exception.Response) {
             $code = $_.Exception.Response.StatusCode.value__
+            $hdr = $_.Exception.Response.Headers
             $sr = New-Object IO.StreamReader($_.Exception.Response.GetResponseStream())
             $raw = $sr.ReadToEnd(); $sr.Close()
-        } else { $code = 0; $raw = $_.Exception.Message }
+        } else { $code = 0; $raw = $_.Exception.Message; $hdr = $null }
     }
     $o = $null
     if ($raw) { try { $o = $raw | ConvertFrom-Json } catch { } }
     if ($code -eq 429) { $script:throttled = $true }
-    return @{ Status = $code; Body = $o; Raw = $raw }
+    # `Headers` dipakai grup 9g (export CSV) untuk memeriksa Content-Type dan
+    # Content-Disposition. `Body` sengaja tetap null untuk respons CSV: isinya
+    # bukan JSON, jadi `ConvertFrom-Json` gagal dan ditelan `catch`.
+    return @{ Status = $code; Body = $o; Raw = $raw; Headers = $hdr }
 }
 
 function Reg($nik, $name, $kode) {
@@ -724,7 +728,8 @@ Group "9e. Catatan keluhan (Opsi C)"
 #  4. `note_date` BOLEH diubah lewat PATCH - berbeda dari suntikan, karena
 #     kesalahan tanggal di sini adalah salah pilih hari di kalender.
 #  5. `measurement_id` milik anak lain ditolak, dan catatan TETAP ADA walau
-#     penimbangan yang ditautkan dihapus (nullOnDelete).
+#     penimbangan yang ditautkan DIBATALKAN. Catatan masih menunjuk
+#     penimbangan itu (lihat catatan kontrak di bawah).
 # =====================================================================
 
 # Tanggal uji: mundur beberapa hari supaya tidak bentrok dengan data seed
@@ -883,13 +888,26 @@ $idCatatUlang = $r.Body.data.id
 Req 'DELETE' "$base/kader/medical-notes/$idCatatUlang" $tK $null | Out-Null
 Note "unique index-nya partial (WHERE deleted_at IS NULL)"
 
-# Catatan tetap hidup walau penimbangan yang ditautkan dihapus.
+# Catatan tetap hidup walau penimbangan yang ditautkan DIBATALKAN.
 $r = Req 'DELETE' "$base/kader/measurements/$idUkurKeluhan" $tK $null
-Check "hapus penimbangan tertaut -> 200" 200 $r.Status
+Check "batalkan penimbangan tertaut -> 200" 200 $r.Status
 $r = Req 'GET' "$base/children/$idA/medical-notes?all=1" $tK $null
 $catatanHidup = FindById $r.Body.data.notes $idKeluhan
-Check "catatan tetap ada setelah penimbangan dihapus" $true ($null -ne $catatanHidup)
-Check "  measurement_id jadi null (nullOnDelete)" $null $catatanHidup.measurement_id
+Check "catatan tetap ada setelah penimbangan dibatalkan" $true ($null -ne $catatanHidup)
+
+# PERUBAHAN KONTRAK (migration 2026_09_27_020000, soft delete pada `measurements`).
+# Sebelumnya `measurement_id` jadi null di sini karena `delete()` menghapus
+# baris secara fisik sehingga FK `ON DELETE SET NULL` menyala. Sekarang tabel
+# `measurements` memakai soft delete, jadi barisnya tidak hilang dan FK tidak
+# pernah menyala: catatan MASIH menunjuk penimbangan yang sudah dibatalkan.
+#
+# Ini disengaja dan lebih berguna untuk audit - "keluhan ini dicatat saat
+# penimbangan 18 Sep, yang lalu dibatalkan" lebih berharga daripada tautan
+# yang hilang. Yang tetap dijamin adalah isi catatan itu sendiri utuh.
+# Kalau suatu saat tautan benar-benar harus dilepas, itu harus dilakukan
+# eksplisit (mis. saat forceDelete), bukan diharapkan dari efek samping delete.
+Check "  measurement_id masih menunjuk penimbangan yg dibatalkan" $idUkurKeluhan $catatanHidup.measurement_id
+Note "soft delete: FK nullOnDelete hanya menyala untuk hapus fisik"
 Check "  keluhan tetap utuh" $true $catatanHidup.diare
 Note "keluhan adalah informasi kesehatan, tidak boleh ikut hilang"
 
@@ -898,7 +916,181 @@ Check "total akhir: 1 catatan aktif" 1 $r.Body.data.summary.total
 Note "sisa baris fisik 3 (1 aktif + 2 dibatalkan), dicek di grup 12"
 
 # =====================================================================
+Group "9f. Rekap imunisasi bulanan (Opsi E)"
+# Grup ini yang pertama kali benar-benar menyentuh
+# `GET /kader/immunizations/recap`. Sebelumnya endpoint-nya tidak pernah
+# dipanggil oleh uji-api sama sekali, jadi 288 pemeriksaan yang lulus tidak
+# berarti apa-apa untuk fitur ini. TypeError di
+# `ImmunizationRecapService::coverageAt()` yang bikin 500 di setiap request
+# baru ketahuan setelah feature test ditambahkan.
+# =====================================================================
+
+# Ibu tidak boleh: rekap mengekspos seluruh Posyandu.
+$r = Req 'GET' "$base/kader/immunizations/recap" $tA $null
+Check "Ibu buka rekap -> 403" 403 $r.Status
+Check "  success false" $false $r.Body.success
+Note "Ibu tetap bisa lihat anaknya sendiri lewat /children/{id}/immunizations"
+
+# Validasi bulan.
+$r = Req 'GET' "$base/kader/immunizations/recap?month=2026-13" $tK $null
+Check "bulan 13 -> 422" 422 $r.Status
+Check "  ada error di field month" $true ($r.Body.errors.PSObject.Properties.Name -contains 'month')
+$r = Req 'GET' "$base/kader/immunizations/recap?month=202602" $tK $null
+Check "bulan tanpa garis -> 422" 422 $r.Status
+
+# Bentuk respons. `filter` sengaja diletakkan di dalam `data`, bukan di root:
+# ia menggabungkan echo permintaan dengan tanggal acuan hasil perhitungan.
+$bulanUji = Get-Date -Format 'yyyy-MM'
+$hariIni  = Get-Date -Format 'yyyy-MM-dd'
+$akhirBulanUji = ([datetime]::ParseExact($bulanUji, 'yyyy-MM', $null)).AddMonths(1).AddDays(-1).ToString('yyyy-MM-dd')
+
+$r = Req 'GET' "$base/kader/immunizations/recap?month=$bulanUji" $tK $null
+Check "Kader buka rekap -> 200" 200 $r.Status
+Check "  success true" $true $r.Body.success
+Check "  filter.month = bulan diminta" $bulanUji $r.Body.data.filter.month
+Check "  filter.reference_date = akhir bulan" $akhirBulanUji $r.Body.data.filter.reference_date
+Check "  activity ada" $true ($r.Body.data.activity.PSObject.Properties.Name -contains 'total_doses')
+Check "  coverage ada" $true ($r.Body.data.coverage.PSObject.Properties.Name -contains 'excluded_archived')
+Check "  by_type = master 16 dosis" 16 $r.Body.data.activity.by_type.Count
+Note "semua master dosis muncul, termasuk yang count-nya 0"
+Check "  overdue_children berupa array" $true ($r.Body.data.coverage.overdue_children -is [array])
+Check "  total = lengkap + kurang" ($r.Body.data.coverage.complete + $r.Body.data.coverage.incomplete) $r.Body.data.coverage.total_children
+
+# Aktivitas: suntikan bulan berjalan terhitung per jenis vaksin.
+$anakUji = Req 'POST' "$base/children" $tA @{ name = "Anak Rekap $s"; date_of_birth = '2024-01-15'; gender = 'P' }
+Check "anak untuk rekap -> 201" 201 $anakUji.Status
+$idAnakRekap = $anakUji.Body.data.id
+
+$r = Req 'POST' "$base/kader/children/$idAnakRekap/immunizations" $tK @{ immunization_type_id = $typeHB0; date_given = $hariIni; batch_number = 'REKAP-001' }
+Check "suntikan tanggal hari ini -> 201" 201 $r.Status
+
+$countHB0 = 0
+foreach ($d in (Req 'GET' "$base/kader/immunizations/recap?month=$bulanUji" $tK $null).Body.data.activity.by_type) {
+    if ($d.immunization_type_id -eq $typeHB0) { $countHB0 = $d.count }
+}
+Check "  HB0 terhitung di aktivitas bulan ini" 1 $countHB0
+
+# Batalkan suntikannya. Aktivitas harus turun karena global scope soft delete,
+# dan barisnya tetap ada di database (dicek di grup 12 lewat "sisa suntikan").
+$r2 = Req 'GET' "$base/children/$idAnakRekap/immunizations" $tK $null
+$idRecordRekap = $null
+foreach ($d in $r2.Body.data.checklist) { if ($d.record -ne $null) { $idRecordRekap = $d.record.id } }
+Check "  suntikan ada di checklist anak" $true ($idRecordRekap -ne $null)
+
+$r3 = Req 'DELETE' "$base/kader/immunizations/$idRecordRekap" $tK $null
+Check "batalkan suntikan rekap -> 200" 200 $r3.Status
+
+$countHB0Sesudah = 0
+foreach ($d in (Req 'GET' "$base/kader/immunizations/recap?month=$bulanUji" $tK $null).Body.data.activity.by_type) {
+    if ($d.immunization_type_id -eq $typeHB0) { $countHB0Sesudah = $d.count }
+}
+Check "  count HB0 turun jadi 0" 0 $countHB0Sesudah
+Note "suntikan dibatalkan tidak boleh masuk rekap (soft delete)"
+
+# Laporan historis harus reproduktif: bulan yang sama diminta dua kali
+# menghasilkan angka yang sama, karena acuan waktunya akhir bulan.
+$rA = Req 'GET' "$base/kader/immunizations/recap?month=$bulanUji" $tK $null
+$rB = Req 'GET' "$base/kader/immunizations/recap?month=$bulanUji" $tK $null
+Check "rekap dua kali -> total anak sama" $rA.Body.data.coverage.total_children $rB.Body.data.coverage.total_children
+Check "  jumlah anak terlambat sama" $rA.Body.data.coverage.overdue_children.Count $rB.Body.data.coverage.overdue_children.Count
+Check "  total dosis sama" $rA.Body.data.activity.total_doses $rB.Body.data.activity.total_doses
+
+# Bulan yang tidak ada aktivitas tetap harus 200 dengan angka nol, bukan 404.
+$r = Req 'GET' "$base/kader/immunizations/recap?month=2019-01" $tK $null
+Check "rekap bulan kosong -> 200" 200 $r.Status
+Check "  total dosis 0" 0 $r.Body.data.activity.total_doses
+Check "  by_type tetap 16" 16 $r.Body.data.activity.by_type.Count
+Note "kader perlu melihat 'tidak ada suntikan', bukan pesan 404"
+
+
+# =====================================================================
+Group "9g. Export CSV rekap (Opsi E - butir terakhir)"
+# `?format=csv` memakai route yang sama dengan JSON, jadi grup ini juga
+# menguji hal yang paling mahal dari fitur ini: angka di berkas CSV harus
+# sama dengan angka di JSON. Kalau tidak, BIDAN menerima laporan yang
+# berbeda dari yang dilihat kader di layar.
+#
+# BOM UTF-8 dan pemisah CRLF TIDAK diperiksa di sini. `Invoke-WebRequest`
+# mendecode body dan membuang BOM sebelum skrip menyentuhnya, jadi yang
+# tersisa hanyalah teks UTF-8 yang kelihatan benar. Dua hal itu diuji di
+# `tests/Feature/ImmunizationRecapCsvTest.php` yang membaca respons mentah.
+# =====================================================================
+
+# Ibu tidak boleh, sama seperti JSON. File CSV adalah laporan seluruh
+# Posyandu; membocorkannya lewat unduhan sama saja membocorkan lewat JSON.
+$r = Req 'GET' "$base/kader/immunizations/recap?format=csv" $tA $null
+Check "Ibu unduh CSV -> 403" 403 $r.Status
+
+# Format yang tidak dikenal ditolak, bukan diam-diam diabaikan.
+$r = Req 'GET' "$base/kader/immunizations/recap?format=excel" $tK $null
+Check "format tak dikenal -> 422" 422 $r.Status
+Check "  ada error di field format" $true ($r.Body.errors.PSObject.Properties.Name -contains 'format')
+
+# `format=csv` tidak boleh melewati validasi bulan. Kalau lolos, kader
+# mengunduh file header tanpa pesan error dan menyimpannya tanpa tahu ada
+# yang salah.
+$r = Req 'GET' "$base/kader/immunizations/recap?month=2026-13&format=csv" $tK $null
+Check "CSV + bulan salah -> 422" 422 $r.Status
+Check "  badan tetap JSON, bukan CSV" $true ($r.Raw -like '*"errors"*')
+Check "  tidak ada isi laporan di badan" $false ($r.Raw -like '*AKTIVITAS SUNTIKAN*')
+
+# Kontrak file: tipe konten dan nama unduhan.
+$r = Req 'GET' "$base/kader/immunizations/recap?month=$bulanUji&format=csv" $tK $null
+Check "Kader unduh CSV -> 200" 200 $r.Status
+Check "  Content-Type text/csv" 'text/csv; charset=UTF-8' $r.Headers['Content-Type']
+Check "  nama file ikut bulan" "attachment; filename=`"rekap-imunisasi-$bulanUji.csv`"" $r.Headers['Content-Disposition']
+Note "BOM UTF-8 dan CRLF dicek di feature test, bukan di sini"
+
+$csv = $r.Raw
+Check "  ada kop bulan" $true ($csv -like "*Bulan: $bulanUji*")
+Check "  ada tanggal acuan" $true ($csv -like "*Dihitung sampai: $akhirBulanUji*")
+Check "  bagian aktivitas ada" $true ($csv -like '*AKTIVITAS SUNTIKAN*')
+Check "  bagian kelengkapan ada" $true ($csv -like '*KELENGKAPAAN IMUNISASI*')
+Check "  bagian daftar anak ada" $true ($csv -like '*DAFTAR ANAK TERLAMBAT*')
+
+# Guard utama: angka CSV harus sama persis dengan angka JSON.
+$j = (Req 'GET' "$base/kader/immunizations/recap?month=$bulanUji" $tK $null).Body.data
+Check "  total dosis CSV = JSON" $true ($csv -like "*TOTAL,,,$($j.activity.total_doses)*")
+Check "  total anak CSV = JSON" $true ($csv -like "*Total anak,$($j.coverage.total_children)*")
+Check "  anak terlambat CSV = JSON" $true ($csv -like "*Ada dosis terlambat,$($j.coverage.overdue)*")
+Check "  arsip CSV = JSON" $true ($csv -like "*Tidak dihitung (arsip / pindah),$($j.coverage.excluded_archived)*")
+Note "CSV dibangun dari array yang sama dengan JSON, jadi angkanya tidak mungkin beda"
+
+# Semua 16 baris master harus muncul di file, termasuk yang count-nya 0.
+$barisHilang = @()
+foreach ($d in $j.activity.by_type) {
+    if ($csv -notlike "*$($d.code),$($d.dose_number),$($d.label),$($d.count)*") { $barisHilang += $d.code }
+}
+Check "  semua 16 master dosis ada di CSV" 0 $barisHilang.Count
+if ($barisHilang.Count -gt 0) { Note "hilang: $($barisHilang -join ', ')" }
+Note "baris count=0 ikut ditulis, tidak disembunyikan seperti di layar"
+
+# Jumlah baris anak terlambat di file harus sama dengan di JSON. Hitung per
+# baris tabel "DAFTAR ANAK TERLAMBAT": baris yang 7 kolomnya semua terisi
+# setelah kolom No.
+$jumlahBarisAnak = 0
+foreach ($baris in ($csv -split "`r`n")) {
+    if ($baris -match '^\d+,[^,]') { $jumlahBarisAnak++ }
+}
+Check "  baris anak terlambat = JSON" $j.coverage.overdue_children.Count $jumlahBarisAnak
+Note "satu anak = satu baris, jadi daftar kunjungan tidak kembar"
+
+# Klien lama tidak mengirim `format`. Kontrak JSON tidak boleh bergeser.
+$tanpa = Req 'GET' "$base/kader/immunizations/recap?month=$bulanUji" $tK $null
+$eksplisit = Req 'GET' "$base/kader/immunizations/recap?month=$bulanUji&format=json" $tK $null
+Check "tanpa format = format=json" $tanpa.Raw $eksplisit.Raw
+
+# Bulan kosong harus tetap menghasilkan file utuh, bukan 404 atau file kosong.
+$r = Req 'GET' "$base/kader/immunizations/recap?month=2019-01&format=csv" $tK $null
+Check "CSV bulan kosong -> 200" 200 $r.Status
+Check "  file tetap utuh" $true ($r.Raw -like '*DAFTAR ANAK TERLAMBAT*')
+Check "  ada penanda tidak ada anak telat" $true ($r.Raw -like '*(tidak ada anak dengan dosis terlambat)*')
+
+
+
+# =====================================================================
 Group "10. Logout"
+
 $r = Req 'POST' "$base/logout" $tK2 $null
 Check "logout -> 200" 200 $r.Status
 $r = Req 'GET' "$base/children" $tK2 $null

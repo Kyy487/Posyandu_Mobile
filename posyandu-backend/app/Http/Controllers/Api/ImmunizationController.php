@@ -8,6 +8,8 @@ use App\Models\ImmunizationRecord;
 use App\Models\ImmunizationType;
 use App\Models\User;
 use App\Services\ImmunizationChecklistService;
+use App\Services\ImmunizationRecapCsv;
+use App\Services\ImmunizationRecapService;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
@@ -23,6 +25,8 @@ use Illuminate\Validation\ValidationException;
  * Endpoint yang tersedia:
  *  - `GET    /children/{child}/immunizations`        checklist (Ibu & Kader)
  *  - `GET    /immunization-types`                   master dosis (Ibu & Kader)
+ *  - `GET    /kader/immunizations/recap`            rekap bulanan (Kader)
+ *    (`?format=csv` untuk berkas laporan)
  *  - `POST   /kader/children/{child}/immunizations` catat suntikan (Kader)
  *  - `PATCH  /kader/immunizations/{record}`        koreksi suntikan (Kader)
  *  - `DELETE /kader/immunizations/{record}`        batalkan suntikan (Kader)
@@ -37,7 +41,11 @@ use Illuminate\Validation\ValidationException;
  */
 class ImmunizationController extends Controller
 {
-    public function __construct(private readonly ImmunizationChecklistService $checklist) {}
+    public function __construct(
+        private readonly ImmunizationChecklistService $checklist,
+        private readonly ImmunizationRecapService $recap,
+        private readonly ImmunizationRecapCsv $csv,
+    ) {}
 
     /**
      * Checklist imunisasi untuk satu anak.
@@ -93,6 +101,54 @@ class ImmunizationController extends Controller
             'success' => true,
             'message' => 'Daftar jenis imunisasi berhasil diambil.',
             'data' => $types,
+        ], 200);
+    }
+
+    /**
+     * Rekap imunisasi satu bulan untuk seluruh Posyandu (kader saja).
+     *
+     * `?month=YYYY-MM` menentukan bulan yang direkap; default bulan berjalan.
+     * Status kelengkapan dihitung relatif terhadap AKHIR bulan itu, bukan hari
+     * ini, supaya laporan lama yang dibuka lagi menghasilkan angka yang sama.
+     *
+     * Hasilnya dua bagian yang tidak boleh dijumlahkan: `activity` (dosis yang
+     * disuntik bulan itu, untuk stok vaksin) dan `coverage` (kelengkapan tiap
+     * anak di akhir bulan, untuk BIDAN dan kunjungan rumah).
+     *
+     * `?format=csv` mengembalikan bentuk yang sama dalam berkas CSV untuk
+     * dipegang BIDAN. Default `json` tidak berubah sama sekali, jadi klien
+     * lama yang tidak mengirim `format` tetap mendapat respons yang persis sama.
+     */
+    public function recap(Request $request)
+    {
+        try {
+            $validated = $request->validate([
+                'month' => ['nullable', 'date_format:Y-m'],
+                'format' => ['nullable', 'in:json,csv'],
+            ]);
+        } catch (ValidationException $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Validasi gagal.',
+                'errors' => $e->errors(),
+            ], 422);
+        }
+
+        $bulan = CarbonImmutable::createFromFormat('!Y-m', $validated['month'] ?? CarbonImmutable::now()->format('Y-m'));
+
+        $rekap = $this->recap->recapForMonth($bulan);
+
+        if (($validated['format'] ?? 'json') === 'csv') {
+            return response($this->csv->render($rekap), 200, [
+                'Content-Type' => 'text/csv; charset=UTF-8',
+                'Content-Disposition' => 'attachment; filename="'.$this->csv->filename($rekap['filter']['month']).'"',
+            ]);
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Rekap imunisasi berhasil diambil.',
+            'data' => $rekap,
         ], 200);
     }
 
