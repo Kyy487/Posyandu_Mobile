@@ -118,6 +118,17 @@ Constraint:
 menghapus penimbangan atau akun kader tidak boleh menghapus catatan kesehatan
 anak. `child_id` berbeda — itu datacore yang jelas sudah tidak relevan.
 
+> ⚠️ **Diperbarui oleh migration `2026_09_27_020000_prepare_measurements_for_recap.php`.**
+>
+> `measurements` sekarang memakai **soft delete**, jadi pembatalan penimbangan
+> tidak lagi menghapus barisnya. Akibatnya FK `ON DELETE SET NULL` **tidak
+> menyala**: `medical_notes.measurement_id` **tetap** menunjuk penimbangan yang
+> dibatalkan, bukan `null` seperti sebelumnya.
+>
+> Yang tetap berlaku: isi catatan tidak ikut terhapus. FK-nya juga tidak
+> dihapus, jadi `forceDelete` masih melepas tautan. Lihat
+> `docs/DATABASE_SCHEMA.md` bagian `medical_notes` untuk penjelasan lengkap.
+
 ### 3.2 Model dan relasi
 
 `app/Models/MedicalNote.php` — `HasFactory`, `HasUuids`, `SoftDeletes`,
@@ -234,7 +245,7 @@ supaya parser tidak melenceng diam-diam kalau format server berubah.
 | :--- | :--- |
 | `scopeForMonth()` memakai `$month.'-31'` | PostgreSQL menolak tanggal tidak valid; diganti `CarbonImmutable::endOfMonth()` |
 | Controller return type `response()->json()` adalah `Illuminate\Http\Response`, bukan `JsonResponse` | TypeError → `500`; diperbaiki tipe return helper |
-| `measurement_id` saat dihapus | `nullOnDelete` diverifikasi: hapus measurement, catatan tetap ada dengan `measurement_id` null |
+| `measurement_id` saat penimbangan dihapus | `nullOnDelete` diverifikasi: catatan tetap ada. **Nilai `measurement_id` berubah** setelah `measurements` memakai soft delete — sekarang tetap menunjuk penimbangan yang dibatalkan, bukan `null` (lihat catatan di Bagian 3) |
 | Migration gagal parse karena kutip | String SQL di dalam `DB::statement` diperbaiki |
 | Data uji dari smoke test tertinggal di DB | 9 record soft-deleted dihapus, DB kembali ke baseline |
 

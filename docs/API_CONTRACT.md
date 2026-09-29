@@ -88,7 +88,8 @@ Header Wajib: `Authorization: Bearer {token}` & `Accept: application/json`
 | `POST` | `/kader/children` | Mendaftarkan anak oleh kader — **[kontrak unified](#menambah-data-anak-kontrak-unified)** |
 | `GET` | `/kader/measurements` | Riwayat penimbangan |
 | `POST` | `/kader/measurements` | Input penimbangan (e-KMS) — endpoint yang dipakai mobile |
-| `DELETE` | `/kader/measurements/{id}` | Hapus penimbangan |
+| `DELETE` | `/kader/measurements/{id}` | Batalkan penimbangan (soft delete) |
+| `GET` | `/kader/immunizations/recap` | **[Rekap bulanan](#get-kaderimmunizationsrecap)** - aktivitas + kelengkapan, Kader saja. `?format=csv` untuk laporan ke BIDAN |
 | `POST` | `/kader/children/{child}/immunizations` | Catat suntikan — **[lihat bagian imunisasi](#imunisasi)** |
 | `PATCH` | `/kader/immunizations/{record}` | Koreksi suntikan yang sudah tercatat |
 | `DELETE` | `/kader/immunizations/{record}` | Batalkan suntikan (soft delete) |
@@ -364,6 +365,13 @@ Ibu hanya boleh melihat anaknya sendiri; Kader boleh melihat semua anak.
 > terlambat (`-14` = sudah 14 bulan lewat) dan positif bila masih ada sisa
 > waktu. Parser yang salah mengira `null` di sini akan membuat teks
 > "terlambat X bulan" hilang tanpa error terlihat.
+>
+> `sisa_bulan` bernilai `null` untuk dosis berstatus **`sudah`**, dan hanya
+> untuk itu. Countdown-nya memang tidak relevan di sana: anak 11 bulan yang
+> suntik MR tepat waktu punya sisa `0` (atau negatif) yang akan tampil
+> "terlambat 0 bulan" kalau dikirim, padahal dosisnya justru sudah diberikan
+> tepat waktu. Klien boleh menampilkan "Sudah disuntik <tanggal>" tanpa
+> menyentuh `sisa_bulan` sama sekali.
 
 Bila dosis sudah disuntik, `record` berisi `id`, `date_given`, `batch_number`,
 `notes`, dan `kader_id`.
@@ -458,6 +466,213 @@ Respons `200`:
 
 Tidak ada `422` di endpoint ini - tidak ada field yang divalidasi saat
 pembatalan.
+
+### `GET /kader/immunizations/recap`
+
+Rekap imunisasi **seluruh Posyandu** untuk satu bulan. Kader-only: Ibu boleh
+melihat checklist anaknya sendiri lewat `GET /children/{id}/immunizations`,
+tetapi tidak boleh melihat status anak lain, jadi route ini tidak pernah memakai
+prefix `/children/{id}`.
+
+| Parameter | Tipe | Wajib | Keterangan |
+| :--- | :--- | :--- | :--- |
+| `month` | `YYYY-MM` | Tidak | Bulan yang direkap. Default: bulan berjalan |
+| `format` | `json` \| `csv` | Tidak | Bentuk respons. Default: `json` |
+
+Responsnya **dua bagian yang tidak boleh dijumlahkan**:
+
+| Bagian | Pertanyaan | Kegunaan |
+| :--- | :--- | :--- |
+| `activity` | Berapa dosis yang disuntik bulan itu | Stok vaksin |
+| `coverage` | Kelengkapan tiap anak di akhir bulan itu | Laporan ke BIDAN, siapkan kunjungan rumah |
+
+```json
+{
+  "success": true,
+  "message": "Rekap imunisasi berhasil diambil.",
+  "data": {
+    "filter": { "month": "2026-09", "reference_date": "2026-09-30" },
+    "activity": {
+      "total_doses": 12,
+      "total_children": 9,
+      "by_type": [
+        {
+          "immunization_type_id": "01a0ddcb-8197-7184-9c37-fe42f3cc1fd9",
+          "code": "HB",
+          "name": "Hepatitis B",
+          "label": "Hepatitis B",
+          "dose_number": 1,
+          "count": 4
+        }
+      ]
+    },
+    "coverage": {
+      "total_children": 25,
+      "complete": 12,
+      "incomplete": 9,
+      "overdue": 4,
+      "excluded_archived": 2,
+      "overdue_children": [
+        {
+          "child_id": "01a0d979-c11f-705b-8dd8-a245652c7aa4",
+          "name": "Budi Santoso",
+          "date_of_birth": "2025-10-15",
+          "age_in_months": 11,
+          "overdue_doses": [
+            {
+              "immunization_type_id": "01a0ddcb-8201-7184-9c37-fe42f3cc1fd9",
+              "code": "MR",
+              "name": "Campak-Rubella",
+              "label": "Campak-Rubella (Dosis 1)",
+              "dose_number": 1,
+              "target_age_months": 9,
+              "sisa_bulan": 0
+            }
+          ]
+        }
+      ]
+    }
+  }
+}
+```
+
+#### Empat aturan yang tidak boleh dilanggar klien
+
+**1. `activity` dan `coverage` tidak boleh dijumlahkan.** Aktivitas menjawab "apa
+yang terjadi", coverage menjawab "keadaan apa yang tersisa". Posyandu bisa punya
+aktivitas tinggi dan coverage-nya tetap jelek.
+
+**2. `filter.reference_date` adalah akhir bulan yang diminta, bukan hari ini.**
+Suntikan dengan `date_given` setelah tanggal itu diabaikan, termasuk saat
+menghitung `coverage`. Konsekuensinya laporan lama bisa dipakai sebagai arsip:
+rekap September yang dibuat di November angkanya sama dengan yang dibuat di
+Oktober. field ini dikirim supaya klien tidak perlu menghitung ulang sendiri,
+dan tidak bisa salah mengira rekap ini memakai hari ini.
+
+**3. `by_type` selalu memuat seluruh master 16 dosis, termasuk yang `count`-nya
+`0`.** Kader perlu melihat "tidak ada yang disuntik bulan ini" untuk satu jenis
+vaksin. Kalau baris nol disembunyikan, "memang tidak ada suntikan" dan "tidak
+sempat dicatat" tampil sama saja.
+
+**4. `excluded_archived` adalah anak yang dihitung KECUALI.** Anak yang sudah
+di-soft delete tidak masuk `total_children` maupun `overdue`, karena rekap ini
+dipakai untuk memutuskan siapa yang dikunjungi. Jumlahnya tetap dilaporkan
+supaya angka yang muncul tidak menutupi ada anak yang tidak ikut dihitung.
+
+#### Status anak
+
+| Field | Arti |
+| :--- | :--- |
+| `complete` | Semua dosis yang usianya sudah tercapai sudah disuntik |
+| `incomplete` | Ada dosis jatuh tempo yang belum disuntik |
+| `overdue` | Ada dosis yang sudah melewati target + toleransi |
+
+`complete` + `incomplete` selalu sama dengan `total_children`. Dosis yang **belum
+jatuh tempo** diabaikan di semua kategori: anak usia 2 bulan tidak boleh
+ditandai kurang hanya karena belum waktunya BCG. `complete` bernilai `true` bila
+tidak ada satu pun dosis jatuh tempo yang belum disuntik.
+
+#### Urutan `overdue_children`
+
+1. Paling banyak dosis terlambat dulu
+2. Jika sama, paling lama terlambat (`sisa_bulan` paling negatif)
+
+Kader bisa langsung tahu siapa dikunjungi duluan tanpa sort manual. Dosis
+tanpa `target_age_months` tidak punya `sisa_bulan` dan tidak ikut memengaruhi
+urutan.
+
+#### Kesalahan
+
+| HTTP | Kondisi | `message` |
+| :--- | :--- | :--- |
+| `401` | tanpa / token tidak valid | `Akses ditolak.` |
+| `403` | Ibu memanggil endpoint ini | `Akses ditolak.` |
+| `422` | `month` bukan `YYYY-MM` atau bulan tidak ada (mis. `2026-13`) | `Validasi gagal.` + `errors.month` |
+| `422` | `format` selain `json` / `csv` | `Validasi gagal.` + `errors.format` |
+
+Tidak ada `404`: bulan yang tidak ada aktivitasnya tetap `200` dengan angka nol.
+
+#### `format=csv`
+
+`GET /kader/immunizations/recap?month=2026-09&format=csv` mengembalikan
+**berkas** untuk laporan ke BIDAN, bukan JSON.
+
+| Header | Nilai |
+| :--- | :--- |
+| `Content-Type` | `text/csv; charset=UTF-8` |
+| `Content-Disposition` | `attachment; filename="rekap-imunisasi-2026-09.csv"` |
+
+Isinya satu file dengan tiga bagian berurutan, sama dengan urutan di layar:
+
+```
+Rekap Imunisasi - Posyandu Desa Sukamaju
+Bulan: 2026-09
+Dihitung sampai: 2026-09-30
+Dicetak: 2026-09-29 14:05 WIB
+
+AKTIVITAS SUNTIKAN
+Kode,Dosis,Nama Vaksin,Jumlah Disuntik
+BCG,1,BCG,3
+HB,1,Hepatitis B,4
+MR,1,Campak Rubella,5
+TOTAL,,,12
+
+Anak yang disuntik bulan ini,9
+
+KELENGKAPAAN IMUNISASI (pada akhir bulan)
+Keterangan,Jumlah Anak
+Total anak,25
+Imunisasi lengkap,12
+Imunisasi belum lengkap,13
+Ada dosis terlambat,4
+Tidak dihitung (arsip / pindah),2
+
+DAFTAR ANAK TERLAMBAT
+No,Nama,Tanggal Lahir,Usia (bulan),Jumlah Dosis Terlambat,Dosis Terlambat,Terlambat (bulan)
+1,Budi Santoso,2025-10-15,11,1,Campak Rubella,-9
+```
+
+**Tiga aturan yang tidak boleh dilanggar klien file ini:**
+
+**1. Angkanya harus sama persis dengan JSON.** CSV dibangun dari array yang
+sama persis dengan yang dikirim ke JSON - bukan query terpisah. Kalau ada
+perhitungan yang berubah, keduanya berubah bersama. Export yang angkanya
+berbeda dari layar adalah kegagalan paling mahal di fitur ini, karena laporan
+yang salah akan dipakai untuk memutuskan kunjungan.
+
+**2. Baris `count: 0` tetap ditulis, dan satu anak tetap satu baris.** Di layar,
+baris nol disembunyikan di balik toggle; di berkas tidak ada toggle, jadi "tidak
+ada suntikan" harus tetap bisa dibedakan dari "tidak sempat dicatat". Dosis
+telat milik satu anak digabung ke satu sel dengan pemisah `; ` supaya daftar
+nama anak bisa langsung disalin ke daftar kunjungan.
+
+**3. Formatnya untuk Excel di Windows, bukan untuk mesin.** BOM UTF-8 di depan
+file, pemisah baris `CRLF`, dan nilai teks yang diawali `=`, `+`, `-`, `@`
+diberi awalan tanda kutip tunggal supaya Excel tidak memperlakukannya sebagai
+formula. Tanggal ditulis ISO (`2026-09-30`), bukan nama bulan bahasa
+Indonesia, supaya tidak pernah tampil berbeda dari yang dibaca kader.
+
+> **Belum dipakai dari aplikasi mobile.** Unduh lewat browser atau `curl` dulu.
+> Tombol export di aplikasi perlu `path_provider` + `share_plus`, dan itu
+> penambahan dependency yang belum disetujui.
+
+> **Sudah dipakai di aplikasi:** layar Kader "Rekap Imunisasi" di
+> `posyandu_mobile/lib/screens/kader/rekap_imunisasi_screen.dart`. Klien tidak
+> menjumlahkan `activity` dengan `coverage`, tidak menghitung status ulang, dan
+> tidak mengurutkan ulang `overdue_children` — semuanya apa adanya dari server.
+> Parser-nya diuji terhadap JSON asli di
+> `posyandu_mobile/test/kontrak_api_test.dart`.
+
+> **Status dihitung dari `ImmunizationChecklistService` yang sama dengan checklist
+> anak.** Satu anak bisa muncul dengan `overdue_doses` berbeda di dua endpoint
+> hanya kalau ada dua salinan aturan status, dan itu tidak terjadi. Sumbernya
+> satu: `evaluate()`.
+>
+> `sisa_bulan` di `overdue_doses` selalu terisi (dosis yang telat pasti punya
+> batas). Di `checklist` anak, `sisa_bulan` bernilai `null` untuk dosis
+> berstatus `sudah` - countdown-nya tidak relevan di sana, dan angka yang
+> tersisa akan menampilkan "terlambat X bulan" untuk dosis yang justru sudah
+> diberikan tepat waktu.
 
 ## Jadwal Posyandu (Agenda Kegiatan)
 

@@ -3,7 +3,9 @@
 Dokumen ini dipakai untuk memilih pekerjaan berikutnya. Setiap opsi ditulis
 dengan estimasi dan tingkat kesulitan supaya bisa dipilih tanpa perlu tebak.
 
-**Dokumen terkait:** `LAPORAN_IMUNISASI_JADWAL.md` (fase yang baru selesai)
+**Dokumen terkait:** `LAPORAN_IMUNISASI_JADWAL.md` (fase yang baru selesai),
+`LAPORAN_MEDICAL_NOTES.md` (Opsi C), `LAPORAN_REKAP_IMUNISASI_BULANAN.md`
+(Opsi E, backend + mobile), `LAPORAN_REKAP_CSV.md` (Opsi E, export CSV)
 
 ---
 
@@ -15,17 +17,18 @@ Status fitur berdasarkan `RANCANGAN.md`:
 | :--- | :--- |
 | A. CRUD Data Anak | Selesai |
 | B. e-KMS dan Z-Score WHO | Selesai |
-| C. Imunisasi | Selesai (Fase 3) |
+| C. Imunisasi | Selesai (Fase 3) + rekap bulanan (Opsi E, backend, mobile, dan export CSV) |
 | D. Jadwal Posyandu | Selesai (Fase 3) |
-| E. Buku Medis Digital (EHR) | Belum ada |
-| F. Catatan Medis / Keluhan | Belum ada |
+| E. Buku Medis Digital (EHR) | Rancangan selesai, implementasi belum |
+| F. Catatan Keluhan | Selesai (Opsi C) |
 | G. Grafik Tumbuh Kembang | Belum ada |
 | H. Edukasi Kesehatan | Belum ada |
 | I. "Sepiring Bergizi" (AI vision) | Belum ada |
 | J. Smart Triage (IoT) | Belum ada |
 
-**Mayoritas RANCANGAN.md belum dikerjakan.** Yang sudah selesai hanya
-fondasi data dan 2 fitur operasional.
+**Mayoritas RANCANGAN.md belum dikerjakan.** Yang sudah selesai adalah fondasi
+data, imunisasi, jadwal, catatan keluhan, dan rekap bulanan. Belum ada satu
+pun layar EHR, grafik tumbuh kembang, edukasi, AI, atau IoT.
 
 ---
 
@@ -56,22 +59,38 @@ Alasannya ada di bagian "Temuan Selesai" pada laporan.
 
 ---
 
-## Opsi B - Buku Medis Digital (EHR)
+## Opsi B - Buku Medis Digital (EHR) (RANCANGAN SELESAI)
 
 | | |
 | :--- | :--- |
-| Estimasi | 4 sampai 6 hari |
+| Estimasi | 2,5 sampai 3 hari |
 | Kesulitan | Sedang |
+| Status | **Rancangan selesai 28 September 2026** - implementasi belum mulai |
 
 Gabung penimbangan, imunisasi, dan jadwal jadi satu halaman rekam medis
 anak yang bisa dibuka kader kapan saja.
 
-- Tabel riwayat pemeriksaan (kunjungan)
-- Kolom kondisi khusus: alergi, penyakit bawaan (tagging)
-- Layar timeline, contoh: "24 Sep 2026 - Penimbangan, BB 6.1 kg, Normal"
-- Export PDF sederhana
+**Rancangan lengkapnya ada di `RANCANGAN_BUKU_MEDIS.md`.** Itu yang jadi acuan
+saat pengerjaan, dokumen ini cuma ringkasannya.
+
+- [ ] Tabel riwayat pemeriksaan (kunjungan) - `GET /children/{id}/timeline`
+- [ ] Kolom kondisi khusus: alergi, penyakit bawaan (tagging)
+- [ ] Layar timeline di `detail_anak_screen.dart`, contoh: "24 Sep 2026 - Penimbangan, BB 6.1 kg, Normal"
+- [ ] Export PDF sederhana - **ditunda**, tidak masuk MVP
 
 **Dependensi:** Opsi A sudah selesai, jadi penghalang di sini sudah terpecahkan.
+
+**Dua keputusan masih menunggu jawaban sebelum mulai:**
+
+1. Kondisi khusus disimpan sebagai kolom di `children` atau tabel terpisah?
+   Rekomendasi: kolom, karena belum ada kebutuhan melacak kapan penanda
+   berubah.
+2. Timeline dikelompokkan per kunjungan (tanggal) atau per kejadian?
+   Rekomendasi: per kunjungan, supaya satu kunjungan tidak jadi tiga baris.
+
+**Perkiraan turun dari 4-6 hari jadi 2,5-3 hari** karena data penimbangan,
+suntikan, dan keluhan sudah punya endpoint per anak. Yang baru hanya satu
+endpoint penggabungan dan satu kolom.
 
 ---
 
@@ -126,25 +145,37 @@ aplikasi, tinggal divisualisasikan.
 
 ---
 
-## Opsi E - Rekap dan Laporan
+## Opsi E - Rekap dan Laporan (SELESAI)
 
 | | |
 | :--- | :--- |
 | Estimasi | 3 sampai 5 hari |
 | Kesulitan | Sedang |
+| Status | **Selesai 29 September 2026** - backend + mobile + export CSV |
 
 Vista cepat untuk kader: berapa anak yang imunisasinya belum lengkap bulan
 ini. Ini paling bernilai secara operasional.
 
-- Filter "anak yang punya dosis terlambat"
-- Rekap suntikan per bulan
-- Rekap bulanan untuk laporan ke BIDAN
-- Export CSV
+- [x] Rekap suntikan per bulan — `GET /kader/immunizations/recap`
+- [x] Rekap bulanan untuk laporan ke BIDAN — bagian `coverage`
+- [x] Filter "anak yang punya dosis terlambat" — `overdue_children`, sudah terurut
+- [x] Layar rekap di aplikasi mobile — "Rekap Imunisasi" di dashboard Kader
+- [x] Export CSV — `?format=csv` di endpoint yang sama, 29 September 2026
+- [ ] Konfirmasi ke tim mobile apakah perlu `batch_number` di `activity`
 
 **Nilai praktis:** kapan perlu menambah stok vaksin, kapan harus menyiapkan
 kunjungan rumah. Saat ini informasi itu harus dibuka manual satu per satu.
 Contoh: kalau ada rekap "3 anak punya suntikan terlambat bulan ini", kader
 tahu harus menyiapkan vaksin lebih awal.
+
+**Bentuk CSV sudah diputuskan:** query param `?format=csv` di endpoint yang
+sama, bukan route baru. Alasannya satu sumber data - CSV dibangun dari array
+yang sama persis dengan yang dikirim ke JSON, jadi angkanya tidak mungkin
+berbeda. Route kedua akan berarti `ImmunizationRecapService` dipanggil dari
+dua tempat dan harus dijaga sinkron dua kali.
+
+Rinciannya ada di `docs/LAPORAN_REKAP_CSV.md`; kontrak lengkapnya di
+`docs/API_CONTRACT.md` bagian `GET /kader/immunizations/recap`.
 
 ---
 
@@ -189,13 +220,20 @@ terlebih dulu sebelum menambah kompleksitas sebesar ini.
 
 ## Saran Urutan
 
-1. ~~**Opsi A** (rapikan)~~ - **selesai 27 September 2026**
-2. **Opsi C** (catatan keluhan) - paling murah, paling sering dipakai
-3. **Opsi E** (rekap) - paling bernilai operasional
-4. **Opsi B** (buku medis) - fondasi rekam medis lengkap
+1. ~~**Opsi A** (rapikan)~~ - selesai 27 September 2026
+2. ~~**Opsi C** (catatan keluhan)~~ - selesai 27 September 2026
+3. ~~**Opsi E** (rekap)~~ - selesai 29 September 2026, export CSV sudah ikut
+4. **Opsi B** (buku medis) - rancangan selesai (`RANCANGAN_BUKU_MEDIS.md`),
+   implementasi belum mulai. Ini kandidat berikutnya.
 5. **Opsi D** (grafik) - setelah ada cukup data
 6. **Opsi F** (notifikasi) - setelah aplikasi benar-benar dipakai
 7. **Opsi G** (AI) - terakhir, kalau masih relevan
+
+> **Commit masih tertunda di branch `main`.** Blokir 1, 2, 3, layar rekap
+> mobile, dan export CSV belum di-commit sejak 27 September 2026. Laporan
+> masing-masing sudah ditulis, tapi `git status` masih menunjukkan banyak file
+> berubah. **Commit ini sebaiknya jadi langkah pertama sebelum mulai buku
+> medis.**
 
 ---
 

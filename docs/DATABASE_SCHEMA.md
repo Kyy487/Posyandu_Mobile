@@ -28,12 +28,35 @@ Menyimpan autentikasi Ibu dan Kader.
 > pernah dipakai ulang oleh anak yang berbeda.
 
 ## 3. `measurements` (e-KMS / Riwayat Tumbuh Kembang)
+
+Migration `2026_09_27_020000_prepare_measurements_for_recap.php` menyiapkan
+tabel ini untuk rekap bulanan (Opsi E).
+
 * `id` (UUID, PK)
-* `child_id` (UUID, FK -> children.id)
-* `kader_id` (UUID, FK -> users.id)
+* `child_id` (UUID, FK -> children.id, **cascade delete**)
+* `kader_id` (UUID, FK -> users.id, nullable, **set null**) — nullable + `ON
+  DELETE SET NULL` supaya riwayat penimbangan tetap utuh walau akun kader
+  dihapus. Nilai `NULL` berarti "kader tidak diketahui", bukan "riwayat hilang".
 * `measurement_date` (Date)
 * `weight_kg`, `height_cm`, `head_circumference_cm` (Decimal)
 * `age_in_months` (Int), `z_score_wfa` (Decimal), `status_gizi` (String)
+* `deleted_at` (Timestamp, nullable) — soft delete
+* `created_at`, `updated_at`
+
+**Index dan constraint:**
+
+* **Partial unique** `(child_id, measurement_date) WHERE deleted_at IS NULL` —
+  satu anak satu penimbangan per tanggal, tapi penimbangan yang dibatalkan
+  tidak menghalangi pencatatan ulang tanggal yang sama
+* Index `(deleted_at, measurement_date)` — Serving rekap bulanan. Diuji dengan
+  36.000 baris: tanpa index `Seq Scan` 2.132 ms, dengan index 0,245 ms
+* Index `(kader_id)` — melayani lookup FK `ON DELETE SET NULL`
+* **Tidak** ada index `status_gizi`; planner tidak memakainya, jadi dibuang
+
+> **Kenapa soft delete?** Tanpa itu, satu anak bisa punya dua penimbangan pada
+> tanggal yang sama begitu ada pembatalan dan pencatatan ulang, dan rekap
+> bulanan tidak bisa menentukan mana yang berlaku. `deleted_at` +
+> partial unique index menyelesaikan keduanya sekaligus.
 
 ## 4. `who_wfa_standards` (Referensi Z-Score WHO BB/U)
 Tabel acuan perhitungan Z-Score berat badan menurut umur. Dihasilkan oleh migration
@@ -57,7 +80,7 @@ Migration `2026_09_27_010000_create_medical_notes_table.php`. Satu anak punya
 
 * `id` (UUID, PK)
 * `child_id` (UUID, FK -> children.id, **cascade delete**)
-* `measurement_id` (UUID, FK -> measurements.id, nullable, **set null**) — boleh kosong karena keluhan bisa dicatat tanpa menimbang
+* `measurement_id` (UUID, FK -> measurements.id, nullable, **set null**) — boleh kosong karena keluhan bisa dicatat tanpa menimbang. Lihat catatan penting di bawah soal soft delete.
 * `kader_id` (UUID, FK -> users.id, nullable, **set null**) — nullable agar catatan lama tetap utuh walau akun kader dihapus
 * `note_date` (Date)
 * `demam`, `rewel`, `diare` (Boolean, default `false`)
@@ -80,6 +103,22 @@ Migration `2026_09_27_010000_create_medical_notes_table.php`. Satu anak punya
 > dan bukan satu baris per keluhan, supaya rekap bulanan nanti bisa dijawab
 > dengan satu aggregate yang memakai index. Lihat penjelasan di
 > `docs/API_CONTRACT.md` bagian Catatan Keluhan.
+
+> **PENTING - perilaku `measurement_id` berubah.** Tabel `measurements`
+> sekarang memakai soft delete, jadi pembatalan penimbangan tidak lagi
+> menghapus barisnya. Akibatnya FK `ON DELETE SET NULL` **tidak** menyala dan
+> `medical_notes.measurement_id` **tetap** menunjuk penimbangan yang sudah
+> dibatalkan. Sebelum itu, nilainya jadi `null`.
+>
+> Ini disengaja: "keluhan ini dicatat saat penimbangan 18 Sep, yang lalu
+> dibatalkan" lebih berguna untuk audit daripada tautan yang hilang, dan
+> Mobile hanya memakai `measurement_id` sebagai field opsional. Yang tetap
+> dijamin adalah isi catatan tidak ikut terhapus.
+>
+> FK-nya sendiri tidak dihapus, jadi penghapusan fisik (`forceDelete`) tetap
+> melepas tautan seperti biasa. Kalau suatu saat tautan perlu dilepas saat
+> pembatalan, itu harus dilakukan eksplisit — bukan diharapkan dari efek
+> samping `delete()`.
 
 ## 6. `spatial_zones` (Pemetaan - PostGIS) *Coming Soon*
 * `id` (UUID, PK), `child_id` (UUID, FK)
