@@ -18,10 +18,11 @@ class ChildFactory extends Factory
     {
         return [
             'user_id' => User::factory(),
-            // `unique()->numerify` dipakai karena tabel punya unique constraint
-            // pada NIK. Tanpa `unique()`, pembuatan factory kedua dalam satu
-            // proses bisa menghasilkan NIK yang sama dan gagal.
-            'nik' => (string) fake()->unique()->numerify('3273##########'),
+            // NIK tepat 16 digit karena kolom `children.nik` adalah `varchar(16)`
+            // dan `ChildController` memvalidasi `size:16`. `unique()` dipakai
+            // karena ada `children_nik_unique`; tanpa itu pembuatan factory
+            // kedua dalam satu proses bisa menghasilkan NIK yang sama dan gagal.
+            'nik' => (string) fake()->unique()->numerify('3273############'),
             'name' => fake()->name(),
             'date_of_birth' => fake()->dateTimeBetween('-5 years', '-1 month')->format('Y-m-d'),
             'gender' => fake()->randomElement(['L', 'P']),

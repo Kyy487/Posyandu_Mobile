@@ -11,6 +11,10 @@
 .env
 .env.*
 !.env.example
+# Template konfigurasi test ikut di-commit: isinya tidak punya kredensial
+# (password sengaja kosong), tapi tanpa file ini tidak ada yang tahu cara
+# menyiapkan database test.
+!.env.testing.example
 *.key
 *.pem
 *.p12

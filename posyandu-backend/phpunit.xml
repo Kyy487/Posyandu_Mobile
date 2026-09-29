@@ -23,14 +23,26 @@
         <env name="BCRYPT_ROUNDS" value="4"/>
         <env name="BROADCAST_CONNECTION" value="null"/>
         <env name="CACHE_STORE" value="array"/>
-        <env name="DB_CONNECTION" value="sqlite"/>
-        <env name="DB_DATABASE" value=":memory:"/>
-        <env name="DB_URL" value=""/>
         <env name="MAIL_MAILER" value="array"/>
         <env name="QUEUE_CONNECTION" value="sync"/>
         <env name="SESSION_DRIVER" value="array"/>
         <env name="PULSE_ENABLED" value="false"/>
         <env name="TELESCOPE_ENABLED" value="false"/>
         <env name="NIGHTWATCH_ENABLED" value="false"/>
+
+        <!--
+            Dulu di sini dipaksa `sqlite` / `:memory:`. Itu dihapus karena
+            aplikasi ini memakai fitur yang hanya ada di PostgreSQL:
+            partial unique index, trigger plpgsql z-score WFA, CHECK
+            constraint. Test yang jalan di SQLite hijau tanpa menguji
+            bagian yang paling rawan salah.
+
+            Kredensial dan nama database diambil dari `.env.testing`
+            (lihat `.env.testing.example`). Sengaja TIDAK ditulis di sini:
+            supaya tidak ada kredensial yang ikut ter-commit, dan supaya
+            nama database dev tidak mudah tertimpa tanpa disadari.
+        -->
+        <env name="DB_CONNECTION" value="pgsql"/>
+        <env name="DB_URL" value=""/>
     </php>
 </phpunit>

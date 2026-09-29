@@ -73,7 +73,7 @@ class MedicalNoteFactory extends Factory
             'demam' => false,
             'rewel' => false,
             'diare' => false,
-            'catatan' => 'Ibu comenzará pemberian ASI lebih sering',
+            'catatan' => 'Ibu diminta lebih sering menyusui',
             'tindak_lanjut' => MedicalNote::TINDAK_LANJUT_RINGAN,
         ]);
     }
