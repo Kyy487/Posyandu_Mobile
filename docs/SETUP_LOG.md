@@ -189,14 +189,48 @@ Perbaikan ini menutup lubang privilege escalation dan menhomogenkan JSON envelop
 
 ### Masih terbuka
 - Notifikasi/pengingat agenda untuk Ibu (butuh push service).
-- Rekap suntikan per bulan untuk Kader (Opsi E).
-- Rekap keluhan per bulan lintas anak (Opsi E) — sekarang `summary` hanya
-  per satu anak, aggregate lintas anak belum ada.
+- Rekap keluhan per bulan lintas anak - `summary` di
+  `GET /children/{id}/medical-notes` masih per satu anak, aggregate lintas anak
+  belum ada. (Rekap suntikan bulanan untuk Kader sudah selesai pada Opsi E.)
 - Paginasi pada daftar catatan keluhan.
 - Riwayat perubahan catatan (siapa mengubah apa) belum ada; `updated_at` hanya
   menyimpan waktu terakhir.
 
 Rincian lengkap: `docs/LAPORAN_IMUNISASI_JADWAL.md` bagian 11.
+
+---
+
+## Opsi B - Buku Medis Digital, Fase 0 (Selesai — 29 Sep 2026)
+
+Fase ini tidak menulis satu baris kode fitur. Tujuannya mengunci spesifikasi
+sebelum ada kode, supaya implementasi tidak menyimpang dan tidak merusak yang
+sudah jalan.
+
+- [x] `docs/RANCANGAN_BUKU_MEDIS.md` dinaikkan dari "rancangan" jadi
+      **spesifikasi normatif**. Dua keputusan ditutup: kondisi khusus memakai
+      **kolom `children.medical_flags`** (bukan tabel `child_medical_flags`),
+      dan timeline dikelompokkan **per kunjungan** (bukan per kejadian).
+- [x] Tiga pertanyaan yang tadinya terbuka ikut dijawab: Ibu boleh membaca
+      `medical_flags` anaknya sendiri, **Kader saja** yang boleh menulis, dan
+      timeline tanpa batas waktu.
+- [x] Tujuh aturan timeline dipetakan ke **nama test** di bagian 7.3, jadi
+      "sudah dipatuhi" bisa dibuktikan dan bukan diklaim.
+- [x] **Bagian 7.5 baru: inventaris kompatibilitas** - 29 route API, envelope
+      respons, privasi NIK petugas, z-score hanya dari trigger, urutan master
+      suntikan, partial unique index, `kader_id` nullable, dan penjaga database
+      test. Semua tidak boleh berubah oleh Opsi B.
+- [x] Dua koreksi fakta yang ditemukan saat menulis: `detail_anak_screen.dart`
+      **tidak punya** pull-to-refresh (refresh lewat `IconButton`), dan
+      penulisan `medical_flags` harus dibatasi Kader saja.
+- [x] **Aturan agent dibuat di `posyandu-backend/.ai/rules/`** -
+      `kontrak-timeline.md`, `yang-jangan-diubah.md`, `pengujian.md`, plus
+      `index.md` yang ditulis sendiri oleh `RuleRepository` Boost. Format
+      frontmatter diverifikasi dengan memanggil `writeIndex()`: ketiga file
+      muncul di tabel, jadi tidak ada yang gagal parse.
+- [x] Indeks dokumentasi di `docs/README.md` dilengkapi; sebelumnya sudah
+      tertinggal 9 dokumen.
+- [ ] **Belum dikerjakan (Fase 1):** migration, model, service, endpoint, dan
+      feature test. Lihat urutan kerja di `RANCANGAN_BUKU_MEDIS.md` bagian 10.
 
 ---
 

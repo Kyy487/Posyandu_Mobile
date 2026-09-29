@@ -1,9 +1,19 @@
 # Rancangan Buku Medis Digital (EHR) — Balita
 
 **Tanggal:** 28 September 2026
-**Status:** Rancangan selesai, implementasi belum mulai
+**Spesifikasi final:** 29 September 2026 - implementasi belum mulai
 **Acuan:** `RANCANGAN.md` bagian 3.1 A, `RENCANA_SELANJUTNYA.md` Opsi B
-**Estado repo saat ditulis:** semua pekerjaan rekap masih belum di-commit
+**Estado repo saat ditulis:** 5 commit di depan `origin/main`, working tree bersih
+
+> **Dokumen ini normatif, bukan catatanMeeting.** Sejak 29 September 2026,
+> dokumen ini yang menentukan bentuk `GET /children/{id}/timeline`, nama
+> field, dan batasannya. Kalau implementasi nanti menyimpang dari dokumen ini,
+> itu yang salah, bukan dokumennya.
+>
+> Kalau bentuk respons memang harus berubah, **ubah dokumen ini lebih dulu**,
+> baru kodenya. Aturan yang mengikat agent ada di
+> `posyandu-backend/.ai/rules/`: `kontrak-timeline.md`,
+> `yang-jangan-diubah.md`, dan `pengujian.md`.
 
 ---
 
@@ -93,31 +103,48 @@ data baru di proyek ini.
 
 ---
 
-## 5. Keputusan yang Menunggu User
+## 5. Keputusan yang Sudah Diputuskan
 
-> **Keputusan 1 (paling penting, belum dijawab):** kondisi khusus disimpan
-> sebagai kolom di `children`, atau sebagai tabel terpisah?
->
-> | Opsi | Bentuk | Untung | Rugi |
-> |------|--------|--------|------|
-> | **Kolom** | `children.medical_flags` (text) | 1 migration kecil, tanpa endpoint baru, cepat | Tidak bisa melacak kapan/how penanda berubah |
-> | **Tabel** | `child_medical_flags` | Ada riwayat dan tanggal | Migration + endpoint + CRUD + 1 layar lagi |
->
-> **Rekomendasi: kolom.** Untuk MVP,Most Posyandu menulis penanda sekali dan
-> tidak pernah mengubahnya. Tabel terpisah baru layak kalau nanti ada
-> pertanyaan "alergi ini sejak kapan" atau lebih dari satu jenis penanda per
-> anak.
->
-> Kalau pilih kolom, format yang disarankan: teks bebas, satu baris per penanda,
-> contoh `alergi: penicillin` / `asma`. Tidak diparsing, ditampilkan apa adanya.
-> Kalau pilih tabel, rancangan tabelnya ada di bagian 6.2.
+Kedua keputusan ini ditutup pada **29 September 2026**. Jangan dibuka lagi
+tanpa alasan tertulis di bagian 13 - kalau nanti berubah, dokumen ini yang
+harus diperbarui lebih dulu.
 
-> **Keputusan 2 (kecil):** timeline ditampilkan per kunjungan (dikelompokkan
-> per tanggal) atau per kejadian (satu baris = satu data)?
->
-> **Rekomendasi: per kunjungan.** Kunjungan biasanya menghasilkan penimbangan,
-> keluhan, dan suntikan pada tanggal yang sama. Kalau dipisah, satu kunjungan
-> jadi tiga baris yang terpisah dan sulit dibaca. Lihat bagian 7.2.
+### 5.1 Kondisi khusus = KOLOM di `children` (bukan tabel terpisah)
+
+| | |
+| :--- | :--- |
+| Keputusan | `children.medical_flags` |
+| Tipe kolom | `text`, **nullable**, tanpa batasan CHECK |
+| Batas panjang | 500 karakter (divalidasi di `ChildController@update`, bukan di database) |
+| Format isi | Teks bebas, satu penanda per baris, mis. `alergi: penisilin` + `asma`. **Tidak diparsing**, ditampilkan apa adanya |
+| Tabel `child_medical_flags` | **Tidak dibuat.** Bagian 6.2 di bawah jadi tidak berlaku |
+| Endpoint CRUD baru | **Tidak ada.** Penanda ditulis lewat `PATCH /children/{id}` yang sudah ada |
+
+Alasan: untuk MVP, most Posyandu menulis penanda sekali dan jarang
+mengubahnya. Tabel terpisah baru layak kalau nanti ada pertanyaan "alergi ini
+sejak kapan" atau lebih dari satu jenis penanda per anak yang perlu dilacak
+sejarahnya.
+
+Konsekuensi yang harus diterima, supaya tidak dianggap bug nanti:
+
+1. Tidak ada riwayat perubahan penanda. Kalau nanti mau tahu siapa yang
+   menulis, jawabannya memang tidak tersimpan.
+2. Kader dan Ibu membaca nilai yang sama, apa adanya, tanpa normalisasi.
+3. `GET /children/{id}` **ikut membawa** `medical_flags` karena controller
+   itu men-serialize model secara langsung. Field lama tidak berubah apa pun;
+   ini penambahan murni (lihat bagian 7.4).
+
+### 5.2 Timeline = PER KUNJUNGAN (dikelompokkan per tanggal)
+
+Satu tanggal = satu entri `entries[]`, di dalamnya ada `measurement`
+(nullable), `immunizations` (array), dan `medical_note` (nullable). Bukan satu
+baris per kejadian.
+
+Alasan: satu kunjungan ke Posyandu hampir selalu menghasilkan penimbangan,
+keluhan, dan suntikan pada tanggal yang sama. Kalau dipisah per kejadian, satu
+kunjungan jadi tiga baris terpisah dan kader harus membacanya sebagai satu
+kesatuan. Bentuknya ada di bagian 7.2; urutan isi di dalam satu tanggal ada di
+bagian 8.2.
 
 ---
 
@@ -130,9 +157,11 @@ Timeline bukan tabel. Dia hasil penggabungan tiga tabel yang sudah ada
 `child_id`, lalu dikelompokkan per tanggal. Tidak ada tabel baru dan tidak ada
 duplikasi data.
 
-### 6.2 Pilihan tabel jika Keputusan 1 diambil "tabel"
+### 6.2 Pilihan tabel yang TIDAK dipakai
 
-Hanya perlu kalau opsi tabel yang dipilih. Disimpan di sini supaya tidak hilang:
+Bagian ini sengaja disimpan, bukan dihapus, supaya tidak ada yang mengulang
+diskusi tabel-versus-kolom. Keputusan 29 September 2026 memilih kolom, jadi
+rancangan di bawah ini **tidak akan diimplementasikan**:
 
 ```
 child_medical_flags
@@ -145,8 +174,8 @@ child_medical_flags
   UNIQUE (child_id, kind, label)
 ```
 
-Tidak memakai soft delete: penanda kesehatan tidak "dibatalkan", dan kalau
-salah, dihapus lalu diisi ulang.
+Kalau suatu saat tabel ini benar-benar dipakai, itu harus lewat perubahan
+dokumen di bagian 5.1 lebih dulu, bukan langsung menulis migration.
 
 ---
 
@@ -164,10 +193,18 @@ semua anak.
 
 Query string:
 
-| Parameter | Default | Keterangan |
-|-----------|---------|------------|
-| `limit` | 50 | Jumlah tanggal kunjungan, bukan jumlah baris data |
-| `before` | - | Cursor tanggal, untuk load halaman berikutnya |
+| Parameter | Default | Validasi | Keterangan |
+|-----------|---------|----------|------------|
+| `limit` | 50 | `integer`, `min:1`, `max:200` | Jumlah **tanggal** kunjungan, bukan jumlah baris data |
+| `before` | - | `date_format:Y-m-d` | Cursor tanggal untuk load halaman berikutnya |
+
+`before` **tidak** memakai `before_or_equal:today`. Riwayat harus tetap bisa
+dibaca setelah tanggal lewat; yang tidak boleh adalah tanggal yang tidak
+pernah ada seperti `2026-13-45`, dan itu sudah tertangkap `date_format`.
+
+Cara memperoleh halaman berikutnya: kirim `before` dengan nilai
+`meta.next_before` dari halaman sebelumnya. `next_before` bernilai `null`
+kalau tidak ada halaman berikutnya.
 
 ### 7.2 Bentuk respons
 
@@ -220,31 +257,57 @@ keluhan tetap muncul sebagai entri — itu kunjungan yang sah.
 
 ### 7.3 Aturan yang tidak boleh dilanggar
 
-Aturan ini sama sifatnya dengan aturan rekap. Disusun sebagai daftar supaya
-bisa dipakai langsung sebagai bahan feature test.
+Tujuh aturan ini **normatif**, sama sifatnya dengan aturan rekap. Setiap aturan
+dipetakan ke satu nama test di `tests/Feature/ChildTimelineTest.php`, jadi
+"aturan ini sudah dipatuhi" bisa dibuktikan, bukan diklaim. Test dengan nama
+itu tidak boleh dihapus atau di-rename tanpa memperbarui tabel ini.
 
-1. **Tanggal turun.** `entries` selalu urut dari yang terbaru.
-2. **Baris yang dibatalkan tidak muncul.** Semua tiga tabel memakai
-   `deleted_at`; timeline hanya membaca yang `deleted_at IS NULL`.
-3. **Keluhan tetap tampil walau penimbangannya dibatalkan.** Ini konsekuensi
-   dari perilaku `medical_notes.measurement_id` yang sudah didokumentasikan di
-   `DATABASE_SCHEMA.md:107`. Timeline **tidak boleh** menyembunyikan keluhan
-   hanya karena `measurement` di entri itu `null`.
-4. **Tidak ada penghitungan ulang.** Z-score, status gizi, dan status
-   immunisasi semuanya dibaca apa adanya dari server. Klien tidak menghitung.
-5. **Satu tanggal satu entri.** Kalau dua penimbangan pada tanggal yang sama
-   tidak mungkin terjadi (partial unique index), tapi dua suntikan pada tanggal
-   yang sama boleh, dan keduanya masuk ke array `immunizations`.
-6. **Tanpa data tetap 200.** Anak yang belum pernah ditimbang punya
-   `entries: []`, bukan 404.
-7. **`limit` menghitung tanggal, bukan baris.** Kalau satu tanggal punya 3
-   suntikan, itu tetap satu entri.
+| # | Aturan (WAJIB) | Test yang membuktikannya |
+| :--- | :--- | :--- |
+| 1 | **Tanggal turun.** `entries` selalu urut dari yang terbaru. | `entries_selalu_urut_dari_tanggal_terbaru` |
+| 2 | **Baris yang dibatalkan tidak muncul.** Semua tiga tabel memakai `deleted_at`; timeline hanya membaca yang `deleted_at IS NULL`. | `baris_yang_dibatalkan_tidak_muncul_di_timeline` |
+| 3 | **Keluhan tetap tampil walau penimbangannya dibatalkan.** Ini konsekuensi dari perilaku `medical_notes.measurement_id` yang sudah didokumentasikan di `DATABASE_SCHEMA.md`. Timeline **tidak boleh** menyembunyikan keluhan hanya karena `measurement` di entri itu `null`. | `keluhan_tetap_muncul_walau_penimbangan_tertaut_dibatalkan` |
+| 4 | **Tidak ada penghitungan ulang.** Z-score, status gizi, dan status imunisasi semuanya dibaca apa adanya dari server. Klien dan server ini sama-sama tidak menghitung. | `nilai_z_score_dibaca_dari_database_tanpa_dihitung_ulang` |
+| 5 | **Satu tanggal satu entri.** Dua penimbangan pada tanggal yang sama tidak mungkin terjadi (partial unique index), tapi dua suntikan pada tanggal yang sama boleh, dan keduanya masuk ke array `immunizations`. | `dua_suntikan_tanggal_sama_masih_satu_entri` |
+| 6 | **Tanpa data tetap 200.** Anak yang belum pernah ditimbang punya `entries: []`, bukan 404. | `anak_tanpa_data_punya_entries_kosong` |
+| 7 | **`limit` menghitung tanggal, bukan baris.** Kalau satu tanggal punya 3 suntikan, itu tetap satu entri. | `limit_menghitung_tanggal_bukan_baris` |
+
+Dua aturan tambahan yang berasal dari bagian 5 dan bagian 7.1, dengan test
+yang sama:
+
+| Aturan (WAJIB) | Test yang membuktikannya |
+| :--- | :--- |
+| Ibu hanya boleh membuka timeline anaknya sendiri; selain itu `403`. | `ibu_membuka_anak_orang_ditolak` |
+| `id` bukan UUID membalas `404`, bukan `500` dari error PostgreSQL. | `id_bukan_uuid_membalas_404` |
+| `limit` di luar 1-200 dan `before` bukan `Y-m-d` membalas `422`. | `parameter_tidak_valid_membalas_422` |
+| Penanda kondisi khusus **hanya boleh ditulis Kader**; Ibu tidak. | `ibu_tidak_bisa_menulis_medical_flags`, `kader_bisa_menulis_medical_flags` |
+| `medical_flags` anak terbaca apa adanya di respons timeline. | `medical_flags_terbaca_apa_adanya` |
 
 ### 7.4 Endpoint lain yang berubah
 
-`GET /children/{id}` ikut mengirim `medical_flags` kalau kolomnya jadi
-dipakai, supaya layar profil tidak perlu request tambahan. Kalau backward
-compatibility jadi concern, field baru bisa dikirim tanpa mengubah field lama.
+`GET /children/{id}` **ikut membawa** `medical_flags` tanpa kode tambahan,
+karena `ChildController@show` men-serialize model secara langsung. Field lama
+tidak berubah apa pun, jadi ini penambahan murni dan aman untuk backward
+compatibility. Konsekuensi yang sama berlaku pada `GET /children` dan
+`GET /kader/children`.
+
+### 7.5 Kompatibilitas: yang tidak boleh berubah
+
+Bagian ini ada supaya fitur ini tidak merusak yang sudah jalan. Versi yang
+dipakai agent ada di `posyandu-backend/.ai/rules/yang-jangan-diubah.md`.
+
+| Yang tidak boleh berubah | Kenapa | Sumber kebenaran |
+| :--- | :--- | :--- |
+| 29 route API yang ada sekarang | Mobile sudah memakainya semua. Opsi B menambah 1 route, jadi 30 | `routes/api.php` |
+| Bentuk `success` / `message` / `data` dan `errors` | Parser Flutter bergantung pada itu | `docs/AI_AGENT_RULES.md` bagian 8 |
+| Field lama di respons `GET /children/{id}` | Ibu dan mobile sudah membacanya | `docs/API_CONTRACT.md` |
+| NIK tidak pernah ikut di `GET /petugas` | Privasi petugas | `PetugasController` |
+| Z-score, `age_in_months`, `status_gizi` hanya dari trigger PostgreSQL | Aturan pemisahan DB vs logika aplikasi | `docs/AI_AGENT_RULES.md` bagian 9 |
+| Urutan baris `by_type` dan baris CSV = urutan master suntikan | Kontrak yang diubah pada commit `6a8d2ed` | `ImmunizationType::scopeOrderedForDosing()` |
+| Partial unique index + soft delete di tiga tabel | Suntikan, penimbangan, atau keluhan yang dibatalkan harus bisa dicat ulang | migration `2026_09_26_035000`, `2026_09_27_010000` |
+| `kader_id` nullable + `ON DELETE SET NULL` | Menghapus akun kader tidak boleh menghapus riwayat kesehatan anak | `2026_09_26_032000` |
+| Test hanya jalan di PostgreSQL `posyandu_test` | Test di SQLite hijau tanpa menguji partial index dan trigger | `tests/TestCase.php` |
+| Database dev `posyandu_db` tidak boleh tersentuh test | `RefreshDatabase` menghapus seluruh tabel | `tests/TestCase.php` |
 
 ---
 
@@ -255,21 +318,25 @@ yang tepat; tugasnya ditambah, bukan dipecah.
 
 ### 8.1 Penanda kondisi khusus
 
-Kalau Keputusan 1 = kolom, tampilan paling sederhana: badge berwarna di
+Karena keputusan 5.1 = kolom, tampilan paling sederhana: badge berwarna di
 bawah nama anak, merah untuk alergi, kuning untuk penyakit bawaan. Teks mentah
-ditampilkan apa adanya, tanpa ikon per jenis — karena daftar jenis tidak
+ditampilkan apa adanya, tanpa ikon per jenis - karena daftar jenis tidak
 dikunci database.
 
 ### 8.2 Timeline
 
 - Dikelompokkan per bulan, judul memakai `labelBulan()` dari
   `month_label.dart` supaya konsisten dengan layar lain.
-- Inside satu tanggal, urutan tampilan: penicillin, lalu suntikan, lalu
+- Di dalam satu tanggal, urutan tampilan: penimbangan, lalu suntikan, lalu
   keluhan. Alasan: kader paling sering datang untuk "berapa beratnya" dulu.
 - Tanggal yang punya keluhan tapi tanpa penimbangan tetap tampil, dengan
   catatan visual bahwa penimbangan tidak ada.
 - Tombol "Muat lebih banyak" untuk `meta.has_more`.
-- It internal dengan pull-to-refresh yang sudah ada (`_loadRiwayat`).
+- Muat ulang memakai tombol refresh yang **sudah ada** di baris
+  "Penimbangan Terakhir" (`IconButton(Icons.refresh)` yang memanggil
+  `_loadRiwayat`), bukan pull-to-refresh. Layar ini memang tidak punya
+  `RefreshIndicator` - itu sudah dicek langsung di
+  `detail_anak_screen.dart` pada 29 September 2026.
 
 ### 8.3 Apa yang tidak berubah
 
@@ -299,18 +366,16 @@ menangkap bug nyata.
 > dibuat dengan `date_of_birth` pasti lewat helper, bukan `Child::factory()`
 > polos. Jangan mengulang kesalahan yang sama.
 
-Feature test minimal yang harus ada:
+Feature test minimal ada di **bagian 7.3**, yang memetakan setiap aturan ke
+nama test-nya. Daftar di sini sengaja tidak diulang: dua daftar yang bisa
+berbeda jauh lebih berbahaya daripada satu daftar yang lengkap. Test yang
+tidak punya pasangan di 7.3 berarti ada aturan yang belum dipatuhi.
 
-- [ ] Timeline anak tanpa data → 200, `entries: []`
-- [ ] Ibu buka timeline anaknya → 200
-- [ ] Ibu buka timeline anak orang → 403
-- [ ] Penimbangan + keluhan + suntikan tanggal sama → **satu** entri
-- [ ] Tanggal turun urut
-- [ ] Penimbangan dibatalkan → tidak muncul di timeline
-- [ ] Keluhan tetap muncul walau penimbangan tertaut dibatalkan (aturan 3)
-- [ ] Dua suntikan tanggal sama → satu entri, array berisi dua
-- [ ] `limit=2` → tepat 2 tanggal, `has_more` benar
-- [ ] Flagungi terisi terbaca benar (kalau kolom dipakai)
+Test tambahan di luar daftar 7.3:
+
+- [ ] `ibu_membuka_anak_anaknya_sendiri_membalas_200`
+- [ ] `medical_flags_kosong_dibaca_sebagai_null`
+- [ ] `cursor_before_melanjutkan_dari_tanggal_terakhir`
 
 ---
 
@@ -322,9 +387,10 @@ belum ada.
 1. ~~**Commit dulu** apa yang sekarang ada.~~ **Selesai 29 September 2026.**
    Empat commit di `main`: pengujian/factory, backend rekap+CSV, mobile rekap,
    dokumentasi. Working tree bersih. **Push masih tertunda** - environment-nya
-   tidak punya kredensial GitHub, jadi `main` masih 4 commit di depan
-   `origin/main`. Push ulang begitu kredensial tersedia; tidak ada konflik yang
-   mungkin muncul karena belum ada yang lain menyentuh repo ini.
+   tidak punya kredensial GitHub. Setelah commit urutan dosis (`6a8d2ed`)
+   ditambahkan, `main` sekarang **5 commit di depan `origin/main`**. Push ulang
+   begitu kredensial tersedia; tidak ada konflik yang mungkin muncul karena
+   belum ada yang lain menyentuh repo ini.
 
 2. ~~**Perbaiki urutan dosis kronologi**~~ **Selesai 29 September 2026.**
    `ImmunizationType::scopeOrderedForDosing()` sekarang `ORDER BY
@@ -334,12 +400,23 @@ belum ada.
    baris `by_type` dan baris tabel CSV, jadi klien yang mengurutkan ulang
    sendiri harus dihentikan.
 
-3. **Migration** kolom `medical_flags` (kalau kolom yang dipilih).
-4. **Model + service** timeline di backend.
-5. **Endpoint + feature test.** Jangan lanjut ke mobile sebelum test hijau.
-6. **Dokumentasi** di `API_CONTRACT.md` dan `DATABASE_SCHEMA.md`.
-7. **Mobile**: model, service, lalu perubahan `detail_anak_screen.dart`.
-8. **Verifikasi akhir**: Pint, test backend, `uji-api.ps1`, `flutter analyze`,
+3. ~~**Kunci spesifikasi dan aturan**~~ **Selesai 29 September 2026.**
+   Dua keputusan di bagian 5 ditutup, inventaris kompatibilitas ditulis di
+   bagian 7.5, dan aturan agent dibuat di
+   `posyandu-backend/.ai/rules/` (`kontrak-timeline.md`,
+   `yang-jangan-diubah.md`, `pengujian.md`). Langkah ini sengaja mendahului
+   semua kode: kalau spesifikasi berubah setelah ada kode, ketidaksepakatan
+   antar file jauh lebih mahal daripada satu revisi dokumen.
+
+4. **Migration** kolom `medical_flags` (`text`, nullable).
+5. **Model + service** timeline di backend: `$fillable`, validasi tulis
+   kader-saja di `ChildController@update`, lalu `ChildTimelineService`.
+6. **Endpoint + feature test.** Jangan lanjut ke mobile sebelum test hijau.
+7. **Dokumentasi** di `API_CONTRACT.md` dan `DATABASE_SCHEMA.md`, plus laporan
+   `docs/LAPORAN_BUKU_MEDIS.md`.
+8. **Mobile** (fase berikutnya, belum dikerjakan): model, service, lalu
+   perubahan `detail_anak_screen.dart`.
+9. **Verifikasi akhir**: Pint, test backend, `uji-api.ps1`, `flutter analyze`,
    `flutter test`, `periksa-teks.ps1`.
 
 ---
@@ -356,21 +433,27 @@ belum ada.
 Lebih cepat dari angka 4–6 hari di `RENCANA_SELANJUTNYA.md:66` karena data
 dasarnya sudah lengkap. Angka lama itu perkiraan saat tabel rekap belum ada.
 
-Kalau Keputusan 1 diambil "tabel", tambah 1–1,5 hari.
+Fase 0 (dokumentasi + aturan) sudah menambah 0,5 hari dari estimasi di atas dan
+sudah selesai pada 29 September 2026. Angka 1,5–2,5 hari di atas berlaku untuk
+implementasi backend yang belum dimulai.
+
+Kalau nanti keputusan 5.1 dibalik menjadi tabel, tambah 1–1,5 hari.
 
 ---
 
-## 12. Pertanyaan yang Masih Terbuka
+## 12. Pertanyaan yang Sudah Ditutup
 
- besides dua keputusan di bagian 5, tiga hal ini belum diputuskan dan
-tidak menghambat mulai:
+Tiga pertanyaan ini ikut diputuskan pada 29 September 2026, bukan "masih
+terbuka":
 
-- Apakah Ibu boleh melihat `medical_flags` anak sendiri? Rekomendasi: ya, itu
-  hak informasi orang tua dan tidak memuat data Posyandu.
-- Siapa yang boleh mengubah penanda? Rekomendasi: Kader saja, supaya tidak
-  ada dua sumber perubahan.
-- Apakah timeline perlu batas waktu? Rekomendasi: tidak, cursors sudah
-  menangani itu.
+| Pertanyaan | Jawaban | Alasan |
+| :--- | :--- | :--- |
+| Apakah Ibu boleh melihat `medical_flags` anak sendiri? | **Ya** | Itu hak informasi orang tua, dan isinya bukan data Posyandu |
+| Siapa yang boleh mengubah penanda? | **Kader saja** | Kalau Ibu juga boleh menulis, ada dua sumber perubahan untuk data yang sama |
+| Apakah timeline perlu batas waktu? | **Tidak** | Cursor `before` sudah menangani itu; batas waktu tambahan hanya menyembunyikan riwayat |
+
+Kalau ada pertanyaan baru muncul selama implementasi, jawabannya ditulis di
+bagian ini, bukan disimpan di commit atau komentar kode.
 
 ---
 
@@ -379,3 +462,4 @@ tidak menghambat mulai:
 | Tanggal | Perubahan |
 |---------|-----------|
 | 28 Sep 2026 | Rancangan awal ditulis. Belum ada kode yang dibuat untuk fitur ini. |
+| 29 Sep 2026 | Spesifikasi dikunci: keputusan 1 = kolom `children.medical_flags`, keputusan 2 = timeline per kunjungan. Tiga pertanyaan di bagian 12 ditutup. Tujuh aturan di 7.3 dipetakan ke nama test. Inventaris kompatibilitas ditulis di 7.5. Aturan agent dibuat di `posyandu-backend/.ai/rules/`. Belum ada kode fitur yang ditulis. |

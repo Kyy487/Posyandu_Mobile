@@ -32,9 +32,22 @@ $ErrorActionPreference = 'Stop'
 
 # Folder yang isinya bukan tulisan tangan kita: dependency, hasil build,
 # dan dokumen skill bawaan yang memang berbahasa Inggris.
-$lewatiDirektori = '\\(\.git|vendor|node_modules|\.dart_tool|build|storage|bootstrap|\.agents|\.claude|ios|android|\.vscode|\.idea)\\';
+#
+# `ephemeral` masuk daftar pada 29 September 2026: `posyandu_mobile/*/
+# flutter/ephemeral/.plugin_symlinks/` berisi salinan test dari paket
+# `jni` yang sengaja memakai karakter non-Latin, dan folder itu dibuat
+# ulang oleh `flutter pub get`, bukan oleh kita.
+$lewatiDirektori = '\\(\.git|vendor|node_modules|\.dart_tool|build|storage|bootstrap|\.agents|\.claude|ios|android|\.vscode|\.idea|ephemeral)\\';
 
-$polaAksaraAsing = '[\u4e00-\u9fff\u3040-\u30ff\uac00-\ud7af\ufffd]'
+# Aksara non-Latin yang tidak pernah dipakai di dokumen projek ini.
+#
+# CJK/kana/hangul catches the most common case. Cyrillic, Greek, dan
+# Arab/Heber ditambahkan karena pada 29 September 2026 enam kata asing
+# sempat lolos ke dokumen (Cyrillic "тест", Arab di dalam kalimat Indonesia,
+# kata Prancis "obtenir"). Semuanya lolos dari pola lama karena hanya CJK
+# dan U+FFFD yang diperiksa, padahal tidak satu pun dari aksara itu punya
+# alasan muncul di dokumentasi projek ini.
+$polaAksaraAsing = '[\u4e00-\u9fff\u3040-\u30ff\uac00-\ud7af\ufffd\u0370-\u03ff\u0400-\u04ff\u0590-\u05ff\u0600-\u06ff\u0e00-\u0e7f]'
 
 # Hanya potongan yang mustahil terjadi di teks Indonesia yang benar.
 $ketikanTergesaet = @(
