@@ -23,6 +23,7 @@ class Child extends Model
         'gender',
         'birth_weight',
         'birth_height',
+        'medical_flags',
     ];
 
     /**

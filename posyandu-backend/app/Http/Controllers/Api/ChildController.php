@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Child;
 use App\Models\Measurement;
 use App\Models\User;
+use App\Services\ChildTimelineService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
@@ -263,9 +264,30 @@ class ChildController extends Controller
                 'gender' => ['sometimes', 'required', 'in:L,P'],
                 'birth_weight' => ['sometimes', 'nullable', 'numeric', 'min:0'],
                 'birth_height' => ['sometimes', 'nullable', 'numeric', 'min:0'],
+                // Batas 500 karakter divalidasi di sini, bukan lewat CHECK
+                // constraint, supaya kesalahan ketik jadi 422 yang bisa dibaca
+                // kader. Isinya teks bebas satu penanda per baris dan sengaja
+                // TIDAK diparsing - lihat `RANCANGAN_BUKU_MEDIS.md` bagian 5.1.
+                'medical_flags' => ['sometimes', 'nullable', 'string', 'max:500'],
                 'user_id' => ['sometimes', 'exists:users,id'],
                 'ibu_nik' => ['sometimes', 'string', 'size:16'],
             ]);
+
+            // Hanya Kader yang boleh menulis kondisi khusus. Ibu tetap boleh
+            // MEMBACA penanda anaknya sendiri (`RANCANGAN_BUKU_MEDIS.md` 12).
+            //
+            // Penolakan di sini, bukan diam-diam diabaikan: `validate()` di atas
+            // sudah menerima `medical_flags` untuk semua role, jadi tanpa
+            // pemeriksaan ini Ibu akan mendapat 200 padahal nilainya tidak
+            // pernah tersimpan - dan itu lebih buruk daripada error, karena
+            // kader mengira penandanya sudah tercatat.
+            if ($request->has('medical_flags') && $user->role !== 'kader') {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Akses ditolak. Hanya Kader yang dapat menulis kondisi khusus anak.',
+                    'errors' => ['medical_flags' => ['Hanya Kader yang dapat mengubah kondisi khusus anak.']],
+                ], 403);
+            }
 
             // Buang key yang tidak berubah agar tidak menimpa nilai lama.
             foreach (['nik', 'birth_weight', 'birth_height'] as $optional) {
@@ -446,6 +468,70 @@ class ChildController extends Controller
         }
 
         return $child;
+    }
+
+    /**
+     * Riwayat medis satu anak, dikelompokkan per tanggal kunjungan.
+     *
+     * Bookkeeping-nya ada di `ChildTimelineService`; method ini hanya
+     * memvalidasi parameter, memastikan akses, lalu mengembalikan bentuk
+     * envelope baku.
+     *
+     * `before` TIDAK memakai `before_or_equal:today`. Riwayat harus tetap bisa
+     * dibaca setelah tanggal lewat - yang tidak boleh hanyalah tanggal yang
+     * tidak pernah ada seperti `2026-13-45`, dan itu sudah tertangkap
+     * `date_format`. Batas waktu tambahan hanya menyembunyikan riwayat, bukan
+     * melindungi apa pun.
+     */
+    public function timeline(Request $request, $id, ChildTimelineService $timeline)
+    {
+        $user = $request->user();
+
+        try {
+            // `findChildForUser` yang dipakai, bukan pemeriksaan sendiri: Ibu
+            // hanya boleh timeline anaknya sendiri, dan aturan 404-untuk-id-bukan-UUID
+            // di sana sudah benar.
+            $child = $this->findChildForUser($id, $user, 'melihat');
+
+            if (! $child instanceof Child) {
+                return $child;
+            }
+
+            $validated = $request->validate([
+                // Menghitung TANGGAL, bukan jumlah baris. Satu tanggal dengan
+                // tiga suntikan tetap satu entri.
+                'limit' => ['sometimes', 'integer', 'min:1', 'max:200'],
+                'before' => ['sometimes', 'nullable', 'date_format:Y-m-d'],
+            ]);
+
+            $limit = (int) ($validated['limit'] ?? 50);
+            $before = $validated['before'] ?? null;
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Riwayat medis anak berhasil diambil.',
+                'data' => $timeline->timelineFor($child, $limit, $before),
+            ], 200);
+
+        } catch (ValidationException $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Validasi gagal.',
+                'errors' => $e->errors(),
+            ], 422);
+        } catch (\Throwable $e) {
+            Log::error('Gagal mengambil timeline anak: '.$e->getMessage(), [
+                'user_id' => $user->id,
+                'child_id' => $id,
+                'exception' => $e,
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Terjadi kesalahan server. Silakan coba lagi.',
+                'errors' => null,
+            ], 500);
+        }
     }
 
     // Melihat detail satu anak

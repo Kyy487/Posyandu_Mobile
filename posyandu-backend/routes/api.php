@@ -68,6 +68,15 @@ Route::middleware('auth:sanctum')->group(function () {
         // dipanggil lewat PUT maupun PATCH.
         Route::match(['put', 'patch'], '/children/{id}', [ChildController::class, 'update']);
 
+        // Riwayat medis gabungan: penimbangan + suntikan + keluhan untuk satu
+        // anak, dikelompokkan per tanggal kunjungan.
+        //
+        // Didaftarkan di group ini, bukan di prefix `/kader/`, supaya aturan
+        // aksesnya sama persis dengan `GET /children/{id}` di atas: Ibu boleh
+        // membuka timeline anaknya sendiri, Kader boleh semua. Bentuk respons
+        // dikunci di docs/RANCANGAN_BUKU_MEDIS.md bagian 7.2 dan 7.3.
+        Route::get('/children/{id}/timeline', [ChildController::class, 'timeline']);
+
         // -----------------------------------------------------------------
         // AREA IMUNISASI - dapat diakses Ibu maupun Kader (Ibu read-only)
         //

@@ -79,6 +79,7 @@ Header Wajib: `Authorization: Bearer {token}` & `Accept: application/json`
 | `POST` | `/children` | Mendaftarkan anak baru — **[kontrak unified](#menambah-data-anak-kontrak-unified)** | Ibu / Kader |
 | `GET` | `/children/{id}`| Detail anak, pengukuran, imunisasi | Ibu / Kader |
 | `PUT`/`PATCH` | `/children/{id}` | **[Ubah data anak](#mengubah-data-anak)** | Ibu / Kader |
+| `GET` | `/children/{id}/timeline` | **[Riwayat medis gabungan](#riwayat-medis-anak-timeline)** - per tanggal kunjungan | Ibu (anaknya) / Kader |
 | `DELETE` | `/children/{id}` | **[Hapus data anak (soft delete)](#menghapus-data-anak-soft-delete)** | **Kader saja** |
 
 ### Kader (POSYANDU)
@@ -215,6 +216,9 @@ Field yang dapat diubah: `nik`, `name`, `date_of_birth`, `gender`, `birth_weight
 - Ibu tidak pernah bisa memindahkan anaknya ke ibu lain (identifier diabaikan).
 - Non-Ibu yang dituju harus benar-benar ber-role `ibu`.
 
+`medical_flags` punya aturan sendiri: **hanya Kader yang boleh menulis**, dan
+lihat [Kondisi Khusus Anak](#kondisi-khusus-anak-medical_flags).
+
 ### Hitung ulang Z-Score otomatis
 
 Bila `date_of_birth` atau `gender` berubah, umur dan acuan WHO ikut berubah sehingga
@@ -249,6 +253,126 @@ Mengubah field lain (misalnya hanya `name`) **tidak** menyentuh measurement.
 | `422` | nilai field tidak valid | `Validasi gagal.` + `errors` per-field |
 | `422` | NIK anak bentrok | pesan `nik` (dispensai bila bentrok dengan anak yang sudah di-soft delete) |
 | `404` / `422` | `ibu_nik` / `user_id` bermasalah | sama seperti kontrak tambah data |
+| `403` | Ibu mengirim `medical_flags` | `Akses ditolak. Hanya Kader yang dapat menulis kondisi khusus anak.` |
+| `422` | `medical_flags` lebih dari 500 karakter | `Validasi gagal.` + `errors.medical_flags` |
+
+## Kondisi Khusus Anak (`medical_flags`)
+
+Penanda kondisi khusus seperti alergi dan penyakit bawaan. Disimpan sebagai
+**satu kolom `children.medical_flags`**, bukan tabel terpisah — alasannya ada di
+`docs/RANCANGAN_BUKU_MEDIS.md` bagian 5.1.
+
+Tidak ada endpoint CRUD baru. Penanda ditulis lewat `PATCH /children/{id}` yang
+sudah ada.
+
+| Role | Akses |
+| :--- | :--- |
+| **Ibu** | **Membaca** penanda anaknya sendiri; **menolak** menulis (403) |
+| **Kader** | Membaca dan menulis semua anak |
+
+Bentuk isinya:
+
+| Aturan | Nilai |
+| :--- | :--- |
+| Tipe | Teks bebas, **satu penanda per baris** |
+| Batas panjang | 500 karakter (divalidasi di controller, bukan CHECK constraint) |
+| Parsing | **Tidak diparsing** — ditampilkan apa adanya oleh Kader dan Ibu |
+| Riwayat perubahan | **Tidak ada.** Tidak ada kolom `updated_by` atau audit trail |
+
+Contoh:
+
+```json
+{ "medical_flags": "alergi: penisilin\nasma" }
+```
+
+Mengirim `null` menghapus penandanya. Penolakan bagi Ibu disengaja dan terlihat:
+diam-diam mengabaikan fieldnya akan memberi jawaban 200 padahal penandanya
+tidak pernah tersimpan, dan kader akan mengira sudah tercatat.
+
+`medical_flags` juga ikut terbaca di `GET /children`, `GET /kader/children`, dan
+`GET /children/{id}` karena controller men-serialize model secara langsung. Field
+lama tidak berubah apa pun.
+
+## Riwayat Medis Anak (Timeline)
+
+`GET /children/{id}/timeline` — Ibu (anaknya sendiri) + Kader.
+
+Seluruh riwayat satu anak dalam satu layar: penimbangan, suntikan, dan keluhan
+dikelompokkan **per tanggal kunjungan**. Bentuk dan batasannya dikunci di
+`docs/RANCANGAN_BUKU_MEDIS.md` bagian 7.2 dan 7.3.
+
+| Parameter | Default | Validasi | Keterangan |
+| :--- | :--- | :--- | :--- |
+| `limit` | `50` | `integer`, `min:1`, `max:200` | Jumlah **tanggal**, bukan jumlah baris |
+| `before` | - | `date_format:Y-m-d` | Cursor tanggal; hanya tanggal **sebelum** ini yang diambil |
+
+`before` **tidak** memakai `before_or_equal:today`. Riwayat harus tetap terbaca
+setelah tanggal lewat; yang ditolak hanyalah tanggal yang tidak pernah ada seperti
+`2026-13-45`, dan itu sudah tertangkap `date_format`.
+
+Respons `200`:
+
+```json
+{
+  "success": true,
+  "message": "Riwayat medis anak berhasil diambil.",
+  "data": {
+    "child": {
+      "id": "uuid",
+      "name": "Siti",
+      "nik": "3273...",
+      "date_of_birth": "2024-03-12",
+      "age_in_months": 30,
+      "gender": "P",
+      "mother": { "name": "Ibu A", "nik": "3273..." },
+      "medical_flags": "alergi: penisilin\nasma",
+      "latest_measurement": { "weight_kg": 12.4, "status_gizi": "Normal" }
+    },
+    "entries": [
+      {
+        "date": "2026-09-24",
+        "measurement": {
+          "weight_kg": 12.4,
+          "height_cm": 88.0,
+          "head_circumference_cm": 47.5,
+          "z_score_wfa": 0.21,
+          "status_gizi": "Normal",
+          "kader": { "id": "uuid", "name": "Kader 1" }
+        },
+        "immunizations": [{ "type": "HB-0", "date_given": "2026-09-24" }],
+        "medical_note": {
+          "demam": true,
+          "rewel": false,
+          "diare": false,
+          "catatan": "Demam sejak 2 hari",
+          "tindak_lanjut": "rujuk"
+        }
+      }
+    ],
+    "meta": { "has_more": true, "next_before": "2026-08-15" }
+  }
+}
+```
+
+`data` berisi tepat tiga kunci: `child`, `entries`, `meta`. Tiga kunci di dalam
+setiap entri boleh `null` — tanggal yang punya keluhan tapi tanpa penimbangan
+tetap muncul sebagai entri, karena itu kunjungan yang sah.
+
+Menuju halaman berikutnya: kirim `before` dengan nilai `meta.next_before`.
+`next_before` bernilai `null` di halaman terakhir, bukan string kosong.
+
+Nilai yang tidak dihitung ulang di server: `z_score_wfa`, `age_in_months`, dan
+`status_gizi` dibaca apa adanya dari database karena dihitung trigger PostgreSQL.
+Server dan klien sama-sama tidak menghitung.
+
+### Kode error
+
+| HTTP | Kondisi | `message` |
+| :--- | :--- | :--- |
+| `404` | id bukan UUID / anak tidak ada / sudah di-soft delete | `Data balita tidak ditemukan.` |
+| `403` | Ibu membuka anak orang | `Akses ditolak. Anda tidak berhak melihat data anak ini.` |
+| `422` | `limit` di luar 1-200 atau bukan integer | `Validasi gagal.` + `errors` per-field |
+| `422` | `before` bukan `Y-m-d` | `Validasi gagal.` + `errors.before` |
 
 ## Menghapus Data Anak (Soft Delete)
 

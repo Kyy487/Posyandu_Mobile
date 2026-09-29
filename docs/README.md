@@ -47,6 +47,7 @@ Sistem Informasi Manajemen Terpadu untuk mendigitalisasi proses pencatatan keseh
 * `LAPORAN_ZSCORE_TRIGGER.md` - Z-Score WHO Weight-for-Age (backend + mobile).
 * `LAPORAN_IMUNISASI_JADWAL.md` - Imunisasi & Jadwal Posyandu (backend + mobile).
 * `LAPORAN_MEDICAL_NOTES.md` - Catatan Keluhan Kader, Opsi C.
+* `LAPORAN_BUKU_MEDIS.md` - Buku Medis Digital (Opsi B), fase 1 backend.
 * `LAPORAN_REKAP_IMUNISASI_BULANAN.md` - Rekap bulanan, Opsi E.
 * `LAPORAN_REKAP_CSV.md` - Export CSV rekap, Opsi E.
 

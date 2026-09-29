@@ -1,9 +1,12 @@
 # Rancangan Buku Medis Digital (EHR) — Balita
 
 **Tanggal:** 28 September 2026
-**Spesifikasi final:** 29 September 2026 - implementasi belum mulai
+**Spesifikasi final:** 29 September 2026
+**Status implementasi:** Fase 0 + Fase 1 (backend) selesai 29 September 2026;
+mobile belum dikerjakan
 **Acuan:** `RANCANGAN.md` bagian 3.1 A, `RENCANA_SELANJUTNYA.md` Opsi B
-**Estado repo saat ditulis:** 5 commit di depan `origin/main`, working tree bersih
+**Estado repo saat ditulis:** 6 commit di depan `origin/main` (push tertunda -
+environment tidak punya kredensial GitHub)
 
 > **Dokumen ini normatif, bukan catatanMeeting.** Sejak 29 September 2026,
 > dokumen ini yang menentukan bentuk `GET /children/{id}/timeline`, nama
@@ -298,7 +301,7 @@ dipakai agent ada di `posyandu-backend/.ai/rules/yang-jangan-diubah.md`.
 
 | Yang tidak boleh berubah | Kenapa | Sumber kebenaran |
 | :--- | :--- | :--- |
-| 29 route API yang ada sekarang | Mobile sudah memakainya semua. Opsi B menambah 1 route, jadi 30 | `routes/api.php` |
+| 29 route API yang ada sebelum Opsi B | Mobile sudah memakainya semua. Opsi B menambah tepat 1 route, jadi 30 — `php artisan route:list` harus mengembalikan 30 route `api/` | `routes/api.php` |
 | Bentuk `success` / `message` / `data` dan `errors` | Parser Flutter bergantung pada itu | `docs/AI_AGENT_RULES.md` bagian 8 |
 | Field lama di respons `GET /children/{id}` | Ibu dan mobile sudah membacanya | `docs/API_CONTRACT.md` |
 | NIK tidak pernah ikut di `GET /petugas` | Privasi petugas | `PetugasController` |
@@ -371,11 +374,19 @@ nama test-nya. Daftar di sini sengaja tidak diulang: dua daftar yang bisa
 berbeda jauh lebih berbahaya daripada satu daftar yang lengkap. Test yang
 tidak punya pasangan di 7.3 berarti ada aturan yang belum dipatuhi.
 
-Test tambahan di luar daftar 7.3:
+Test tambahan di luar daftar 7.3 (semua sudah ada di `ChildTimelineTest`):
 
-- [ ] `ibu_membuka_anak_anaknya_sendiri_membalas_200`
-- [ ] `medical_flags_kosong_dibaca_sebagai_null`
-- [ ] `cursor_before_melanjutkan_dari_tanggal_terakhir`
+- [x] `ibu_membuka_anak_anaknya_sendiri_membalas_200`
+- [x] `medical_flags_kosong_dibaca_sebagai_null`
+- [x] `cursor_before_melanjutkan_dari_tanggal_terakhir`
+- [x] `kader_bisa_menulis_medical_flags`
+- [x] `ibu_tidak_bisa_menulis_medical_flags`
+- [x] `medical_flags_terbaca_apa_adanya`
+- [x] `medical_flags_lebih_dari_500_karakter_menolak_422`
+- [x] `data_tepat_berisi_tiga_kunci`
+- [x] `jumlah_query_tetap_walaupun_tanggal_banyak`
+- [x] `penimbangan_tanpa_kader_tetap_tampil`
+- [x] `riwayat_lama_tetap_bisa_dibaca`
 
 ---
 
@@ -408,16 +419,24 @@ belum ada.
    semua kode: kalau spesifikasi berubah setelah ada kode, ketidaksepakatan
    antar file jauh lebih mahal daripada satu revisi dokumen.
 
-4. **Migration** kolom `medical_flags` (`text`, nullable).
-5. **Model + service** timeline di backend: `$fillable`, validasi tulis
-   kader-saja di `ChildController@update`, lalu `ChildTimelineService`.
-6. **Endpoint + feature test.** Jangan lanjut ke mobile sebelum test hijau.
-7. **Dokumentasi** di `API_CONTRACT.md` dan `DATABASE_SCHEMA.md`, plus laporan
+4. ~~**Migration** kolom `medical_flags` (`text`, nullable).~~ **Selesai
+   29 September 2026.** `2026_09_29_010000_add_medical_flags_to_children_table.php`.
+   Tanpa CHECK constraint: batas 500 karakter divalidasi di controller supaya
+   salah ketik jadi 422, bukan error PostgreSQL.
+5. ~~**Model + service** timeline di backend.~~ **Selesai 29 September 2026.**
+   `ChildTimelineService` memakai empat query: satu `UNION` untuk daftar tanggal,
+   tiga untuk isi jendela. Jumlahnya tidak bergantung pada jumlah tanggal.
+6. ~~**Endpoint + feature test.**~~ **Selesai 29 September 2026.**
+   `GET /children/{id}/timeline` di group yang sama dengan `GET /children/{id}`.
+   `ChildTimelineTest` 21 test, semua nama di 7.3 terpakai.
+7. ~~**Dokumentasi.**~~ **Selesai 29 September 2026.** `API_CONTRACT.md`
+   (dua endpoint + kode error), `DATABASE_SCHEMA.md` (kolom baru + alasannya),
    `docs/LAPORAN_BUKU_MEDIS.md`.
 8. **Mobile** (fase berikutnya, belum dikerjakan): model, service, lalu
    perubahan `detail_anak_screen.dart`.
-9. **Verifikasi akhir**: Pint, test backend, `uji-api.ps1`, `flutter analyze`,
-   `flutter test`, `periksa-teks.ps1`.
+9. **Verifikasi akhir**: Pint dan test backend sudah hijau (96 test / 364
+   assertion). `uji-api.ps1` dan `flutter analyze` / `flutter test` menyusul
+   bersama fase mobile.
 
 ---
 
@@ -463,3 +482,4 @@ bagian ini, bukan disimpan di commit atau komentar kode.
 |---------|-----------|
 | 28 Sep 2026 | Rancangan awal ditulis. Belum ada kode yang dibuat untuk fitur ini. |
 | 29 Sep 2026 | Spesifikasi dikunci: keputusan 1 = kolom `children.medical_flags`, keputusan 2 = timeline per kunjungan. Tiga pertanyaan di bagian 12 ditutup. Tujuh aturan di 7.3 dipetakan ke nama test. Inventaris kompatibilitas ditulis di 7.5. Aturan agent dibuat di `posyandu-backend/.ai/rules/`. Belum ada kode fitur yang ditulis. |
+| 29 Sep 2026 | Fase 1 backend selesai. Migration `medical_flags`, `ChildTimelineService` (4 query), `GET /children/{id}/timeline`, validasi kader-saja untuk `medical_flags`, dan `ChildTimelineTest` 21 test. Semua aturan 1-7 terbukti hijau; 96 test total. Dokumentasi di `API_CONTRACT.md`, `DATABASE_SCHEMA.md`, `LAPORAN_BUKU_MEDIS.md`. Mobile belum disentuh. |

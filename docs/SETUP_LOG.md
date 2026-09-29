@@ -229,8 +229,44 @@ sudah jalan.
       muncul di tabel, jadi tidak ada yang gagal parse.
 - [x] Indeks dokumentasi di `docs/README.md` dilengkapi; sebelumnya sudah
       tertinggal 9 dokumen.
-- [ ] **Belum dikerjakan (Fase 1):** migration, model, service, endpoint, dan
-      feature test. Lihat urutan kerja di `RANCANGAN_BUKU_MEDIS.md` bagian 10.
+
+---
+
+## Opsi B - Buku Medis Digital, Fase 1 (Selesai — 29 Sep 2026)
+
+Implementasi backend. Mobile belum disentuh; itu fase berikutnya.
+
+- [x] Migration `children.medical_flags` (`text`, nullable). Tanpa CHECK
+      constraint: batas 500 karakter divalidasi di controller supaya kesalahan
+      ketik jadi 422 yang bisa dibaca kader, bukan error PostgreSQL.
+- [x] `GET /children/{id}/timeline` di group yang sama dengan `GET /children/{id}`,
+      jadi aturan aksesnya tidak berbeda: Ibu hanya anaknya sendiri, Kader semua.
+- [x] `ChildTimelineService` - 4 query, tidak bertambah. Satu `UNION` mengambil
+      daftar tanggal lebih dulu, lalu tiga query mengisi isinya. Alternatifnya
+      (ambil `limit` baris per tabel) memotong timeline di tengah satu kunjungan.
+- [x] Validasi `limit` (1-200) dan `before` (`date_format:Y-m-d`, **tanpa**
+      `before_or_equal:today` supaya riwayat lama tetap bisa dibaca).
+- [x] `medical_flags` hanya bisa ditulis Kader; Ibu membaca anaknya sendiri.
+      Penolakan Ibu sengaja `403` yang terbaca, bukan diam-diam diabaikan -
+      jawaban 200 padahal tidak tersimpan membuat kader mengira sudah tercatat.
+- [x] `ChildTimelineTest` - 21 test, memetakan seluruh aturan 1-7 di
+      `RANCANGAN_BUKU_MEDIS.md` bagian 7.3 ke nama test yang sama.
+- [x] Tiga jebakan ditutup test: `limit` menghitung tanggal bukan baris; baris
+      soft-deleted tidak muncul lagi; penimbangan tanpa kader tetap tampil
+      (`leftJoin`, karena `kader_id` nullable dengan `ON DELETE SET NULL`).
+- [x] Dokumentasi: `API_CONTRACT.md` (dua endpoint + kode error),
+      `DATABASE_SCHEMA.md` (kolom baru + alasannya), laporan baru
+      `docs/LAPORAN_BUKU_MEDIS.md`.
+- [x] **Verifikasi:** 96 test / 364 assertion hijau, Pint lulus, 30 route
+      `api/`, `periksa-teks.ps1` bersih.
+- [ ] **Fase 2:** mobile — model, service, perubahan `detail_anak_screen.dart`.
+- [ ] Grup `uji-api.ps1` untuk aturan 1-7 belum ditulis.
+
+**Push masih tertunda.** Environment ini tidak punya kredensial GitHub: tidak ada
+`gh`, tidak ada `GH_TOKEN`, tidak ada `credential.helper`, dan tidak ada `/dev/tty`
+untuk dialog password. `main` sekarang 6 commit di depan `origin/main`. Push
+begitu kredensial tersedia; tidak ada konflik yang mungkin muncul karena belum
+ada yang lain menyentuh repo ini.
 
 ---
 

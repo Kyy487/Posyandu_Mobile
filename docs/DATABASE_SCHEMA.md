@@ -15,6 +15,9 @@ Menyimpan autentikasi Ibu dan Kader.
 * `nik` (String 16, Unique, Nullable)
 * `name`, `gender` ('L', 'P'), `date_of_birth`
 * `birth_weight` (Float), `birth_height` (Float)
+* `medical_flags` (Text, Nullable) — kondisi khusus anak (alergi, penyakit
+  bawaan), satu penanda per baris. Ditambahkan oleh migration
+  `2026_09_29_010000_add_medical_flags_to_children_table.php`
 * `timestamps`
 * `deleted_at` (Timestamp, Nullable) — soft delete, ditambahkan oleh migration
   `2026_09_26_020000_add_deleted_at_to_children_table.php`
@@ -26,6 +29,17 @@ Menyimpan autentikasi Ibu dan Kader.
 >
 > NIK anak tetap unik **termasuk** baris yang sudah di-soft delete, agar NIK tidak
 > pernah dipakai ulang oleh anak yang berbeda.
+
+> ⚠️ **Kenapa `medical_flags` satu kolom, bukan tabel `child_medical_flags`?**
+> Untuk MVP, most Posyandu menulis penanda sekali dan jarang mengubahnya. Tabel
+> terpisah baru layak kalau nanti ada pertanyaan "alergi ini sejak kapan" atau
+> lebih dari satu jenis penanda per anak yang perlu dilacak sejarahnya.
+>
+> Konsekuensinya: **tidak ada riwayat perubahan penanda**, isinya **tidak
+> diparsing** (Kader dan Ibu membaca nilai yang sama apa adanya), dan **tidak ada
+> CHECK constraint** — batas 500 karakter divalidasi di `ChildController@update`
+> supaya kesalahan ketik jadi 422 yang bisa dibaca, bukan error PostgreSQL.
+> Keputusan lengkapnya ada di `docs/RANCANGAN_BUKU_MEDIS.md` bagian 5.1.
 
 ## 3. `measurements` (e-KMS / Riwayat Tumbuh Kembang)
 
