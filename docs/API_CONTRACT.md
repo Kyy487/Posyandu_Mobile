@@ -315,6 +315,25 @@ mis. `"Hepatitis B (Dosis 2)"`.
 | DPT-HB-Hib 1-4 | `DPT-HB-HIB` | 2, 3, 4, 6 bulan |
 | Campak-Rubella 1-2 | `MR` | 9, 18 bulan |
 
+**Urutan baris adalah bagian dari kontrak.** Baris dikirim sesuai urutan
+suntikan, yaitu `target_age_months` menaik, lalu `code`, lalu `dose_number`.
+Jadi `HB` (target 0) dan `POLIO` (target 0) didahulukan, baru `BCG`,
+`DPT-HB-HIB` 1, `HB` 2, `POLIO` 2 (semuanya target 2), dan seterusnya sampai
+`MR` 2 di target 18. Dosis tanpa `target_age_months` ada di akhir.
+
+Dua alasan kenapa klien tidak boleh mengurutkan ulang:
+
+- Urutan ini tidak bisa direkonstruksi di sisi klien. `by_type` pada
+  `GET /kader/immunizations/recap` tidak mengirim `target_age_months` per
+  baris, jadi klien tidak punya kuncinya.
+- Kader membandingkan daftar ini dengan checklist anak di
+  `GET /children/{id}/immunizations` dan dengan form pencatatan suntikan.
+  Ketiganya harus urutannya sama; kalau klien mengurutkan sendiri, angka
+  tetap sama tapi daftar yang dilihat kader berbeda dari form.
+
+Dulu urutannya `code` saja (abjad: BCG, DPT-HB-HIB, HB, MR, POLIO). Diubah
+29 September 2026.
+
 ### `GET /children/{id}/immunizations`
 
 Ibu hanya boleh melihat anaknya sendiri; Kader boleh melihat semua anak.

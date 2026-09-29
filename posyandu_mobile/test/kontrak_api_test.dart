@@ -1019,6 +1019,15 @@ void main() {
     // Dipotong: 16 by_type jadi 3 baris, 3 overdue_children jadi 2 anak, dan
     // setiap overdue_doses dipotong jadi 2 dosis. Nilai yang dipotong tidak
     // dipakai sebagai angka yang dicek, hanya bentuk field-nya.
+    //
+    // PENTING untuk 3 baris by_type: ini bukan potongan berurutan. Server
+    // mengurutkan baris sesuai jadwal suntikan (target usia, lalu kode), jadi
+    // tiga baris pertama pada respons sebenarnya adalah HB-1, POLIO-1, lalu
+    // salah satu dosis bulan ke-2. Ketiga baris di bawah dipilih ulang supaya
+    // kasus penting ada: dua baris yang ada suntikannya, satu baris tanpa
+    // suntikan, dan dua baris dengan kode yang sama (MR dosis 1 dan 2) supaya
+    // penjumlahan per vaksin punya sesuatu untuk digabung. Jangan pakai urutan
+    // baris di sini sebagai rujukan urutan server.
     const rawRecap = '''
     {
       "success": true,
@@ -1151,11 +1160,30 @@ void main() {
     test('by_type memuat baris count 0 dan tidak disembunyikan', () {
       // Aturan kontrak: seluruh 16 master selalu dikirim. Kader perlu bisa
       // membedakan "tidak ada suntikan" dari "tidak sempat dicatat".
+      //
+      // Baris count 0 dicari lewat kode, bukan lewat posisi. Posisi di dalam
+      // payload adalah keputusan server (urutan suntikan, lihat
+      // ImmunizationType::scopeOrderedForDosing) dan sengaja tidak diuji di
+      // sini - kalau klien mengurutkan ulang, angkanya tetap sama tapi daftar
+      // yang dilihat kader jadi berbeda dengan form pencatatan suntikan.
       expect(rekap.activity.byType.length, 3);
       expect(rekap.activity.terpakai.length, 2);
-      expect(rekap.activity.byType.last.count, 0);
-      expect(rekap.activity.byType.last.kosong, isTrue);
+
+      final dosisKedua = rekap.activity.byType
+          .firstWhere((b) => b.code == 'MR' && b.doseNumber == 2);
+      expect(dosisKedua.count, 0);
+      expect(dosisKedua.kosong, isTrue);
       expect(rekap.activity.terpakai.every((e) => !e.kosong), isTrue);
+    });
+
+    test('by_type tidak diurutkan ulang oleh klien', () {
+      // Baris harus tampil persis seperti kiriman server. Aplikasi tidak
+      // mengurutkan ulang, dan tidak boleh: urutan suntikan hanya diketahui
+      // server (target usia tidak ikut dikirim per baris by_type).
+      expect(
+        rekap.activity.byType.map((b) => b.code).toList(),
+        ['MR', 'POLIO', 'MR'],
+      );
     });
 
     test('dosis per vaksin dijumlahkan lewat key "code"', () {

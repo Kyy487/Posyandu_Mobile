@@ -201,16 +201,21 @@ kolom tambahan di rekap ini.
 
 ## Yang Masih Butuh Dilakukan
 
-1. **Commit** blokir 1–4 termasuk file ini.
+1. ~~**Commit** blokir 1–4 termasuk file ini.~~ **Selesai 29 September 2026**
+   dalam empat commit: pengujian/factory, backend rekap+CSV, mobile rekap,
+   dokumentasi. Push masih tertunda - environment tidak punya kredensial
+   GitHub, jadi `main` masih 4 commit di depan `origin/main`.
 2. **Tombol export di mobile** - ditunda. Butuh `path_provider` (tulis berkas)
    dan `share_plus` (buka share sheet), keduanya dependency baru. Perlu
    persetujuan dulu sebelum dipasang.
 3. **Konfirmasi ke tim mobile** - apakah `activity` perlu `batch_number` untuk
    tracking stok? Bukan dari blokir ini, masih terbuka sejak 28 September.
-4. **Urutan dosis sesuai kronologi** - `scopeOrderedForDosing()` masih sorting
-   berdasarkan `code` (`BCG` < `HB` < `MR`), bukan urutan suntikan. Sekarang
-   urutannya terlihat di CSV dan di layar checklist, jadi gangguannya lebih
-   mudah dilihat. Di luar cakupan blokir ini, tapi belum ada yang memperbaikinya.
+4. ~~**Urutan dosis sesuai kronologi**~~ **Selesai 29 September 2026.**
+   `scopeOrderedForDosing()` sekarang sorting berdasarkan `target_age_months`,
+   lalu `code`, lalu `dose_number`. Konsekuensi yang harus diingat: urutan baris
+   di `by_type` dan di CSV berubah, dan urutan itu bagian dari kontrak yang
+   dibaca mobilize (`kontrak_api_test.dart`). Fixture 3 baris di test kontrak
+   memang bukan potongan berurutan - lihat komentar di sana.
 
 ---
 
@@ -229,7 +234,7 @@ kolom tambahan di rekap ini.
 - **Jangan simpulkan "338 pemeriksaan lulus berarti CSV-nya benar."** Pemeriksaan
   `uji-api.ps1` berjalan lewat `Invoke-WebRequest` yang sudah membuang BOM.
   Yang menangkap masalah level file hanya feature test.
-- Test `ImmunizationRecapCsvTest` sengaja mengunci urutan `BCG, HB, MR` yang
-  sekarang. Itu urutan `code`, bukan urutan suntikan - dan itu warisan Opsi A
-  yang masih tercatat. Kalau nanti diperbaiki, test ini harus ikut diperbarui
-  pada saat yang sama, bukan diam-diam.
+- Test `ImmunizationRecapCsvTest` sengaja mengunci urutan `Hepatitis B; BCG;
+  Campak Rubella` (sesuai `target_age_months` 0, 2, 9). Urutannya diuji
+  terpisah di `ImmunizationTypeOrderTest`; kalau master 16 dosis berubah,
+  dua-duanya harus ikut diperbarui pada saat yang sama.

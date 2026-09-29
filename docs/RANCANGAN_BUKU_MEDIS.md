@@ -319,12 +319,21 @@ Feature test minimal yang harus ada:
 Urutan ini disengaja supaya tidak pernah ada layar yang memakai endpoint yang
 belum ada.
 
-1. **Commit dulu** apa yang sekarang ada. Repo masih belum commit, dan menambah
-   fitur di atas pekerjaan yang belum diamankan hanya memperbesar masalah.
-2. **Perbaiki urutan dosis kronologi** (sudah tercatat di
-   `LAPORAN_REKAP_IMUNISASI_BULANAN.md` bagian "Yang Masih Butuh
-   Dilakukan"). Beberapa baris, tapi membingungkan kader sekarang, dan
-   buku medis akan menampliakannya.
+1. ~~**Commit dulu** apa yang sekarang ada.~~ **Selesai 29 September 2026.**
+   Empat commit di `main`: pengujian/factory, backend rekap+CSV, mobile rekap,
+   dokumentasi. Working tree bersih. **Push masih tertunda** - environment-nya
+   tidak punya kredensial GitHub, jadi `main` masih 4 commit di depan
+   `origin/main`. Push ulang begitu kredensial tersedia; tidak ada konflik yang
+   mungkin muncul karena belum ada yang lain menyentuh repo ini.
+
+2. ~~**Perbaiki urutan dosis kronologi**~~ **Selesai 29 September 2026.**
+   `ImmunizationType::scopeOrderedForDosing()` sekarang `ORDER BY
+   target_age_months ASC NULLS LAST, code, dose_number`. Diuji di
+   `ImmunizationTypeOrderTest` (5 test, master 16 dosis dari seeder) plus satu
+   test di `ImmunizationRecapTest` untuk `by_type`. Kontrak yang berubah: urutan
+   baris `by_type` dan baris tabel CSV, jadi klien yang mengurutkan ulang
+   sendiri harus dihentikan.
+
 3. **Migration** kolom `medical_flags` (kalau kolom yang dipilih).
 4. **Model + service** timeline di backend.
 5. **Endpoint + feature test.** Jangan lanjut ke mobile sebelum test hijau.

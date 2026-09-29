@@ -27,10 +27,11 @@ use Tests\TestCase;
  *   | HB   |      0 |                             2 |
  *   | MR   |      9 |                            11 |
  *
- * `orderedForDosing()` mengurutkan berdasarkan `code`, jadi urutan di file adalah
- * BCG, HB, MR - bukan urutan suntikan. Ini warisan dari Opsi A yang masih
- * tercatat di `LAPORAN_REKAP_IMUNISASI_BULANAN.md`; test ini mengunci urutan
- * yang ada sekarang supaya perubahannya jadi keputusan sadar, bukan efek samping.
+ * `orderedForDosing()` mengurutkan berdasarkan `target_age_months`, jadi urutan
+ * di file mengikuti urutan suntikan: HB (target 0), BCG (target 2), MR (target 9).
+ * Dulu urutannya `code` saja, sehingga BCG muncul sebelum Hepatitis B; urutan
+ * itu dikunci di sini supaya perubahannya jadi keputusan sadar, bukan efek
+ * samping. Urutannya sendiri diuji di `ImmunizationTypeOrderTest`.
  *
  * Bulan acuan tetap `2026-09`, tanggal acuan `2026-09-30`.
  */
@@ -301,7 +302,7 @@ class ImmunizationRecapCsvTest extends TestCase
         $this->assertSame('11', $baris[0][3], 'usia dihitung pada akhir bulan');
         $this->assertSame('3', $baris[0][4], 'HB, BCG, dan MR semuanya sudah jatuh tempo');
         $this->assertSame(
-            'BCG; Hepatitis B; Campak Rubella',
+            'Hepatitis B; BCG; Campak Rubella',
             $baris[0][5],
             'nama dosis digabung dalam satu sel dengan pemisah titik koma, urutannya dari server'
         );

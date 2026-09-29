@@ -235,6 +235,30 @@ class ImmunizationRecapTest extends TestCase
         $this->assertSame($data['activity']['total_doses'], $totalDariBaris);
     }
 
+    /**
+     * `by_type` harus diurutkan sesuai jadwal suntikan, bukan abjad.
+     *
+     * `masterDosis()` punya HB (target 0), BCG (target 2), dan MR (target 9),
+     * jadi urutannya harus HB, BCG, MR. Dulu urutannya abjad - BCG, HB, MR -
+     * dan kader akan membaca tabel aktivitas yang tidak sama urutannya dengan
+     * form pencatatan suntikan. Scope-nya sendiri diuji terpisah di
+     * `ImmunizationTypeOrderTest`; test ini hanya memastikan `by_type` benar
+     * memakai scope itu, bukan mengulang apa adanya.
+     */
+    #[Test]
+    public function aktivitas_mengurutkan_jenis_vaksin_sesuai_jadwal_suntikan(): void
+    {
+        $kader = User::factory()->kader()->create();
+        $this->masterDosis();
+
+        $data = $this->rekap($kader);
+
+        $this->assertSame(
+            ['HB', 'BCG', 'MR'],
+            array_column($data['activity']['by_type'], 'code')
+        );
+    }
+
     // -----------------------------------------------------------------
     // 4. `coverage` - kelengkapan di akhir bulan
     // -----------------------------------------------------------------
@@ -406,9 +430,8 @@ class ImmunizationRecapTest extends TestCase
      * `overdue_doses` harus menyebut dosis yang lewat, lengkap dengan sisa
      * bulannya.
      *
-     * Urutan barisnya mengikuti `orderedForDosing()` (kode lalu nomor dosis),
-     * bukan urutan kronologis - jadi yang diuji di sini adalah isi tiap baris,
-     * bukan posisinya.
+     * Urutan barisnya mengikuti `orderedForDosing()` (target usia, lalu kode lalu
+     * nomor dosis), jadi diuji di sini hanya isi tiap baris, bukan posisinya.
      */
     #[Test]
     public function daftar_anak_terlambat_menyertakan_dosis_yang_lewat(): void

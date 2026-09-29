@@ -307,10 +307,11 @@ harus ikut diawasi.
    diputuskan. Sisa satu-satunya butir Opsi E.
 6. **Panggil tim mobile** — apakah butuh field tambahan di respons (mis.
    `batch_number` di `activity` untuk tracking stok)?
-7. **Urutan dosis sesuai kronologi** — `scopeOrderedForDosing()` masih sorting
-   berdasarkan `code` (`BCG` < `HB` < `MR`), bukan urutan suntikan. Di luar
-   cakupan blokir 3, tapi membuat checklist menampilkan dosis dalam urutan yang
-   membingungkan kader.
+7. ~~**Urutan dosis sesuai kronologi**~~ — **selesai 29 September 2026.**
+   `scopeOrderedForDosing()` sorting berdasarkan `target_age_months`, lalu
+   `code`, lalu `dose_number`. Checklist anak, `by_type` rekap, dan dropdown
+   `GET /immunization-types` sekarang satu urutan yang sama: HB-1 dan
+   POLIO-1 (bulan 0), lalu BCG/DPT-1/HB-2/POLIO-2 (bulan 2), dan seterusnya.
 
 ---
 

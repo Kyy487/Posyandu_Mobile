@@ -48,10 +48,33 @@ class ImmunizationType extends Model
 
     public const STATUS_OVERDUE = 'terlambat';
 
-    /** Master diurutkan sesuai urutan suntikan, bukan urutan abjad. */
+    /**
+     * Master diurutkan sesuai urutan suntikan, bukan urutan abjad.
+     *
+     * Kuncinya `target_age_months`, lalu `code` dan `dose_number` sebagai
+     * pemutus ties. Urutannya penting untuk kader: checklist anak dan rekap
+     * bulanan menampilkan dosis dalam urutan ini, dan urutannya harus sama
+     * dengan urutan menyuntik. Dulu urutannya `code` saja, yang menghasilkan
+     * BCG, DPT-HB-Hib, HB, MR, POLIO - abjad, bukan kronologis. Kader yang
+     * membaca daftar itu melihat campak sebelum hepatitis B.
+     *
+     * `code` dan `dose_number` tetap dipakai sebagai pemutus supaya dua dosis
+     * dengan target usia sama (mis. pada bulan ke-2 ada BCG, HB ke-2, dan polio
+     * ke-2) selalu dapat urutan yang sama. Tanpa itu, urutannya bisa berubah
+     * antar-request dan laporan tentang satu anak bisa jadi berbeda.
+     *
+     * Dosis tanpa `target_age_months` (`NULL`) selalu di akhir. PostgreSQL
+     * menempatkan NULL terakhir pada `ORDER BY ... ASC`, jadi itu tidak perlu
+     * penanganan khusus - tapi ditulis eksplisit di sini karena kalau suatu saat
+     * default itu berubah, daftar dosis akan berantakan tanpa ada yang
+     * mengeluarkannya.
+     */
     public function scopeOrderedForDosing(Builder $query): Builder
     {
-        return $query->orderBy('code')->orderBy('dose_number');
+        return $query
+            ->orderByRaw('target_age_months ASC NULLS LAST')
+            ->orderBy('code')
+            ->orderBy('dose_number');
     }
 
     /**
