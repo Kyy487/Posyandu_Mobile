@@ -116,12 +116,55 @@ memiliki query sendiri yang tidak berkaitan dengan timeline).
 
 ---
 
-## 7. Belum Dikerjakan
+## 7. Mobile (Fase 2 — Selesai 29 Sep 2026)
 
-Mobile adalah fase berikutnya dan **belum disentuh**: model timeline, service,
-kemudian perubahan `detail_anak_screen.dart`. Rawatannya sudah ada di
-`docs/RANCANGAN_BUKU_MEDIS.md` bagian 8.2 — termasuk catatan bahwa layar itu
-tidak punya pull-to-refresh, jadi pemuatan ulang memakai tombol refresh yang
-sudah ada di baris "Penimbangan Terakhir".
+Implementasi mobile Flutter. Tidak ada layar baru; `detail_anak_screen.dart`
+yang sudah ada ditambah isinya sesuai `RANCANGAN_BUKU_MEDIS.md` bagian 8.2.
 
-Grup `uji-api.ps1` untuk aturan 1–7 juga belum ditulis.
+### File yang dibuat
+
+| File | Isi |
+| :--- | :--- |
+| `lib/models/child_timeline.dart` | Model timeline: `ChildTimeline`, `TimelineChild`, `TimelineEntry`, `TimelineMeasurement`, `TimelineImmunization`, `TimelineNote`, `TimelineMeta` |
+| `lib/services/child_timeline_service.dart` | Service `GET /children/{id}/timeline` dengan cursor `before` |
+
+### File yang diubah
+
+| File | Perubahan |
+| :--- | :--- |
+| `lib/models/child.dart` | Field `medicalFlags` (nullable, backward-compatible) + getter `hasMedicalFlags` |
+| `lib/utils/constants.dart` | Konstanta `childTimelineEndpoint = '/timeline'` |
+| `lib/screens/kader/detail_anak_screen.dart` | Badge kondisi khusus + section Buku Medis + pagination + refresh gabungan |
+
+### Keputusan implementasi
+
+- **Tidak ada perhitungan ulang.** Z-score, status gizi, dan `age_in_months`
+  dibaca apa adanya dari server. `age_in_months` yang `null` (anak belum pernah
+  ditimbang) tampil sebagai "-", bukan dihitung dari `date_of_birth`.
+- **Tidak ada pengurutan ulang.** Entri dikelompokkan per bulan memakai
+  `labelBulan()` tanpa mengubah urutan dari server. Map Dart bersifat
+  insertion-ordered, jadi bulan terbaru otomatis di atas.
+- **Cursor tidak dikarang.** Halaman berikutnya hanya diminta memakai
+  `meta.next_before` dari server. `gabung()` mengambil `meta` dari halaman
+  terakhir supaya tombol "Muat lebih banyak" tidak muncul setelah riwayat habis.
+- **Refresh memakai tombol yang sudah ada.** `IconButton(Icons.refresh)` di
+  baris "Penimbangan Terakhir" sekarang memanggil `_muatUlangSemua()` yang
+  memuat ulang penimbangan DAN timeline. Layar tidak memakai `RefreshIndicator`.
+- **Badge kondisi khusus** merah kalau teksnya menyebut "alergi", kuning selain
+  itu. Teksnya ditampilkan apa adanya karena daftar jenis kondisi tidak dikunci
+  database.
+
+### Verifikasi mobile
+
+| Pemeriksaan | Hasil |
+| :--- | :--- |
+| `flutter analyze` | 0 error, 0 warning (1 info pre-existing di `kader_service.dart`) |
+| `flutter test` | 105 test hijau (16 test baru: 13 timeline + 3 medical_flags) |
+| `dart format` | 39 file diformat |
+| `periksa-teks.ps1` | Bersih |
+
+---
+
+## 8. Belum Dikerjakan
+
+Grup `uji-api.ps1` untuk aturan 1–7 belum ditulis.

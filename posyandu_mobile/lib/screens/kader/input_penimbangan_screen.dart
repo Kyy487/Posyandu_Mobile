@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+
 import '../../services/kader_service.dart';
 
 class InputPenimbanganScreen extends StatefulWidget {
@@ -43,9 +44,10 @@ class _InputPenimbanganScreenState extends State<InputPenimbanganScreen> {
     String safeHeight = _heightController.text.replaceAll(',', '.');
 
     // Format YYYY-MM-DD
-    String formattedDate = "${_selectedDate.year}-${_selectedDate.month.toString().padLeft(2, '0')}-${_selectedDate.day.toString().padLeft(2, '0')}";
+    String formattedDate =
+        "${_selectedDate.year}-${_selectedDate.month.toString().padLeft(2, '0')}-${_selectedDate.day.toString().padLeft(2, '0')}";
 
-final result = await _kaderService.addMeasurement(
+    final result = await _kaderService.addMeasurement(
       childId: widget.childId,
       measurementDate: formattedDate,
       weight: double.parse(safeWeight),
@@ -70,7 +72,11 @@ final result = await _kaderService.addMeasurement(
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(errorMessage), backgroundColor: Colors.red, duration: const Duration(seconds: 4)),
+          SnackBar(
+            content: Text(errorMessage),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 4),
+          ),
         );
       }
     }
@@ -83,7 +89,10 @@ final result = await _kaderService.addMeasurement(
       // Fallback bila server tidak mengirim data (misal versi API lama)
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Data penimbangan berhasil disimpan.'), backgroundColor: Colors.green),
+          const SnackBar(
+            content: Text('Data penimbangan berhasil disimpan.'),
+            backgroundColor: Colors.green,
+          ),
         );
       }
       return;
@@ -99,7 +108,9 @@ final result = await _kaderService.addMeasurement(
       barrierDismissible: false,
       builder: (context) {
         return AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
           title: Row(
             children: [
               const Icon(Icons.check_circle, color: Colors.green),
@@ -127,11 +138,16 @@ final result = await _kaderService.addMeasurement(
               const SizedBox(height: 16),
               _barisHasil('Berat Badan', '${data['weight_kg']} kg'),
               _barisHasil('Tinggi Badan', '${data['height_cm']} cm'),
-              _barisHasil('Umur Anak', ageInMonths != null ? '$ageInMonths bulan' : '-'),
+              _barisHasil(
+                'Umur Anak',
+                ageInMonths != null ? '$ageInMonths bulan' : '-',
+              ),
               const Divider(height: 24),
               _barisHasil(
                 'Z-Score (BB/U)',
-                zScore == null ? 'Di luar rentang WHO' : zScore.toStringAsFixed(2),
+                zScore == null
+                    ? 'Di luar rentang WHO'
+                    : zScore.toStringAsFixed(2),
                 bold: true,
               ),
               if (statusGizi == null)
@@ -140,7 +156,11 @@ final result = await _kaderService.addMeasurement(
                   child: Text(
                     'Usia anak di luar rentang standar WHO (0-60 bulan), '
                     'sehingga status gizi tidak dihitung.',
-                    style: TextStyle(fontSize: 11, color: Colors.grey, fontStyle: FontStyle.italic),
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: Colors.grey,
+                      fontStyle: FontStyle.italic,
+                    ),
                   ),
                 ),
             ],
@@ -154,7 +174,10 @@ final result = await _kaderService.addMeasurement(
                   backgroundColor: _warnaStatus(statusGizi),
                   padding: const EdgeInsets.symmetric(vertical: 12),
                 ),
-                child: const Text('Selesai', style: TextStyle(color: Colors.white)),
+                child: const Text(
+                  'Selesai',
+                  style: TextStyle(color: Colors.white),
+                ),
               ),
             ),
           ],
@@ -210,7 +233,6 @@ final result = await _kaderService.addMeasurement(
     return int.tryParse(value.toString());
   }
 
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -227,9 +249,14 @@ final result = await _kaderService.addMeasurement(
                     Card(
                       elevation: 2,
                       child: ListTile(
-                        leading: const Icon(Icons.calendar_month, color: Colors.blue),
+                        leading: const Icon(
+                          Icons.calendar_month,
+                          color: Colors.blue,
+                        ),
                         title: const Text('Tanggal Penimbangan'),
-                        subtitle: Text("${_selectedDate.day}/${_selectedDate.month}/${_selectedDate.year}"),
+                        subtitle: Text(
+                          "${_selectedDate.day}/${_selectedDate.month}/${_selectedDate.year}",
+                        ),
                         trailing: OutlinedButton(
                           onPressed: _pickDate,
                           child: const Text('Ubah'),
@@ -239,31 +266,42 @@ final result = await _kaderService.addMeasurement(
                     const SizedBox(height: 20),
                     TextFormField(
                       controller: _weightController,
-                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                      keyboardType: const TextInputType.numberWithOptions(
+                        decimal: true,
+                      ),
                       decoration: const InputDecoration(
                         labelText: 'Berat Badan (kg)',
                         border: OutlineInputBorder(),
                         prefixIcon: Icon(Icons.scale),
                       ),
-                      validator: (value) => value == null || value.isEmpty ? 'Wajib diisi' : null,
+                      validator: (value) =>
+                          value == null || value.isEmpty ? 'Wajib diisi' : null,
                     ),
                     const SizedBox(height: 16),
                     TextFormField(
                       controller: _heightController,
-                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                      keyboardType: const TextInputType.numberWithOptions(
+                        decimal: true,
+                      ),
                       decoration: const InputDecoration(
                         labelText: 'Tinggi / Panjang Badan (cm)',
                         border: OutlineInputBorder(),
                         prefixIcon: Icon(Icons.height),
                       ),
-                      validator: (value) => value == null || value.isEmpty ? 'Wajib diisi' : null,
+                      validator: (value) =>
+                          value == null || value.isEmpty ? 'Wajib diisi' : null,
                     ),
                     const SizedBox(height: 32),
                     ElevatedButton.icon(
                       onPressed: _submitMeasurement,
-                      style: ElevatedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 16)),
+                      style: ElevatedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                      ),
                       icon: const Icon(Icons.save),
-                      label: const Text('Simpan Data Penimbangan', style: TextStyle(fontSize: 16)),
+                      label: const Text(
+                        'Simpan Data Penimbangan',
+                        style: TextStyle(fontSize: 16),
+                      ),
                     ),
                   ],
                 ),

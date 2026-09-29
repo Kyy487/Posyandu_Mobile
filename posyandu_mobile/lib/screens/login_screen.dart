@@ -63,7 +63,8 @@ class _LoginScreenState extends State<LoginScreen> {
 
     setState(() {
       _isLoading = false;
-      _errorMessage = result['message']?.toString() ?? 'Login gagal. Coba lagi.';
+      _errorMessage =
+          result['message']?.toString() ?? 'Login gagal. Coba lagi.';
     });
   }
 
@@ -71,10 +72,15 @@ class _LoginScreenState extends State<LoginScreen> {
   void _gotoDashboard(Map<String, dynamic> result) {
     final data = result['data'];
     final user = data is Map ? data['user'] : null;
-    final role = (user is Map ? user['role'] : data is Map ? data['role'] : null)
-        ?.toString()
-        .trim()
-        .toLowerCase();
+    final role =
+        (user is Map
+                ? user['role']
+                : data is Map
+                ? data['role']
+                : null)
+            ?.toString()
+            .trim()
+            .toLowerCase();
 
     final Widget? tujuan = switch (role) {
       'ibu' => const DashboardIbuScreen(),
@@ -86,7 +92,8 @@ class _LoginScreenState extends State<LoginScreen> {
       // Role tidak dikenal: jangan tinggalkan user di layar login.
       setState(() {
         _isLoading = false;
-        _errorMessage = 'Role akun tidak dikenali. Hubungi coordinator posyandu.';
+        _errorMessage =
+            'Role akun tidak dikenali. Hubungi coordinator posyandu.';
       });
       return;
     }
@@ -94,10 +101,8 @@ class _LoginScreenState extends State<LoginScreen> {
     Navigator.of(context).pushAndRemoveUntil(
       PageRouteBuilder<void>(
         transitionDuration: const Duration(milliseconds: 320),
-        pageBuilder: (_, animation, _) => FadeTransition(
-          opacity: animation,
-          child: tujuan,
-        ),
+        pageBuilder: (_, animation, _) =>
+            FadeTransition(opacity: animation, child: tujuan),
         transitionsBuilder: (_, animation, _, child) =>
             FadeTransition(opacity: animation, child: child),
       ),
@@ -110,10 +115,8 @@ class _LoginScreenState extends State<LoginScreen> {
     Navigator.of(context).push(
       PageRouteBuilder<void>(
         transitionDuration: const Duration(milliseconds: 280),
-        pageBuilder: (_, animation, _) => FadeTransition(
-          opacity: animation,
-          child: const RegisterScreen(),
-        ),
+        pageBuilder: (_, animation, _) =>
+            FadeTransition(opacity: animation, child: const RegisterScreen()),
         transitionsBuilder: (_, animation, _, child) => SlideTransition(
           position: Tween(
             begin: const Offset(0, 0.06),
@@ -137,9 +140,7 @@ class _LoginScreenState extends State<LoginScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       body: Container(
-        decoration: const BoxDecoration(
-          gradient: AppTheme.headerGradient,
-        ),
+        decoration: const BoxDecoration(gradient: AppTheme.headerGradient),
         child: SafeArea(
           child: LayoutBuilder(
             builder: (context, constraints) {
@@ -179,10 +180,8 @@ class _LoginScreenState extends State<LoginScreen> {
         children: [
           Text(
             'Masuk ke Akun',
-            style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                  fontWeight: FontWeight.w800,
-                  color: AppTheme.ink,
-                ),
+            style: Theme.of(context).textTheme.titleLarge
+                ?.copyWith(fontWeight: FontWeight.w800, color: AppTheme.ink),
           ),
           const SizedBox(height: 4),
           const Text(
@@ -258,8 +257,9 @@ class _LoginScreenState extends State<LoginScreen> {
                     : 'Sembunyikan password',
               ),
             ),
-            validator: (value) =>
-                (value == null || value.isEmpty) ? 'Password tidak boleh kosong' : null,
+            validator: (value) => (value == null || value.isEmpty)
+                ? 'Password tidak boleh kosong'
+                : null,
           ),
           const SizedBox(height: 8),
 

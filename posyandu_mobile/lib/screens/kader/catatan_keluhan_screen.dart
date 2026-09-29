@@ -52,10 +52,7 @@ class _CatatanKeluhanScreenState extends State<CatatanKeluhanScreen> {
       _errorMessage = null;
     });
 
-    final result = await _service.getNotes(
-      widget.childId,
-      all: _semuaBulan,
-    );
+    final result = await _service.getNotes(widget.childId, all: _semuaBulan);
 
     if (!mounted) return;
 
@@ -301,7 +298,10 @@ class _FormCatatanKeluhanState extends State<_FormCatatanKeluhan> {
   ///
   /// Mengembalikan null berarti isi catatan sudah sah.
   String? _validasiIsi() {
-    if (!_demam && !_rewel && !_diare && _catatanController.text.trim().isEmpty) {
+    if (!_demam &&
+        !_rewel &&
+        !_diare &&
+        _catatanController.text.trim().isEmpty) {
       return 'Centang minimal satu keluhan, atau isi catatan.';
     }
     return null;
@@ -353,7 +353,9 @@ class _FormCatatanKeluhanState extends State<_FormCatatanKeluhan> {
         SnackBar(
           content: Text(
             result['message']?.toString() ??
-                (_isEdit ? 'Catatan diperbarui.' : 'Catatan keluhan tersimpan.'),
+                (_isEdit
+                    ? 'Catatan diperbarui.'
+                    : 'Catatan keluhan tersimpan.'),
           ),
           backgroundColor: Colors.green,
         ),
@@ -474,7 +476,10 @@ class _FormCatatanKeluhanState extends State<_FormCatatanKeluhan> {
               const SizedBox(height: 16),
               Text(
                 _isEdit ? 'Koreksi Catatan Keluhan' : 'Catat Keluhan',
-                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                style: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
               const SizedBox(height: 12),
 
@@ -483,8 +488,15 @@ class _FormCatatanKeluhanState extends State<_FormCatatanKeluhan> {
               ListTile(
                 contentPadding: EdgeInsets.zero,
                 leading: const Icon(Icons.calendar_month, color: Colors.blue),
-                title: const Text('Tanggal Keluhan', style: TextStyle(fontSize: 14)),
-                subtitle: Text(formatTanggalIndo(_tanggal.toIso8601String().substring(0, 10))),
+                title: const Text(
+                  'Tanggal Keluhan',
+                  style: TextStyle(fontSize: 14),
+                ),
+                subtitle: Text(
+                  formatTanggalIndo(
+                    _tanggal.toIso8601String().substring(0, 10),
+                  ),
+                ),
                 trailing: OutlinedButton(
                   onPressed: _pickDate,
                   child: const Text('Ubah'),
@@ -513,7 +525,10 @@ class _FormCatatanKeluhanState extends State<_FormCatatanKeluhan> {
                 value: _rewel,
                 onChanged: (v) => setState(() => _rewel = v),
                 title: const Text('Rewel', style: TextStyle(fontSize: 14)),
-                secondary: const Icon(Icons.sentiment_dissatisfied, color: Colors.orange),
+                secondary: const Icon(
+                  Icons.sentiment_dissatisfied,
+                  color: Colors.orange,
+                ),
               ),
               SwitchListTile(
                 contentPadding: EdgeInsets.zero,
@@ -565,7 +580,10 @@ class _FormCatatanKeluhanState extends State<_FormCatatanKeluhan> {
                         ),
                         subtitle: Text(
                           TindakLanjut.petunjuk(pilihan),
-                          style: const TextStyle(fontSize: 11, color: Colors.grey),
+                          style: const TextStyle(
+                            fontSize: 11,
+                            color: Colors.grey,
+                          ),
                         ),
                       ),
                   ],

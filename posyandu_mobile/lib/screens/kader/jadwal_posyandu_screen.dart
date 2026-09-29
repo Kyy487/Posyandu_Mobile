@@ -103,11 +103,8 @@ class _JadwalPosyanduScreenState extends State<JadwalPosyanduScreen> {
     final tersimpan = await showModalBottomSheet<bool>(
       context: context,
       isScrollControlled: true,
-      builder: (context) => FormAgenda(
-        existing: existing,
-        petugas: _petugas,
-        service: _service,
-      ),
+      builder: (context) =>
+          FormAgenda(existing: existing, petugas: _petugas, service: _service),
     );
 
     if (tersimpan == true) {
@@ -230,10 +227,7 @@ class _JadwalPosyanduScreenState extends State<JadwalPosyanduScreen> {
               _filterTanggal == null
                   ? 'Semua agenda'
                   : 'Agenda tanggal ${_formatTanggalTampil(_filterTanggal!)}',
-              style: const TextStyle(
-                fontWeight: FontWeight.w600,
-                fontSize: 13,
-              ),
+              style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
             ),
           ),
           if (_filterTanggal != null)

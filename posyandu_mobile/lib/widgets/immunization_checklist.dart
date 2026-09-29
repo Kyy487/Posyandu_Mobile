@@ -121,7 +121,11 @@ class ImmunizationChecklistView extends StatelessWidget {
             ),
             child: Row(
               children: [
-                Icon(immunizationStatusIcon(item.status), color: warna, size: 24),
+                Icon(
+                  immunizationStatusIcon(item.status),
+                  color: warna,
+                  size: 24,
+                ),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Column(
@@ -182,8 +186,11 @@ class ImmunizationChecklistView extends StatelessWidget {
                     ),
                     if (bisaDiketuk) ...[
                       const SizedBox(height: 6),
-                      const Icon(Icons.chevron_right,
-                          size: 18, color: Colors.grey),
+                      const Icon(
+                        Icons.chevron_right,
+                        size: 18,
+                        color: Colors.grey,
+                      ),
                     ],
                   ],
                 ),
@@ -295,10 +302,7 @@ class ImmunizationSummaryCard extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 2),
-          Text(
-            label,
-            style: const TextStyle(fontSize: 11, color: Colors.grey),
-          ),
+          Text(label, style: const TextStyle(fontSize: 11, color: Colors.grey)),
         ],
       ),
     );

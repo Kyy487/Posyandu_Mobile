@@ -35,15 +35,7 @@ String formatTanggalIndo(String? iso) {
   final d = DateTime.tryParse(iso ?? '');
   if (d == null) return iso ?? '-';
 
-  const hari = [
-    'Senin',
-    'Selasa',
-    'Rabu',
-    'Kamis',
-    'Jumat',
-    'Sabtu',
-    'Minggu',
-  ];
+  const hari = ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu', 'Minggu'];
   const bulan = [
     'Januari',
     'Februari',
@@ -309,7 +301,11 @@ class MedicalNoteCard extends StatelessWidget {
                 const SizedBox(height: 10),
                 Row(
                   children: [
-                    const Icon(Icons.person_outline, size: 14, color: Colors.grey),
+                    const Icon(
+                      Icons.person_outline,
+                      size: 14,
+                      color: Colors.grey,
+                    ),
                     const SizedBox(width: 6),
                     Text(
                       'Dicatat oleh ${note.kaderName}',
@@ -366,11 +362,20 @@ class MedicalNoteEmptyState extends StatelessWidget {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(Icons.health_and_safety_outlined, size: 64, color: Colors.pink[200]),
+              Icon(
+                Icons.health_and_safety_outlined,
+                size: 64,
+                color: Colors.pink[200],
+              ),
               const SizedBox(height: 16),
               Text(
-                semuaBulan ? 'Belum ada catatan keluhan' : 'Belum ada catatan bulan ini',
-                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                semuaBulan
+                    ? 'Belum ada catatan keluhan'
+                    : 'Belum ada catatan bulan ini',
+                style: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
               const SizedBox(height: 8),
               Text(

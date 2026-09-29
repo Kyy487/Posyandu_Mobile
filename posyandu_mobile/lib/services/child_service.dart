@@ -26,16 +26,19 @@ class ChildService {
     };
   }
 
-  Map<String, dynamic> _offlineError() =>
-      {'success': false, 'message': _offline, 'errors': null};
+  Map<String, dynamic> _offlineError() => {
+    'success': false,
+    'message': _offline,
+    'errors': null,
+  };
 
   Map<String, dynamic> _sessionEnded() => {
-        'success': false,
-        'status': 401,
-        'message': 'Sesi telah berakhir. Silakan login kembali.',
-        'data': null,
-        'errors': null,
-      };
+    'success': false,
+    'status': 401,
+    'message': 'Sesi telah berakhir. Silakan login kembali.',
+    'data': null,
+    'errors': null,
+  };
 
   Map<String, dynamic> _decode(http.Response response) {
     try {
@@ -43,7 +46,8 @@ class ChildService {
     } catch (e) {
       return {
         'success': false,
-        'message': 'Respons server tidak valid (bukan JSON). '
+        'message':
+            'Respons server tidak valid (bukan JSON). '
             'Status code: ${response.statusCode}',
         'errors': null,
       };
@@ -113,7 +117,8 @@ class ChildService {
 
       return {
         'success': body['success'] == true,
-        'message': body['message']?.toString() ?? 'Gagal menambahkan data anak.',
+        'message':
+            body['message']?.toString() ?? 'Gagal menambahkan data anak.',
         'errors': body['errors'],
         'data': body['data'] == null
             ? null

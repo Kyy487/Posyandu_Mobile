@@ -16,10 +16,7 @@ import 'package:posyandu_mobile/screens/register_screen.dart';
 import 'package:posyandu_mobile/theme/app_theme.dart';
 
 Widget _bungkus(Widget layar) {
-  return MaterialApp(
-    theme: AppTheme.build(),
-    home: layar,
-  );
+  return MaterialApp(theme: AppTheme.build(), home: layar);
 }
 
 /// Mencari field lewat `labelText` (dipakai di layar login).
@@ -64,14 +61,14 @@ void main() {
       expect(tester.takeException(), isNull);
     });
 
-    testWidgets('NIK hanya menerima angka dan dibatasi 16 digit',
-        (tester) async {
+    testWidgets('NIK hanya menerima angka dan dibatasi 16 digit', (
+      tester,
+    ) async {
       await tester.pumpWidget(_bungkus(const LoginScreen()));
       await tester.pumpAndSettle();
 
       // Huruf dan strip dibuang, digit dipotong pada 16.
-      await tester.enterText(
-          _byLabel('NIK'), '1111-2222-3333-444a5555');
+      await tester.enterText(_byLabel('NIK'), '1111-2222-3333-444a5555');
       await tester.pumpAndSettle();
 
       expect(_teks(tester, _byLabel('NIK')), '1111222233334445');
@@ -79,8 +76,9 @@ void main() {
       expect(find.text('16/16'), findsOneWidget);
     });
 
-    testWidgets('tombol mata menampilkan lalu menyembunyikan password',
-        (tester) async {
+    testWidgets('tombol mata menampilkan lalu menyembunyikan password', (
+      tester,
+    ) async {
       await tester.pumpWidget(_bungkus(const LoginScreen()));
       await tester.pumpAndSettle();
 
@@ -93,8 +91,9 @@ void main() {
       expect(_obscure(tester, _byLabel('Password')), isTrue);
     });
 
-    testWidgets('NIK tidak valid ditolak lokal, tidak menyentuh server',
-        (tester) async {
+    testWidgets('NIK tidak valid ditolak lokal, tidak menyentuh server', (
+      tester,
+    ) async {
       await tester.pumpWidget(_bungkus(const LoginScreen()));
       await tester.pumpAndSettle();
 
@@ -131,8 +130,9 @@ void main() {
       expect(_byHint('Ketik ulang password'), findsOneWidget);
     });
 
-    testWidgets('section kode kader tersembunyi sampai diketuk',
-        (tester) async {
+    testWidgets('section kode kader tersembunyi sampai diketuk', (
+      tester,
+    ) async {
       await tester.pumpWidget(_bungkus(const RegisterScreen()));
       await tester.pumpAndSettle();
 
@@ -150,8 +150,7 @@ void main() {
       expect(find.byType(TextFormField), findsNWidgets(4));
     });
 
-    testWidgets('indikator kekuatan password berubah realtime',
-        (tester) async {
+    testWidgets('indikator kekuatan password berubah realtime', (tester) async {
       await tester.pumpWidget(_bungkus(const RegisterScreen()));
       await tester.pumpAndSettle();
 
@@ -168,14 +167,14 @@ void main() {
       expect(find.textContaining('Lemah'), findsNothing);
     });
 
-    testWidgets('konfirmasi password tidak cocok ditolak lokal',
-        (tester) async {
+    testWidgets('konfirmasi password tidak cocok ditolak lokal', (
+      tester,
+    ) async {
       await tester.pumpWidget(_bungkus(const RegisterScreen()));
       await tester.pumpAndSettle();
 
       await tester.enterText(_byHint('Minimal 8 karakter'), 'Rahasia123');
-      await tester.enterText(
-          _byHint('Ketik ulang password'), 'Rahasia124');
+      await tester.enterText(_byHint('Ketik ulang password'), 'Rahasia124');
       await _tap(tester, find.text('DAFTAR'));
 
       expect(find.text('Konfirmasi password tidak cocok'), findsOneWidget);
@@ -189,8 +188,7 @@ void main() {
       await tester.enterText(_byHint('Contoh: Siti Aminah'), 'Siti Aminah');
       await tester.enterText(_byHint('16 digit angka'), '12345');
       await tester.enterText(_byHint('Minimal 8 karakter'), 'Rahasia123');
-      await tester.enterText(
-          _byHint('Ketik ulang password'), 'Rahasia123');
+      await tester.enterText(_byHint('Ketik ulang password'), 'Rahasia123');
       await _tap(tester, find.text('DAFTAR'));
 
       expect(find.text('NIK harus 16 digit angka'), findsOneWidget);

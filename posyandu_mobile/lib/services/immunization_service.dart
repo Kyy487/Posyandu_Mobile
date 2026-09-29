@@ -19,18 +19,22 @@ class ImmunizationService {
   static const _offline =
       'Tidak dapat terhubung ke server. Pastikan backend Laravel berjalan.';
 
-  Map<String, dynamic> _offlineError() =>
-      {'success': false, 'message': _offline, 'data': null, 'errors': null};
+  Map<String, dynamic> _offlineError() => {
+    'success': false,
+    'message': _offline,
+    'data': null,
+    'errors': null,
+  };
 
   /// Hasil error sesi habis. `status: 401` dipakai layar untuk mengarahkan
   /// user login ulang, sama seperti `ChildService`.
   Map<String, dynamic> _sessionEnded() => {
-        'success': false,
-        'status': 401,
-        'message': 'Sesi telah berakhir. Silakan login kembali.',
-        'data': null,
-        'errors': null,
-      };
+    'success': false,
+    'status': 401,
+    'message': 'Sesi telah berakhir. Silakan login kembali.',
+    'data': null,
+    'errors': null,
+  };
 
   Future<Map<String, String>?> _authHeaders({bool json = false}) async {
     final token = await _auth.getToken();
@@ -49,7 +53,8 @@ class ImmunizationService {
     } catch (e) {
       return {
         'success': false,
-        'message': 'Respons server tidak valid (bukan JSON). '
+        'message':
+            'Respons server tidak valid (bukan JSON). '
             'Status code: ${response.statusCode}',
         'data': null,
         'errors': null,
@@ -67,8 +72,10 @@ class ImmunizationService {
 
     try {
       final response = await http.get(
-        Uri.parse('$baseUrl${ApiConstants.childrenEndpoint}'
-            '/$childId/immunizations'),
+        Uri.parse(
+          '$baseUrl${ApiConstants.childrenEndpoint}'
+          '/$childId/immunizations',
+        ),
         headers: headers,
       );
 
@@ -84,13 +91,15 @@ class ImmunizationService {
           'success': true,
           'message': body['message'],
           'data': ImmunizationChecklist.fromJson(
-              Map<String, dynamic>.from(body['data'] as Map)),
+            Map<String, dynamic>.from(body['data'] as Map),
+          ),
         };
       }
 
       return {
         'success': false,
-        'message': body['message']?.toString() ?? 'Gagal memuat status imunisasi.',
+        'message':
+            body['message']?.toString() ?? 'Gagal memuat status imunisasi.',
         'data': null,
         'errors': body['errors'],
       };
@@ -122,8 +131,10 @@ class ImmunizationService {
 
     try {
       final response = await http.post(
-        Uri.parse('$baseUrl${ApiConstants.kaderChildrenEndpoint}'
-            '/$childId/immunizations'),
+        Uri.parse(
+          '$baseUrl${ApiConstants.kaderChildrenEndpoint}'
+          '/$childId/immunizations',
+        ),
         headers: headers,
         body: json.encode({
           'immunization_type_id': immunizationTypeId,
@@ -176,8 +187,10 @@ class ImmunizationService {
 
     try {
       final response = await http.patch(
-        Uri.parse('$baseUrl${ApiConstants.kaderImmunizationsEndpoint}'
-            '/$recordId'),
+        Uri.parse(
+          '$baseUrl${ApiConstants.kaderImmunizationsEndpoint}'
+          '/$recordId',
+        ),
         headers: headers,
         body: json.encode(body),
       );
@@ -195,16 +208,16 @@ class ImmunizationService {
   /// Record tidak dihapus fisik di server, hanya ditandai tidak aktif
   /// (soft delete). Karena itu dosis yang sama bisa dicatat ulang tanpa
   /// bentrok dengan unique constraint.
-  Future<Map<String, dynamic>> deleteRecord({
-    required String recordId,
-  }) async {
+  Future<Map<String, dynamic>> deleteRecord({required String recordId}) async {
     final headers = await _authHeaders(json: true);
     if (headers == null) return _sessionEnded();
 
     try {
       final response = await http.delete(
-        Uri.parse('$baseUrl${ApiConstants.kaderImmunizationsEndpoint}'
-            '/$recordId'),
+        Uri.parse(
+          '$baseUrl${ApiConstants.kaderImmunizationsEndpoint}'
+          '/$recordId',
+        ),
         headers: headers,
       );
 
@@ -217,10 +230,7 @@ class ImmunizationService {
   }
 
   /// Bentuk hasil seragam dari respons server.
-  Map<String, dynamic> _result(
-    http.Response response,
-    String fallbackMessage,
-  ) {
+  Map<String, dynamic> _result(http.Response response, String fallbackMessage) {
     final body = _decode(response);
 
     if (response.statusCode == 200 || response.statusCode == 201) {

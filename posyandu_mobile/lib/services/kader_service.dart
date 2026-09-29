@@ -15,15 +15,18 @@ class KaderService {
   static const _offline =
       'Tidak dapat terhubung ke server. Pastikan backend Laravel berjalan.';
 
-  Map<String, dynamic> _offlineError() =>
-      {'success': false, 'message': _offline, 'errors': null};
+  Map<String, dynamic> _offlineError() => {
+    'success': false,
+    'message': _offline,
+    'errors': null,
+  };
 
   Map<String, dynamic> _unauthenticated() => {
-        'success': false,
-        'message': 'Sesi telah berakhir. Silakan login kembali.',
-        'errors': null,
-        'status': 401,
-      };
+    'success': false,
+    'message': 'Sesi telah berakhir. Silakan login kembali.',
+    'errors': null,
+    'status': 401,
+  };
 
   /// Header dengan token Sanctum. Mengembalikan null bila tidak ada sesi.
   Future<Map<String, String>?> _authHeaders({bool json = false}) async {
@@ -50,7 +53,8 @@ class KaderService {
 
       final Map<String, dynamic> body = _decode(response);
 
-      if (response.statusCode == 401) throw Exception(_unauthenticated()['message']);
+      if (response.statusCode == 401)
+        throw Exception(_unauthenticated()['message']);
       if (response.statusCode == 200 && body['success'] == true) {
         final data = body['data'];
         if (data is List) {
@@ -61,7 +65,9 @@ class KaderService {
         throw Exception('Format respons salah: "data" harus berupa daftar.');
       }
 
-      throw Exception(body['message']?.toString() ?? 'Gagal mengambil data anak.');
+      throw Exception(
+        body['message']?.toString() ?? 'Gagal mengambil data anak.',
+      );
     } on SocketException {
       throw Exception(_offline);
     } on FormatException {
@@ -138,8 +144,10 @@ class KaderService {
 
     try {
       final response = await http.get(
-        Uri.parse('$baseUrl${ApiConstants.kaderMeasurementsEndpoint}'
-            '?child_id=$childId'),
+        Uri.parse(
+          '$baseUrl${ApiConstants.kaderMeasurementsEndpoint}'
+          '?child_id=$childId',
+        ),
         headers: headers,
       );
 
@@ -162,7 +170,9 @@ class KaderService {
 
     try {
       final response = await http.delete(
-        Uri.parse('$baseUrl${ApiConstants.kaderMeasurementsEndpoint}/$measurementId'),
+        Uri.parse(
+          '$baseUrl${ApiConstants.kaderMeasurementsEndpoint}/$measurementId',
+        ),
         headers: headers,
       );
 
@@ -221,7 +231,8 @@ class KaderService {
     } catch (e) {
       return {
         'success': false,
-        'message': 'Respons server tidak valid (bukan JSON). '
+        'message':
+            'Respons server tidak valid (bukan JSON). '
             'Status code: ${response.statusCode}',
         'errors': null,
       };

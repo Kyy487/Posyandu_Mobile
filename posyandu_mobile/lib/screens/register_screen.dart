@@ -70,7 +70,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
       Navigator.of(context).pop();
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(result['message']?.toString() ?? 'Pendaftaran berhasil'),
+          content: Text(
+            result['message']?.toString() ?? 'Pendaftaran berhasil',
+          ),
           backgroundColor: AppTheme.success,
         ),
       );
@@ -301,10 +303,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 () => setState(() => _obscureConfirm = !_obscureConfirm),
               ),
             ),
-            validator: (value) =>
-                value != _passwordController.text
-                    ? 'Konfirmasi password tidak cocok'
-                    : null,
+            validator: (value) => value != _passwordController.text
+                ? 'Konfirmasi password tidak cocok'
+                : null,
           ),
           const SizedBox(height: 20),
 
@@ -337,13 +338,13 @@ class _RegisterScreenState extends State<RegisterScreen> {
   }
 
   Widget _label(String teks) => Text(
-        teks,
-        style: const TextStyle(
-          fontWeight: FontWeight.w700,
-          fontSize: 13,
-          color: AppTheme.ink,
-        ),
-      );
+    teks,
+    style: const TextStyle(
+      fontWeight: FontWeight.w700,
+      fontSize: 13,
+      color: AppTheme.ink,
+    ),
+  );
 
   Widget _toggle(bool obscured, VoidCallback onTap) {
     return IconButton(
@@ -375,7 +376,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
               child: Row(
                 children: [
-                  const Icon(Icons.vpn_key_outlined, size: 20, color: AppTheme.muted),
+                  const Icon(
+                    Icons.vpn_key_outlined,
+                    size: 20,
+                    color: AppTheme.muted,
+                  ),
                   const SizedBox(width: 10),
                   const Expanded(
                     child: Text(
@@ -424,7 +429,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
                           textCapitalization: TextCapitalization.characters,
                           decoration: const InputDecoration(
                             hintText: 'Kode kader',
-                            prefixIcon: Icon(Icons.confirmation_number_outlined),
+                            prefixIcon: Icon(
+                              Icons.confirmation_number_outlined,
+                            ),
                             isDense: true,
                           ),
                         ),

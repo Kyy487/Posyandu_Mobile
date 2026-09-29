@@ -46,8 +46,7 @@ class _StatusImunisasiScreenState extends State<StatusImunisasiScreen> {
 
     if (!mounted) return;
 
-    if (result['success'] == true &&
-        result['data'] is ImmunizationChecklist) {
+    if (result['success'] == true && result['data'] is ImmunizationChecklist) {
       setState(() {
         _checklist = result['data'] as ImmunizationChecklist;
         _isLoading = false;
@@ -91,9 +90,7 @@ class _StatusImunisasiScreenState extends State<StatusImunisasiScreen> {
 
   Widget _buildBody() {
     if (_isLoading) {
-      return const Center(
-        child: CircularProgressIndicator(color: Colors.pink),
-      );
+      return const Center(child: CircularProgressIndicator(color: Colors.pink));
     }
 
     if (_errorMessage != null) {
@@ -182,7 +179,8 @@ class _StatusImunisasiScreenState extends State<StatusImunisasiScreen> {
         icon: Icons.celebration,
         warna: Colors.green,
         judul: 'Semua dosis sudah lengkap',
-        isi: 'Seluruh imunisasi ${checklist.childName} sudah tercatat. '
+        isi:
+            'Seluruh imunisasi ${checklist.childName} sudah tercatat. '
             'Tetap datang ke posyandu untuk pemeriksaan rutin.',
       );
     }
@@ -198,7 +196,8 @@ class _StatusImunisasiScreenState extends State<StatusImunisasiScreen> {
       judul: berikutnya.isOverdue
           ? 'Ada imunisasi yang terlambat'
           : 'Imunisasi berikutnya',
-      isi: '${berikutnya.label} '
+      isi:
+          '${berikutnya.label} '
           '(${berikutnya.statusNote.toLowerCase()}). '
           'Bawa $checklist.childName ke posyandu agar dapat disuntik.',
     );
@@ -235,10 +234,7 @@ class _StatusImunisasiScreenState extends State<StatusImunisasiScreen> {
                   ),
                 ),
                 const SizedBox(height: 4),
-                Text(
-                  isi,
-                  style: const TextStyle(fontSize: 13, height: 1.4),
-                ),
+                Text(isi, style: const TextStyle(fontSize: 13, height: 1.4)),
               ],
             ),
           ),

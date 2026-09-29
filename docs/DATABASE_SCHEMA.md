@@ -17,7 +17,9 @@ Menyimpan autentikasi Ibu dan Kader.
 * `birth_weight` (Float), `birth_height` (Float)
 * `medical_flags` (Text, Nullable) — kondisi khusus anak (alergi, penyakit
   bawaan), satu penanda per baris. Ditambahkan oleh migration
-  `2026_09_29_010000_add_medical_flags_to_children_table.php`
+  `2026_09_29_010000_add_medical_flags_to_children_table.php`. Mobile membaca
+  field ini lewat `Child.medicalFlags` dan `TimelineChild.medicalFlags` untuk
+  badge di `detail_anak_screen.dart`.
 * `timestamps`
 * `deleted_at` (Timestamp, Nullable) — soft delete, ditambahkan oleh migration
   `2026_09_26_020000_add_deleted_at_to_children_table.php`

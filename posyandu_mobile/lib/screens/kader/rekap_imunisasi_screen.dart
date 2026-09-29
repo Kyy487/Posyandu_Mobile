@@ -183,7 +183,9 @@ class _RekapImunisasiScreenState extends State<RekapImunisasiScreen> {
                     ),
                     const SizedBox(height: 2),
                     Text(
-                      _bulan == _bulansekarang() ? 'Bulan berjalan' : 'Bulan lampau',
+                      _bulan == _bulansekarang()
+                          ? 'Bulan berjalan'
+                          : 'Bulan lampau',
                       style: const TextStyle(
                         fontSize: 11,
                         color: AppTheme.muted,
@@ -206,8 +208,11 @@ class _RekapImunisasiScreenState extends State<RekapImunisasiScreen> {
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              const Icon(Icons.event_available,
-                  size: 14, color: AppTheme.muted),
+              const Icon(
+                Icons.event_available,
+                size: 14,
+                color: AppTheme.muted,
+              ),
               const SizedBox(width: 6),
               Flexible(
                 child: Text(
@@ -269,8 +274,9 @@ class _RekapImunisasiScreenState extends State<RekapImunisasiScreen> {
         if (kosong.isNotEmpty) ...[
           const SizedBox(height: 8),
           InkWell(
-            onTap: () =>
-                setState(() => _tampilkanTanpaSuntikan = !_tampilkanTanpaSuntikan),
+            onTap: () => setState(
+              () => _tampilkanTanpaSuntikan = !_tampilkanTanpaSuntikan,
+            ),
             borderRadius: BorderRadius.circular(10),
             child: Padding(
               padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
@@ -304,22 +310,24 @@ class _RekapImunisasiScreenState extends State<RekapImunisasiScreen> {
                 padding: const EdgeInsets.only(left: 4, top: 2, bottom: 2),
                 child: Row(
                   children: [
-                    const Icon(Icons.remove,
-                        size: 16, color: AppTheme.muted),
+                    const Icon(Icons.remove, size: 16, color: AppTheme.muted),
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
                         '${dosis.name} (Dosis ${dosis.doseNumber})',
                         style: const TextStyle(
-                            fontSize: 12, color: AppTheme.muted),
+                          fontSize: 12,
+                          color: AppTheme.muted,
+                        ),
                       ),
                     ),
                     const Text(
                       '0',
                       style: TextStyle(
-                          fontSize: 12,
-                          color: AppTheme.muted,
-                          fontWeight: FontWeight.w600),
+                        fontSize: 12,
+                        color: AppTheme.muted,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                   ],
                 ),
@@ -417,7 +425,8 @@ class _RekapImunisasiScreenState extends State<RekapImunisasiScreen> {
           const SizedBox(height: 10),
           _InfoBar(
             ikon: Icons.archive_outlined,
-            teks: '${coverage.excludedArchived} anak tidak dihitung karena '
+            teks:
+                '${coverage.excludedArchived} anak tidak dihitung karena '
                 'sudah dilepas dari Posyandu. Angka mereka sengaja tidak '
                 'ikut dihitung dan ditampilkan terpisah di sini.',
             warna: AppTheme.muted,
@@ -487,8 +496,7 @@ class _RekapImunisasiScreenState extends State<RekapImunisasiScreen> {
           ),
           title: Text(
             anak.name,
-            style: const TextStyle(
-                fontSize: 14, fontWeight: FontWeight.w700),
+            style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
           ),
           subtitle: Text(
             '${anak.ageLabel} - ${anak.jumlahDosis} dosis terlambat, '
@@ -501,8 +509,11 @@ class _RekapImunisasiScreenState extends State<RekapImunisasiScreen> {
                 padding: const EdgeInsets.only(bottom: 8),
                 child: Row(
                   children: [
-                    const Icon(Icons.schedule,
-                        size: 15, color: AppTheme.danger),
+                    const Icon(
+                      Icons.schedule,
+                      size: 15,
+                      color: AppTheme.danger,
+                    ),
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
@@ -613,7 +624,8 @@ class _RekapImunisasiScreenState extends State<RekapImunisasiScreen> {
       anak: [
         const _InfoBar(
           ikon: Icons.info_outline,
-          teks: 'Bulan ini belum ada suntikan yang tercatat, dan tidak ada anak '
+          teks:
+              'Bulan ini belum ada suntikan yang tercatat, dan tidak ada anak '
               'dengan dosis terlambat. Coba pilih bulan lain lewat tombol panah.',
           warna: AppTheme.muted,
         ),
@@ -660,11 +672,7 @@ class _InfoBar extends StatelessWidget {
   final String teks;
   final Color warna;
 
-  const _InfoBar({
-    required this.ikon,
-    required this.teks,
-    required this.warna,
-  });
+  const _InfoBar({required this.ikon, required this.teks, required this.warna});
 
   @override
   Widget build(BuildContext context) {

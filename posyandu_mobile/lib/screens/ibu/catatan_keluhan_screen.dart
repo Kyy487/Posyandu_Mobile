@@ -175,9 +175,7 @@ class _CatatanKeluhanScreenState extends State<CatatanKeluhanScreen> {
 
   Widget _buildBody() {
     if (_isLoading) {
-      return const Center(
-        child: CircularProgressIndicator(color: Colors.pink),
-      );
+      return const Center(child: CircularProgressIndicator(color: Colors.pink));
     }
 
     if (_errorMessage != null) {
@@ -190,10 +188,7 @@ class _CatatanKeluhanScreenState extends State<CatatanKeluhanScreen> {
     }
 
     if (_pilihanBulan.isEmpty) {
-      _pilihanBulan = [
-        _bulanSekarang(),
-        if (data.month != null) data.month!,
-      ];
+      _pilihanBulan = [_bulanSekarang(), if (data.month != null) data.month!];
     }
 
     return RefreshIndicator(
@@ -233,19 +228,14 @@ class _CatatanKeluhanScreenState extends State<CatatanKeluhanScreen> {
           Expanded(
             child: Text(
               data.childName.isEmpty ? widget.childName : data.childName,
-              style: const TextStyle(
-                fontWeight: FontWeight.w600,
-                fontSize: 13,
-              ),
+              style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
             ),
           ),
           OutlinedButton.icon(
             onPressed: _pilihBulan,
             icon: const Icon(Icons.calendar_month, size: 16),
             label: Text(
-              _bulanDipilih == null
-                  ? 'Bulan ini'
-                  : _labelBulan(_bulanDipilih),
+              _bulanDipilih == null ? 'Bulan ini' : _labelBulan(_bulanDipilih),
               style: const TextStyle(fontSize: 12),
             ),
           ),

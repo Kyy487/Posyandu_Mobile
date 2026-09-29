@@ -166,9 +166,9 @@ class PosyanduSchedule {
           : <String>[],
       petugas: rawPetugas is List
           ? rawPetugas
-              .whereType<Map>()
-              .map((e) => Petugas.fromJson(Map<String, dynamic>.from(e)))
-              .toList()
+                .whereType<Map>()
+                .map((e) => Petugas.fromJson(Map<String, dynamic>.from(e)))
+                .toList()
           : <Petugas>[],
     );
   }

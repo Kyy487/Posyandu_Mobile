@@ -9,6 +9,15 @@ class Child {
   final double? latestZScore;
   final String? nutritionalStatus;
 
+  /// Penanda kondisi khusus, mis. "alergi: penisilin" lalu "asma".
+  ///
+  /// Nullable dan ditambahkan belakangan (Opsi B) supaya `GET /children` yang
+  /// sudah berjalan tidak berubah bentuknya: backend mengirim `medical_flags`
+  /// apa adanya, dan teks kosong dibaca sebagai null supaya tidak muncul badge
+  /// kosong. Hanya Kader yang boleh menulis field ini; Ibu tetap boleh
+  /// membacanya untuk anaknya sendiri.
+  final String? medicalFlags;
+
   Child({
     required this.id,
     required this.nik,
@@ -19,10 +28,17 @@ class Child {
     this.lastMeasurementDate,
     this.latestZScore,
     this.nutritionalStatus,
+    this.medicalFlags,
   });
 
   /// True bila anak sudah pernah ditimbang setidaknya sekali.
   bool get hasMeasurement => lastMeasurementDate != null;
+
+  /// True bila kader sudah menuliskan penanda kondisi khusus.
+  bool get hasMedicalFlags {
+    final teks = medicalFlags;
+    return teks != null && teks.isNotEmpty;
+  }
 
   /// Nama panggilan saja (bagian sebelum spasi pertama), untuk chip selector.
   String get shortName {
@@ -69,7 +85,8 @@ class Child {
     // API Laravel mengirim relasi ibu sebagai nested object: "mother": { "id": ..., "name": ... }
     // Field ini harus tetap kompatibel dengan "parent_name" agar data lama tidak rusak.
     final mother = json['mother'];
-    final String parentName = _parseString(json['parent_name']) ??
+    final String parentName =
+        _parseString(json['parent_name']) ??
         (mother is Map ? _parseString(mother['name']) : null) ??
         '-';
 
@@ -85,6 +102,7 @@ class Child {
       // aman terhadap string/null karena kolom sumbernya bertipe decimal.
       latestZScore: _parseDouble(json['latest_z_score']),
       nutritionalStatus: _parseString(json['nutritional_status']),
+      medicalFlags: _parseString(json['medical_flags']),
     );
   }
 
@@ -114,6 +132,7 @@ class Child {
       'last_measurement_date': lastMeasurementDate,
       'latest_z_score': latestZScore,
       'nutritional_status': nutritionalStatus,
+      'medical_flags': medicalFlags,
     };
   }
 }

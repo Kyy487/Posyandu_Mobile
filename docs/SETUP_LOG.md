@@ -259,12 +259,42 @@ Implementasi backend. Mobile belum disentuh; itu fase berikutnya.
       `docs/LAPORAN_BUKU_MEDIS.md`.
 - [x] **Verifikasi:** 96 test / 364 assertion hijau, Pint lulus, 30 route
       `api/`, `periksa-teks.ps1` bersih.
-- [ ] **Fase 2:** mobile — model, service, perubahan `detail_anak_screen.dart`.
+- [x] **Fase 2:** mobile — model, service, perubahan `detail_anak_screen.dart`.
+      105 test hijau (16 test baru), `flutter analyze` bersih, `dart format`
+      39 file, `periksa-teks.ps1` bersih.
 - [ ] Grup `uji-api.ps1` untuk aturan 1-7 belum ditulis.
+
+---
+
+## Opsi B - Buku Medis Digital, Fase 2 (Selesai — 29 Sep 2026)
+
+Implementasi mobile Flutter. Tidak ada layar baru; `detail_anak_screen.dart`
+yang sudah ada ditambah isinya.
+
+- [x] `lib/models/child_timeline.dart` — model lengkap: `ChildTimeline`,
+      `TimelineChild`, `TimelineEntry`, `TimelineMeasurement`,
+      `TimelineImmunization`, `TimelineNote`, `TimelineMeta`. Tidak ada
+      perhitungan ulang; `age_in_months` null dibaca null.
+- [x] `lib/services/child_timeline_service.dart` — service `GET /children/{id}/timeline`
+      dengan cursor `before`, limit 50, error handling konsisten dengan
+      `MedicalNoteService`.
+- [x] `lib/models/child.dart` — field `medicalFlags` (nullable) + getter
+      `hasMedicalFlags`. Backward-compatible: JSON tanpa `medical_flags`
+      tetap parse normal.
+- [x] `lib/utils/constants.dart` — konstanta `childTimelineEndpoint = '/timeline'`.
+- [x] `lib/screens/kader/detail_anak_screen.dart` — badge kondisi khusus
+      (merah untuk alergi, kuning selain itu), section "Buku Medis Anak"
+      dengan pengelompokkan per bulan, urutan penimbangan → suntikan →
+      keluhan, tombol "Muat lebih banyak", refresh gabungan.
+- [x] Test kontrak: 13 test timeline + 3 test medical_flags di
+      `test/kontrak_api_test.dart`. Total 105 test hijau.
+- [x] Dokumentasi: `LAPORAN_BUKU_MEDIS.md` (bagian 7 mobile), `API_CONTRACT.md`
+      (konsumsi mobile), `DATABASE_SCHEMA.md` (catatan mobile),
+      `RANCANGAN_BUKU_MEDIS.md` (bagian 10 + 13), `README.md`.
 
 **Push masih tertunda.** Environment ini tidak punya kredensial GitHub: tidak ada
 `gh`, tidak ada `GH_TOKEN`, tidak ada `credential.helper`, dan tidak ada `/dev/tty`
-untuk dialog password. `main` sekarang 6 commit di depan `origin/main`. Push
+untuk dialog password. `main` sekarang 7 commit di depan `origin/main`. Push
 begitu kredensial tersedia; tidak ada konflik yang mungkin muncul karena belum
 ada yang lain menyentuh repo ini.
 

@@ -84,9 +84,7 @@ class ImmunizationItem {
       typeId: json['immunization_type_id']?.toString() ?? '',
       code: json['code']?.toString() ?? '',
       name: json['name']?.toString() ?? '',
-      label: json['label']?.toString() ??
-          json['name']?.toString() ??
-          '-',
+      label: json['label']?.toString() ?? json['name']?.toString() ?? '-',
       doseNumber: _toInt(json['dose_number']) ?? 1,
       targetAgeMonths: _toInt(json['target_age_months']),
       intervalMonths: _toInt(json['interval_months']),
@@ -94,7 +92,8 @@ class ImmunizationItem {
       monthsLeft: _toInt(json['sisa_bulan']),
       record: rawRecord is Map
           ? ImmunizationRecordEntry.fromJson(
-              Map<String, dynamic>.from(rawRecord))
+              Map<String, dynamic>.from(rawRecord),
+            )
           : null,
     );
   }
@@ -203,13 +202,16 @@ class ImmunizationChecklist {
       childId: child is Map ? child['id']?.toString() ?? '' : '',
       childName: child is Map ? child['name']?.toString() ?? '' : '',
       summary: ImmunizationSummary.fromJson(
-          Map<String, dynamic>.from(json['summary'] as Map)),
+        Map<String, dynamic>.from(json['summary'] as Map),
+      ),
       items: rawChecklist is List
           ? rawChecklist
-              .whereType<Map>()
-              .map((e) => ImmunizationItem.fromJson(
-                  Map<String, dynamic>.from(e)))
-              .toList()
+                .whereType<Map>()
+                .map(
+                  (e) =>
+                      ImmunizationItem.fromJson(Map<String, dynamic>.from(e)),
+                )
+                .toList()
           : <ImmunizationItem>[],
     );
   }

@@ -365,6 +365,20 @@ Nilai yang tidak dihitung ulang di server: `z_score_wfa`, `age_in_months`, dan
 `status_gizi` dibaca apa adanya dari database karena dihitung trigger PostgreSQL.
 Server dan klien sama-sama tidak menghitung.
 
+### Konsumsi mobile
+
+Mobile membaca endpoint ini lewat `ChildTimelineService` di
+`posyandu_mobile/lib/services/child_timeline_service.dart`. Model parsing ada di
+`posyandu_mobile/lib/models/child_timeline.dart`. Integrasi UI ada di
+`detail_anak_screen.dart` (section "Buku Medis Anak").
+
+Aturan mobile:
+- Entri dikelompokkan per bulan memakai `labelBulan()` tanpa mengubah urutan.
+- Di dalam satu tanggal: penimbangan, suntikan, keluhan.
+- Tanggal dengan keluhan tanpa penimbangan tetap tampil.
+- Pagination memakai tombol "Muat lebih banyak" dengan cursor `meta.next_before`.
+- Refresh memakai `IconButton(Icons.refresh)` yang sudah ada, bukan `RefreshIndicator`.
+
 ### Kode error
 
 | HTTP | Kondisi | `message` |

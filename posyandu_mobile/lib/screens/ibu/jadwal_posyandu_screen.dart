@@ -95,9 +95,7 @@ class _JadwalPosyanduScreenState extends State<JadwalPosyanduScreen> {
 
   Widget _buildBody() {
     if (_isLoading) {
-      return const Center(
-        child: CircularProgressIndicator(color: Colors.pink),
-      );
+      return const Center(child: CircularProgressIndicator(color: Colors.pink));
     }
 
     if (_errorMessage != null) {
@@ -183,8 +181,10 @@ class _JadwalPosyanduScreenState extends State<JadwalPosyanduScreen> {
                   ),
                 ),
                 Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 4,
+                  ),
                   decoration: BoxDecoration(
                     color: warna.withValues(alpha: 0.12),
                     borderRadius: BorderRadius.circular(8),
@@ -212,7 +212,11 @@ class _JadwalPosyanduScreenState extends State<JadwalPosyanduScreen> {
               const SizedBox(height: 8),
               Text(
                 agenda.description!,
-                style: const TextStyle(fontSize: 12, color: Colors.grey, height: 1.4),
+                style: const TextStyle(
+                  fontSize: 12,
+                  color: Colors.grey,
+                  height: 1.4,
+                ),
               ),
             ],
           ],
@@ -290,11 +294,27 @@ class _JadwalPosyanduScreenState extends State<JadwalPosyanduScreen> {
     if (d == null) return iso ?? '-';
 
     const hari = [
-      'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu', 'Minggu',
+      'Senin',
+      'Selasa',
+      'Rabu',
+      'Kamis',
+      'Jumat',
+      'Sabtu',
+      'Minggu',
     ];
     const bulan = [
-      'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
-      'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember',
+      'Januari',
+      'Februari',
+      'Maret',
+      'April',
+      'Mei',
+      'Juni',
+      'Juli',
+      'Agustus',
+      'September',
+      'Oktober',
+      'November',
+      'Desember',
     ];
     return '${hari[d.weekday - 1]}, ${d.day} ${bulan[d.month - 1]} ${d.year}';
   }

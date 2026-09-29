@@ -25,21 +25,21 @@ class ImmunizationRecapService {
       'Tidak dapat terhubung ke server. Pastikan backend Laravel berjalan.';
 
   Map<String, dynamic> _offlineError() => {
-        'success': false,
-        'message': _offline,
-        'data': null,
-        'errors': null,
-      };
+    'success': false,
+    'message': _offline,
+    'data': null,
+    'errors': null,
+  };
 
   /// Hasil error sesi habis. `status: 401` dipakai layar untuk mengarahkan
   /// user login ulang, sama seperti service lain.
   Map<String, dynamic> _sessionEnded() => {
-        'success': false,
-        'status': 401,
-        'message': 'Sesi telah berakhir. Silakan login kembali.',
-        'data': null,
-        'errors': null,
-      };
+    'success': false,
+    'status': 401,
+    'message': 'Sesi telah berakhir. Silakan login kembali.',
+    'data': null,
+    'errors': null,
+  };
 
   Future<Map<String, String>?> _authHeaders() async {
     final token = await _auth.getToken();
@@ -48,10 +48,7 @@ class ImmunizationRecapService {
       return null;
     }
 
-    return {
-      'Accept': 'application/json',
-      'Authorization': 'Bearer $token',
-    };
+    return {'Accept': 'application/json', 'Authorization': 'Bearer $token'};
   }
 
   Map<String, dynamic> _decode(http.Response response) {
@@ -60,7 +57,8 @@ class ImmunizationRecapService {
     } catch (e) {
       return {
         'success': false,
-        'message': 'Respons server tidak valid (bukan JSON). '
+        'message':
+            'Respons server tidak valid (bukan JSON). '
             'Status code: ${response.statusCode}',
         'data': null,
         'errors': null,
@@ -92,13 +90,14 @@ class ImmunizationRecapService {
     final query = <String, String>{
       if (month != null && month.isNotEmpty) 'month': month,
     };
-    final suffix =
-        query.isEmpty ? '' : '?${Uri(queryParameters: query).query}';
+    final suffix = query.isEmpty ? '' : '?${Uri(queryParameters: query).query}';
 
     try {
       final response = await http.get(
-        Uri.parse('$baseUrl${ApiConstants.kaderImmunizationRecapEndpoint}'
-            '$suffix'),
+        Uri.parse(
+          '$baseUrl${ApiConstants.kaderImmunizationRecapEndpoint}'
+          '$suffix',
+        ),
         headers: headers,
       );
 

@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:posyandu_mobile/models/child.dart';
+import 'package:posyandu_mobile/models/child_timeline.dart';
 import 'package:posyandu_mobile/models/immunization.dart';
 import 'package:posyandu_mobile/models/immunization_recap.dart';
 import 'package:posyandu_mobile/models/measurement_model.dart';
@@ -54,17 +55,20 @@ void main() {
       expect(child.parentName, 'Ibu Ceri');
     });
 
-    test('tetap kompatibel bila backend mengirim "parent_name" (format lama)', () {
-      final child = Child.fromJson({
-        'id': 'abc',
-        'nik': '123',
-        'name': 'Uji',
-        'parent_name': 'IbuViaKolom',
-        'mother': {'name': 'IbuViaNested'},
-      });
+    test(
+      'tetap kompatibel bila backend mengirim "parent_name" (format lama)',
+      () {
+        final child = Child.fromJson({
+          'id': 'abc',
+          'nik': '123',
+          'name': 'Uji',
+          'parent_name': 'IbuViaKolom',
+          'mother': {'name': 'IbuViaNested'},
+        });
 
-      expect(child.parentName, 'IbuViaKolom');
-    });
+        expect(child.parentName, 'IbuViaKolom');
+      },
+    );
 
     test('tidak error saat "nik" null dan "mother" tidak ada', () {
       final child = Child.fromJson({
@@ -104,7 +108,9 @@ void main() {
     ''';
 
     test('membaca 3 field ringkasan gizi', () {
-      final child = Child.fromJson(json.decode(rawAnakTerukur) as Map<String, dynamic>);
+      final child = Child.fromJson(
+        json.decode(rawAnakTerukur) as Map<String, dynamic>,
+      );
 
       expect(child.lastMeasurementDate, '2026-09-26');
       expect(child.latestZScore, -3.09);
@@ -221,7 +227,9 @@ void main() {
 
     test('membaca Z-Score & Status Gizi yang dihitung trigger', () {
       final decoded = json.decode(rawMeasurement) as Map<String, dynamic>;
-      final m = MeasurementModel.fromJson(decoded['data'] as Map<String, dynamic>);
+      final m = MeasurementModel.fromJson(
+        decoded['data'] as Map<String, dynamic>,
+      );
 
       expect(m.weightKg, 7.10);
       expect(m.heightCm, 75.00);
@@ -325,7 +333,8 @@ void main() {
     ImmunizationChecklist parse(String raw) {
       final decoded = json.decode(raw) as Map<String, dynamic>;
       return ImmunizationChecklist.fromJson(
-          Map<String, dynamic>.from(decoded['data'] as Map));
+        Map<String, dynamic>.from(decoded['data'] as Map),
+      );
     }
 
     test('membaca anak, ringkasan, dan 16 dosis dari server', () {
@@ -389,13 +398,20 @@ void main() {
     });
 
     test('ringkasan dengan semua dosis selesai -> persen 100', () {
-      const raw = '{"child":{"id":"a","name":"Anak"},"summary":{"sudah":16,"belum":0,"terlambat":0,"total":16},"checklist":[]}';
+      const raw =
+          '{"child":{"id":"a","name":"Anak"},"summary":{"sudah":16,"belum":0,"terlambat":0,"total":16},"checklist":[]}';
 
-      expect(ImmunizationChecklist.fromJson(json.decode(raw) as Map<String, dynamic>).summary.percentDone, 100);
+      expect(
+        ImmunizationChecklist.fromJson(json.decode(raw) as Map<String, dynamic>)
+            .summary
+            .percentDone,
+        100,
+      );
     });
 
     test('record suntikan terbaca, dan status jadi "sudah"', () {
-      const raw = '{"child": {"id": "a", "name": "Anak"},'
+      const raw =
+          '{"child": {"id": "a", "name": "Anak"},'
           '"summary": {"sudah": 1, "belum": 0, "terlambat": 0, "total": 1},'
           '"checklist": [{'
           '"immunization_type_id": "t1", "code": "HB", "name": "Hepatitis B",'
@@ -408,10 +424,9 @@ void main() {
           '"notes": "Suntikan di Posyandu Desa Sukamaju",'
           '"created_at": "2025-05-12T03:00:00.000000Z"}}]}';
 
-      final item =
-          ImmunizationChecklist.fromJson(json.decode(raw) as Map<String, dynamic>)
-              .items
-              .single;
+      final item = ImmunizationChecklist.fromJson(
+        json.decode(raw) as Map<String, dynamic>,
+      ).items.single;
 
       expect(item.isDone, isTrue);
       expect(item.monthsLeft, isNull);
@@ -423,8 +438,9 @@ void main() {
     test('field kosong / null tidak membuat parser crash', () {
       const raw = '{"child": null, "summary": {}, "checklist": []}';
 
-      final checklist =
-          ImmunizationChecklist.fromJson(json.decode(raw) as Map<String, dynamic>);
+      final checklist = ImmunizationChecklist.fromJson(
+        json.decode(raw) as Map<String, dynamic>,
+      );
 
       expect(checklist.childId, '');
       expect(checklist.childName, '');
@@ -520,7 +536,8 @@ void main() {
     PosyanduSchedule parseFirst() {
       final decoded = json.decode(rawSchedules) as Map<String, dynamic>;
       return PosyanduSchedule.fromJson(
-          Map<String, dynamic>.from((decoded['data'] as List).first as Map));
+        Map<String, dynamic>.from((decoded['data'] as List).first as Map),
+      );
     }
 
     test('membaca agenda beserta petugas pivot-nya', () {
@@ -564,10 +581,12 @@ void main() {
     });
 
     test('agenda tanpa petugas -> label "-", bukan string kosong', () {
-      const raw = '{"title":"Tanpa Petugas","scheduled_date":"2026-11-02","status":"terjadwal","petugas_ids":[],"petugas":[]}';
+      const raw =
+          '{"title":"Tanpa Petugas","scheduled_date":"2026-11-02","status":"terjadwal","petugas_ids":[],"petugas":[]}';
 
-      final agenda =
-          PosyanduSchedule.fromJson(json.decode(raw) as Map<String, dynamic>);
+      final agenda = PosyanduSchedule.fromJson(
+        json.decode(raw) as Map<String, dynamic>,
+      );
 
       expect(agenda.petugasLabel, '-');
       expect(agenda.petugas, isEmpty);
@@ -575,10 +594,12 @@ void main() {
     });
 
     test('tanggal rusak tidak dianggap agenda lampau', () {
-      const raw = '{"title":"Tanggal Rusak","scheduled_date":"bukan-tanggal","status":"terjadwal"}';
+      const raw =
+          '{"title":"Tanggal Rusak","scheduled_date":"bukan-tanggal","status":"terjadwal"}';
 
-      final agenda =
-          PosyanduSchedule.fromJson(json.decode(raw) as Map<String, dynamic>);
+      final agenda = PosyanduSchedule.fromJson(
+        json.decode(raw) as Map<String, dynamic>,
+      );
 
       expect(agenda.isPast, isFalse);
     });
@@ -1169,8 +1190,9 @@ void main() {
       expect(rekap.activity.byType.length, 3);
       expect(rekap.activity.terpakai.length, 2);
 
-      final dosisKedua = rekap.activity.byType
-          .firstWhere((b) => b.code == 'MR' && b.doseNumber == 2);
+      final dosisKedua = rekap.activity.byType.firstWhere(
+        (b) => b.code == 'MR' && b.doseNumber == 2,
+      );
       expect(dosisKedua.count, 0);
       expect(dosisKedua.kosong, isTrue);
       expect(rekap.activity.terpakai.every((e) => !e.kosong), isTrue);
@@ -1180,10 +1202,11 @@ void main() {
       // Baris harus tampil persis seperti kiriman server. Aplikasi tidak
       // mengurutkan ulang, dan tidak boleh: urutan suntikan hanya diketahui
       // server (target usia tidak ikut dikirim per baris by_type).
-      expect(
-        rekap.activity.byType.map((b) => b.code).toList(),
-        ['MR', 'POLIO', 'MR'],
-      );
+      expect(rekap.activity.byType.map((b) => b.code).toList(), [
+        'MR',
+        'POLIO',
+        'MR',
+      ]);
     });
 
     test('dosis per vaksin dijumlahkan lewat key "code"', () {
@@ -1228,7 +1251,8 @@ void main() {
     test('persen kelengkapan dihitung dari anak, bukan dari dosis', () {
       // Salah satu dari 3 anak selesai = 33%. Kalau dihitung dari dosis,
       // angkanya akan jauh lebih kecil karena satu anak punya banyak dosis.
-      const raw = '{"success":true,"message":"Rekap imunisasi berhasil diambil.",'
+      const raw =
+          '{"success":true,"message":"Rekap imunisasi berhasil diambil.",'
           '"data":{'
           '"filter":{"month":"2026-09","reference_date":"2026-09-30"},'
           '"activity":{"total_doses":0,"total_children":0,"by_type":[]},'
@@ -1241,7 +1265,8 @@ void main() {
     test('bulan tanpa aktivitas: 200 dengan angka nol, bukan error', () {
       // Server tidak pernah membalas 404 untuk bulan kosong. Layar harus
       // menampilkan "belum ada data", bukan pesan gagal.
-      const raw = '{"success":true,"message":"Rekap imunisasi berhasil diambil.",'
+      const raw =
+          '{"success":true,"message":"Rekap imunisasi berhasil diambil.",'
           '"data":{'
           '"filter":{"month":"2019-01","reference_date":"2019-01-31"},'
           '"activity":{"total_doses":0,"total_children":0,"by_type":[]},'
@@ -1327,13 +1352,16 @@ void main() {
       expect(geserBulan('abc', delta: 1), 'abc');
     });
 
-    test('nama bulan sama persis dengan yang dipakai layar catatan keluhan', () {
-      // Ini yang membuat helper harus dipakai bersama: dua daftar nama bulan
-      // akan pasti berbeda suatu saat.
-      expect(namaBulan.length, 12);
-      expect(namaBulan.first, 'Januari');
-      expect(namaBulan.last, 'Desember');
-    });
+    test(
+      'nama bulan sama persis dengan yang dipakai layar catatan keluhan',
+      () {
+        // Ini yang membuat helper harus dipakai bersama: dua daftar nama bulan
+        // akan pasti berbeda suatu saat.
+        expect(namaBulan.length, 12);
+        expect(namaBulan.first, 'Januari');
+        expect(namaBulan.last, 'Desember');
+      },
+    );
   });
 
   group('Kontrak API - path endpoint rekap', () {
@@ -1360,11 +1388,294 @@ void main() {
       expect(url.queryParameters['month'], '2026-08');
     });
 
-    test('tanpa filter bulan, query string kosong (server pakai bulan jalan)', () {
-      final query = <String, String>{};
-      final suffix = query.isEmpty ? '' : '?${Uri(queryParameters: query).query}';
+    test(
+      'tanpa filter bulan, query string kosong (server pakai bulan jalan)',
+      () {
+        final query = <String, String>{};
+        final suffix = query.isEmpty
+            ? ''
+            : '?${Uri(queryParameters: query).query}';
 
-      expect(suffix, isEmpty);
+        expect(suffix, isEmpty);
+      },
+    );
+  });
+
+  group('Kontrak API - GET /api/children/{id}/timeline', () {
+    // Respons asli dari ChildTimelineService (29 September 2026).
+    // Bentuk `child`, `entries`, `meta` ini yang dibaca ChildTimeline.fromJson,
+    // jadi JSON di bawah disalin apa adanya dari spesifikasi - bukan karangan.
+    const rawTimeline = '''
+    {
+      "success": true,
+      "message": "Riwayat medis anak berhasil diambil.",
+      "data": {
+        "child": {
+          "id": "01a0d979-c11f-705b-8dd8-a245652c7aa4",
+          "name": "Siti",
+          "nik": "3273001234567890",
+          "date_of_birth": "2024-03-12",
+          "age_in_months": 30,
+          "gender": "P",
+          "mother": { "name": "Ibu A", "nik": "3273009876543210" },
+          "medical_flags": "alergi: penisilin\\nasma",
+          "latest_measurement": { "weight_kg": 12.4, "status_gizi": "Normal" }
+        },
+        "entries": [
+          {
+            "date": "2026-09-24",
+            "measurement": {
+              "weight_kg": 12.4,
+              "height_cm": 88.0,
+              "head_circumference_cm": 47.5,
+              "z_score_wfa": 0.21,
+              "status_gizi": "Normal",
+              "kader": { "id": "01a0d979-c297-704b-b89a-d66ff76f2474", "name": "Kader 1" }
+            },
+            "immunizations": [
+              { "type": "HB-0", "date_given": "2026-09-24" }
+            ],
+            "medical_note": {
+              "demam": true,
+              "rewel": false,
+              "diare": false,
+              "catatan": "Demam sejak 2 hari",
+              "tindak_lanjut": "rujuk"
+            }
+          },
+          {
+            "date": "2026-08-15",
+            "measurement": null,
+            "immunizations": [],
+            "medical_note": {
+              "demam": false,
+              "rewel": true,
+              "diare": false,
+              "catatan": "Rewel saat ASI",
+              "tindak_lanjut": "ringan"
+            }
+          }
+        ],
+        "meta": { "has_more": true, "next_before": "2026-08-15" }
+      }
+    }
+    ''';
+
+    late ChildTimeline timeline;
+
+    setUp(() {
+      final body = json.decode(rawTimeline) as Map<String, dynamic>;
+      timeline = ChildTimeline.fromJson(
+        Map<String, dynamic>.from(body['data'] as Map),
+      );
+    });
+
+    test(
+      'membaca blok anak: medical_flags, age_in_months, latest_measurement',
+      () {
+        final anak = timeline.child;
+
+        expect(anak.id, '01a0d979-c11f-705b-8dd8-a245652c7aa4');
+        expect(anak.name, 'Siti');
+        expect(anak.medicalFlags, 'alergi: penisilin\nasma');
+        expect(anak.punyaKondisiKhusus, isTrue);
+        expect(anak.mentionAlergi, isTrue);
+        expect(anak.ageInMonths, 30);
+        expect(anak.labelUmur, '2 Tahun 6 Bulan');
+        expect(anak.latestWeightKg, 12.4);
+        expect(anak.latestStatusGizi, 'Normal');
+      },
+    );
+
+    test('age_in_months null dibaca null, bukan dihitung ulang', () {
+      final anak = TimelineChild.fromJson({
+        'id': 'a',
+        'name': 'Belum Ditimbang',
+        'date_of_birth': '2026-01-15',
+        'age_in_months': null,
+      });
+
+      expect(anak.ageInMonths, isNull);
+      expect(anak.labelUmur, '-');
+    });
+
+    test('entries urut tanggal terbaru lebih dulu', () {
+      expect(timeline.entries.length, 2);
+      expect(timeline.entries[0].date, '2026-09-24');
+      expect(timeline.entries[1].date, '2026-08-15');
+    });
+
+    test('entri dengan penimbangan: measurement terbaca lengkap', () {
+      final entry = timeline.entries[0];
+
+      expect(entry.adaPenimbangan, isTrue);
+      expect(entry.measurement!.weightKg, 12.4);
+      expect(entry.measurement!.heightCm, 88.0);
+      expect(entry.measurement!.headCircumferenceCm, 47.5);
+      expect(entry.measurement!.zScoreWfa, 0.21);
+      expect(entry.measurement!.statusGizi, 'Normal');
+      expect(entry.measurement!.kaderName, 'Kader 1');
+      expect(entry.measurement!.labelZScore, '0.21');
+    });
+
+    test('entri dengan keluhan tanpa penimbangan tetap tampil', () {
+      final entry = timeline.entries[1];
+
+      expect(entry.adaPenimbangan, isFalse);
+      expect(entry.measurement, isNull);
+      expect(entry.adaKeluhan, isTrue);
+      expect(entry.medicalNote!.rewel, isTrue);
+      expect(entry.medicalNote!.catatan, 'Rewel saat ASI');
+      expect(entry.medicalNote!.perluRujukan, isFalse);
+    });
+
+    test('suntikan dibaca sebagai list per tanggal', () {
+      final entry = timeline.entries[0];
+
+      expect(entry.adaSuntikan, isTrue);
+      expect(entry.immunizations.length, 1);
+      expect(entry.immunizations[0].type, 'HB-0');
+      expect(entry.immunizations[0].label, 'HB-0');
+    });
+
+    test('meta.has_more dan next_before dibaca untuk pagination', () {
+      expect(timeline.meta.hasMore, isTrue);
+      expect(timeline.meta.nextBefore, '2026-08-15');
+      expect(timeline.meta.cursorValid, '2026-08-15');
+    });
+
+    test('meta halaman terakhir: has_more false, cursor null', () {
+      final meta = TimelineMeta.fromJson({
+        'has_more': false,
+        'next_before': null,
+      });
+
+      expect(meta.hasMore, isFalse);
+      expect(meta.nextBefore, isNull);
+      expect(meta.cursorValid, isNull);
+    });
+
+    test('pengelompokkan per bulan tanpa mengubah urutan', () {
+      final perBulan = timeline.perBulan;
+
+      expect(perBulan.keys.toList(), ['2026-09', '2026-08']);
+      expect(perBulan['2026-09']!.length, 1);
+      expect(perBulan['2026-08']!.length, 1);
+    });
+
+    test('gabung halaman berikutnya: entries ditambah, meta dari terakhir', () {
+      const rawHalaman2 = '''
+      {
+        "child": {
+          "id": "01a0d979-c11f-705b-8dd8-a245652c7aa4",
+          "name": "Siti",
+          "age_in_months": 30
+        },
+        "entries": [
+          {
+            "date": "2026-07-10",
+            "measurement": null,
+            "immunizations": [],
+            "medical_note": null
+          }
+        ],
+        "meta": { "has_more": false, "next_before": null }
+      }
+      ''';
+
+      final halaman2 = ChildTimeline.fromJson(
+        json.decode(rawHalaman2) as Map<String, dynamic>,
+      );
+      final gabungan = timeline.gabung(halaman2);
+
+      expect(gabungan.entries.length, 3);
+      expect(gabungan.entries[2].date, '2026-07-10');
+      expect(gabungan.meta.hasMore, isFalse);
+      expect(gabungan.meta.cursorValid, isNull);
+      expect(gabungan.jumlahKunjungan, 3);
+    });
+
+    test('anak tanpa data: entries kosong, bukan error', () {
+      const raw = '''
+      {
+        "child": { "id": "a", "name": "Anak" },
+        "entries": [],
+        "meta": { "has_more": false, "next_before": null }
+      }
+      ''';
+
+      final kosong = ChildTimeline.fromJson(
+        json.decode(raw) as Map<String, dynamic>,
+      );
+
+      expect(kosong.kosong, isTrue);
+      expect(kosong.entries, isEmpty);
+      expect(kosong.meta.hasMore, isFalse);
+    });
+
+    test('boolean string "true" tetap dibaca true di medical_note', () {
+      final note = TimelineNote.fromJson({
+        'demam': 'true',
+        'rewel': 'false',
+        'diare': 1,
+      });
+
+      expect(note.demam, isTrue);
+      expect(note.rewel, isFalse);
+      expect(note.diare, isTrue);
+      expect(note.keluhan, ['Demam', 'Diare']);
+    });
+
+    test('path endpoint timeline benar', () {
+      expect(ApiConstants.childTimelineEndpoint, '/timeline');
+
+      final url = Uri.parse(
+        '${ApiConstants.baseUrl}${ApiConstants.childrenEndpoint}'
+        '/01a0d979-c11f-705b-8dd8-a245652c7aa4'
+        '${ApiConstants.childTimelineEndpoint}',
+      );
+
+      expect(
+        url.path,
+        '/api/children/01a0d979-c11f-705b-8dd8-a245652c7aa4/timeline',
+      );
+    });
+  });
+
+  group('Model Child - medical_flags (Opsi B)', () {
+    test('medical_flags terbaca dari JSON', () {
+      final child = Child.fromJson({
+        'id': 'abc',
+        'name': 'Siti',
+        'medical_flags': 'alergi: penisilin',
+      });
+
+      expect(child.medicalFlags, 'alergi: penisilin');
+      expect(child.hasMedicalFlags, isTrue);
+    });
+
+    test('medical_flags null atau kosong: hasMedicalFlags false', () {
+      final tanpa = Child.fromJson({'id': 'a', 'name': 'X'});
+      final kosong = Child.fromJson({
+        'id': 'b',
+        'name': 'Y',
+        'medical_flags': '',
+      });
+
+      expect(tanpa.medicalFlags, isNull);
+      expect(tanpa.hasMedicalFlags, isFalse);
+      expect(kosong.medicalFlags, isNull);
+      expect(kosong.hasMedicalFlags, isFalse);
+    });
+
+    test('medical_flags ikut di toJson', () {
+      final child = Child.fromJson({
+        'id': 'abc',
+        'name': 'Siti',
+        'medical_flags': 'alergi: penisilin',
+      });
+
+      expect(child.toJson()['medical_flags'], 'alergi: penisilin');
     });
   });
 }

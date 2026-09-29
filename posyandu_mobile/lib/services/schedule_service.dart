@@ -17,16 +17,20 @@ class ScheduleService {
   static const _offline =
       'Tidak dapat terhubung ke server. Pastikan backend Laravel berjalan.';
 
-  Map<String, dynamic> _offlineError() =>
-      {'success': false, 'message': _offline, 'data': null, 'errors': null};
+  Map<String, dynamic> _offlineError() => {
+    'success': false,
+    'message': _offline,
+    'data': null,
+    'errors': null,
+  };
 
   Map<String, dynamic> _sessionEnded() => {
-        'success': false,
-        'status': 401,
-        'message': 'Sesi telah berakhir. Silakan login kembali.',
-        'data': null,
-        'errors': null,
-      };
+    'success': false,
+    'status': 401,
+    'message': 'Sesi telah berakhir. Silakan login kembali.',
+    'data': null,
+    'errors': null,
+  };
 
   Future<Map<String, String>?> _authHeaders({bool json = false}) async {
     final token = await _auth.getToken();
@@ -45,7 +49,8 @@ class ScheduleService {
     } catch (e) {
       return {
         'success': false,
-        'message': 'Respons server tidak valid (bukan JSON). '
+        'message':
+            'Respons server tidak valid (bukan JSON). '
             'Status code: ${response.statusCode}',
         'data': null,
         'errors': null,

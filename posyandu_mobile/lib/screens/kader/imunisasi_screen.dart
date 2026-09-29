@@ -317,7 +317,9 @@ class _FormImunisasiState extends State<_FormImunisasi> {
         SnackBar(
           content: Text(
             result['message']?.toString() ??
-                (existing == null ? 'Imunisasi dicatat.' : 'Imunisasi diperbarui.'),
+                (existing == null
+                    ? 'Imunisasi dicatat.'
+                    : 'Imunisasi diperbarui.'),
           ),
           backgroundColor: Colors.green,
         ),
@@ -388,7 +390,9 @@ class _FormImunisasiState extends State<_FormImunisasi> {
     if (result['success'] == true) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(result['message']?.toString() ?? 'Suntikan dibatalkan.'),
+          content: Text(
+            result['message']?.toString() ?? 'Suntikan dibatalkan.',
+          ),
           backgroundColor: Colors.green,
         ),
       );
@@ -444,7 +448,10 @@ class _FormImunisasiState extends State<_FormImunisasi> {
               const SizedBox(height: 16),
               Text(
                 isEdit ? 'Koreksi Pencatatan' : 'Catat Imunisasi',
-                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                style: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
               const SizedBox(height: 4),
               Text(

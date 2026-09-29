@@ -69,7 +69,10 @@ class AuthService {
     final token = await storage.read(key: 'token');
 
     if (token == null) {
-      return {'success': false, 'message': 'Tidak ada sesi aktif (token kosong)'};
+      return {
+        'success': false,
+        'message': 'Tidak ada sesi aktif (token kosong)',
+      };
     }
 
     try {
@@ -161,7 +164,8 @@ class AuthService {
     } catch (e) {
       return {
         'success': false,
-        'message': 'Respons server tidak valid (bukan JSON). '
+        'message':
+            'Respons server tidak valid (bukan JSON). '
             'Pastikan backend Laravel sedang berjalan.',
         'errors': null,
       };
@@ -184,8 +188,8 @@ class AuthService {
   }
 
   Map<String, dynamic> _networkError() => {
-        'success': false,
-        'message': 'Terjadi kesalahan koneksi jaringan. Cek server lokal.',
-        'errors': null,
-      };
+    'success': false,
+    'message': 'Terjadi kesalahan koneksi jaringan. Cek server lokal.',
+    'errors': null,
+  };
 }

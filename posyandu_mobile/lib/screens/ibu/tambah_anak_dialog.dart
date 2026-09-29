@@ -88,7 +88,8 @@ class _TambahAnakDialogState extends State<_TambahAnakDialog> {
 
     setState(() {
       _isSubmitting = false;
-      _errorMessage = hasil['message']?.toString() ?? 'Gagal menyimpan data anak.';
+      _errorMessage =
+          hasil['message']?.toString() ?? 'Gagal menyimpan data anak.';
     });
   }
 

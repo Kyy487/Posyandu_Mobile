@@ -49,6 +49,19 @@ class ApiConstants {
   //           {kaderMedicalNotesEndpoint}/{id}
   static const String kaderMedicalNotesEndpoint = '/kader/medical-notes';
 
+  // Riwayat medis gabungan (Opsi B - Buku Medis Digital).
+  //
+  // Satu endpoint untuk tiga tabel: penimbangan, suntikan, dan catatan
+  // keluhan, dikelompokkan per tanggal kunjungan. Path BACA dipakai bersama Ibu
+  // dan Kader, mengikuti pola `/children/{id}/...`, karena Ibu berhak melihat
+  // riwayat anaknya sendiri:
+  //   baca : {childrenEndpoint}/{id}{childTimelineEndpoint}
+  //
+  // Dipisah ke konstanta supaya path-nya bisa diuji. Salah ketik di sini hanya
+  // muncul sebagai 404 "Data balita tidak ditemukan." di layar, tanpa jejak
+  // di `flutter analyze`.
+  static const String childTimelineEndpoint = '/timeline';
+
   // Daftar petugas. NIK tidak pernah ikut respons.
   static const String petugasEndpoint = '/petugas';
 }

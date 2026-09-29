@@ -84,8 +84,7 @@ class RecapActivity {
   ///
   /// Dipakai layar untuk menampilkan "vaksin yang terpakai" secara ringkas.
   /// Total keseluruhan tetap pakai [totalDoses] dari server.
-  List<RecapDoseCount> get terpakai =>
-      byType.where((e) => !e.kosong).toList();
+  List<RecapDoseCount> get terpakai => byType.where((e) => !e.kosong).toList();
 
   /// Jumlahkan `count` per vaksin (`code`), supaya 4 dosis Hepatitis B
   /// tampil sebagai satu baris "Hepatitis B" dan bukan 4 baris terpisah.
@@ -112,9 +111,11 @@ class RecapActivity {
       totalChildren: _toInt(json['total_children']) ?? 0,
       byType: raw is List
           ? raw
-              .whereType<Map>()
-              .map((e) => RecapDoseCount.fromJson(Map<String, dynamic>.from(e)))
-              .toList()
+                .whereType<Map>()
+                .map(
+                  (e) => RecapDoseCount.fromJson(Map<String, dynamic>.from(e)),
+                )
+                .toList()
           : const <RecapDoseCount>[],
     );
   }
@@ -206,8 +207,8 @@ class RecapOverdueChild {
   int get terlambatTerlama => overdueDoses.isEmpty
       ? 0
       : overdueDoses
-          .map((e) => e.bulanTerlambat)
-          .reduce((a, b) => a > b ? a : b);
+            .map((e) => e.bulanTerlambat)
+            .reduce((a, b) => a > b ? a : b);
 
   String get ageLabel {
     final bulan = ageInMonths;
@@ -225,10 +226,12 @@ class RecapOverdueChild {
       ageInMonths: _toInt(json['age_in_months']),
       overdueDoses: raw is List
           ? raw
-              .whereType<Map>()
-              .map((e) =>
-                  RecapOverdueDose.fromJson(Map<String, dynamic>.from(e)))
-              .toList()
+                .whereType<Map>()
+                .map(
+                  (e) =>
+                      RecapOverdueDose.fromJson(Map<String, dynamic>.from(e)),
+                )
+                .toList()
           : const <RecapOverdueDose>[],
     );
   }
@@ -278,10 +281,12 @@ class RecapCoverage {
       excludedArchived: _toInt(json['excluded_archived']) ?? 0,
       overdueChildren: raw is List
           ? raw
-              .whereType<Map>()
-              .map((e) =>
-                  RecapOverdueChild.fromJson(Map<String, dynamic>.from(e)))
-              .toList()
+                .whereType<Map>()
+                .map(
+                  (e) =>
+                      RecapOverdueChild.fromJson(Map<String, dynamic>.from(e)),
+                )
+                .toList()
           : const <RecapOverdueChild>[],
     );
   }

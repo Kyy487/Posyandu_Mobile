@@ -106,8 +106,7 @@ class MedicalNote {
   bool get perluRujukan => tindakLanjut == TindakLanjut.rujuk;
 
   /// Jumlah keluhan yang dicentang, untuk badge ringkas.
-  int get jumlahKeluhan =>
-      (demam ? 1 : 0) + (rewel ? 1 : 0) + (diare ? 1 : 0);
+  int get jumlahKeluhan => (demam ? 1 : 0) + (rewel ? 1 : 0) + (diare ? 1 : 0);
 
   factory MedicalNote.fromJson(Map<String, dynamic> json) {
     final kader = json['kader'];
@@ -242,9 +241,9 @@ class MedicalNoteList {
           : const MedicalNoteSummary(),
       notes: rawNotes is List
           ? rawNotes
-              .whereType<Map>()
-              .map((e) => MedicalNote.fromJson(Map<String, dynamic>.from(e)))
-              .toList()
+                .whereType<Map>()
+                .map((e) => MedicalNote.fromJson(Map<String, dynamic>.from(e)))
+                .toList()
           : const <MedicalNote>[],
     );
   }

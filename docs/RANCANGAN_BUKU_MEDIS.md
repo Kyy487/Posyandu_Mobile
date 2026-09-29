@@ -321,12 +321,21 @@ yang tepat; tugasnya ditambah, bukan dipecah.
 
 ### 8.1 Penanda kondisi khusus
 
+> **Status: selesai 29 September 2026.** Badge ada di
+> `detail_anak_screen.dart` (`_buildBadgeKondisiKhusus`), data dari
+> `TimelineChild.medicalFlags` atau `Child.medicalFlags`.
+
 Karena keputusan 5.1 = kolom, tampilan paling sederhana: badge berwarna di
 bawah nama anak, merah untuk alergi, kuning untuk penyakit bawaan. Teks mentah
 ditampilkan apa adanya, tanpa ikon per jenis - karena daftar jenis tidak
 dikunci database.
 
 ### 8.2 Timeline
+
+> **Status: selesai 29 September 2026.** Implementasi ada di
+> `posyandu_mobile/lib/models/child_timeline.dart`,
+> `posyandu_mobile/lib/services/child_timeline_service.dart`, dan
+> `posyandu_mobile/lib/screens/kader/detail_anak_screen.dart`.
 
 - Dikelompokkan per bulan, judul memakai `labelBulan()` dari
   `month_label.dart` supaya konsisten dengan layar lain.
@@ -336,8 +345,8 @@ dikunci database.
   catatan visual bahwa penimbangan tidak ada.
 - Tombol "Muat lebih banyak" untuk `meta.has_more`.
 - Muat ulang memakai tombol refresh yang **sudah ada** di baris
-  "Penimbangan Terakhir" (`IconButton(Icons.refresh)` yang memanggil
-  `_loadRiwayat`), bukan pull-to-refresh. Layar ini memang tidak punya
+  "Penimbangan Terakhir" (`IconButton(Icons.refresh)` yang sekarang memanggil
+  `_muatUlangSemua()`), bukan pull-to-refresh. Layar ini memang tidak punya
   `RefreshIndicator` - itu sudah dicek langsung di
   `detail_anak_screen.dart` pada 29 September 2026.
 
@@ -353,12 +362,12 @@ sudah ada. Tetap satu layar yang sama: ini tambahan isi, bukan layar baru.
 Mengikuti pola yang sudah dipakai proyek ini, karena polanya sudah terbukti
 menangkap bug nyata.
 
-| Lapisan | Isi |
-|---------|-----|
-| Feature test PHP | Hit HTTP endpoint sungguhan, cek aturan 1–7 satu per satu |
-| `uji-api.ps1` grup baru | Cek aturan 1–7 lewat HTTP, termasuk 403 untuk Ibu |
-| Flutter test | Parsing model timeline terhadap JSON asli, bukan JSON buatan |
-| Manual | Buka di emulator, scroll ke bawah |
+| Lapisan | Isi | Status |
+|---------|-----|--------|
+| Feature test PHP | Hit HTTP endpoint sungguhan, cek aturan 1–7 satu per satu | Selesai (21 test) |
+| `uji-api.ps1` grup baru | Cek aturan 1–7 lewat HTTP, termasuk 403 untuk Ibu | Belum ditulis |
+| Flutter test | Parsing model timeline terhadap JSON asli, bukan JSON buatan | Selesai (13 test) |
+| Manual | Buka di emulator, scroll ke bawah | Belum dilakukan |
 
 > **Peringatan dari pelajaran terakhir.** `MeasurementRecapTest` pernah hijau
 > karena kebetulan: `ChildFactory` mengisi `date_of_birth` acak sementara test
@@ -432,11 +441,14 @@ belum ada.
 7. ~~**Dokumentasi.**~~ **Selesai 29 September 2026.** `API_CONTRACT.md`
    (dua endpoint + kode error), `DATABASE_SCHEMA.md` (kolom baru + alasannya),
    `docs/LAPORAN_BUKU_MEDIS.md`.
-8. **Mobile** (fase berikutnya, belum dikerjakan): model, service, lalu
-   perubahan `detail_anak_screen.dart`.
+8. ~~**Mobile**~~ **Selesai 29 September 2026.** Model `child_timeline.dart`,
+   service `child_timeline_service.dart`, `medicalFlags` di `Child`, konstanta
+   `childTimelineEndpoint`, dan integrasi `detail_anak_screen.dart` (badge
+   kondisi khusus + section Buku Medis + pagination + refresh gabungan).
+   105 test hijau, `flutter analyze` bersih.
 9. **Verifikasi akhir**: Pint dan test backend sudah hijau (96 test / 364
-   assertion). `uji-api.ps1` dan `flutter analyze` / `flutter test` menyusul
-   bersama fase mobile.
+   assertion). `uji-api.ps1` belum ditulis; `flutter analyze` / `flutter test`
+   sudah hijau (105 test).
 
 ---
 
@@ -483,3 +495,5 @@ bagian ini, bukan disimpan di commit atau komentar kode.
 | 28 Sep 2026 | Rancangan awal ditulis. Belum ada kode yang dibuat untuk fitur ini. |
 | 29 Sep 2026 | Spesifikasi dikunci: keputusan 1 = kolom `children.medical_flags`, keputusan 2 = timeline per kunjungan. Tiga pertanyaan di bagian 12 ditutup. Tujuh aturan di 7.3 dipetakan ke nama test. Inventaris kompatibilitas ditulis di 7.5. Aturan agent dibuat di `posyandu-backend/.ai/rules/`. Belum ada kode fitur yang ditulis. |
 | 29 Sep 2026 | Fase 1 backend selesai. Migration `medical_flags`, `ChildTimelineService` (4 query), `GET /children/{id}/timeline`, validasi kader-saja untuk `medical_flags`, dan `ChildTimelineTest` 21 test. Semua aturan 1-7 terbukti hijau; 96 test total. Dokumentasi di `API_CONTRACT.md`, `DATABASE_SCHEMA.md`, `LAPORAN_BUKU_MEDIS.md`. Mobile belum disentuh. |
+| 29 Sep 2026 | Fase 2 mobile selesai. Model `child_timeline.dart`, service `child_timeline_service.dart`, `medicalFlags` di `Child`, konstanta `childTimelineEndpoint`, integrasi `detail_anak_screen.dart` (badge kondisi khusus + section Buku Medis + pagination + refresh gabungan). 105 test hijau, `flutter analyze` bersih, `dart format` 39 file. |
+| 29 Sep 2026 | Fase 2 mobile selesai. Model `child_timeline.dart`, service `child_timeline_service.dart`, `medicalFlags` di `Child`, konstanta `childTimelineEndpoint`, integrasi `detail_anak_screen.dart` (badge kondisi khusus + section Buku Medis + pagination + refresh gabungan). 105 test hijau, `flutter analyze` bersih, `dart format` 39 file. |

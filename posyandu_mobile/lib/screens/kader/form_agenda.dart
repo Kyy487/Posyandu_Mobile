@@ -232,8 +232,10 @@ class FormAgendaState extends State<FormAgenda> {
                     Card(
                       elevation: 1,
                       child: ListTile(
-                        leading:
-                            const Icon(Icons.calendar_month, color: Colors.blue),
+                        leading: const Icon(
+                          Icons.calendar_month,
+                          color: Colors.blue,
+                        ),
                         title: const Text('Tanggal'),
                         subtitle: Text(
                           '${_tanggal.day}/${_tanggal.month}/${_tanggal.year}',

@@ -21,21 +21,21 @@ class MedicalNoteService {
       'Tidak dapat terhubung ke server. Pastikan backend Laravel berjalan.';
 
   Map<String, dynamic> _offlineError() => {
-        'success': false,
-        'message': _offline,
-        'data': null,
-        'errors': null,
-      };
+    'success': false,
+    'message': _offline,
+    'data': null,
+    'errors': null,
+  };
 
   /// Hasil error sesi habis. `status: 401` dipakai layar untuk mengarahkan
   /// user login ulang, sama seperti service lain.
   Map<String, dynamic> _sessionEnded() => {
-        'success': false,
-        'status': 401,
-        'message': 'Sesi telah berakhir. Silakan login kembali.',
-        'data': null,
-        'errors': null,
-      };
+    'success': false,
+    'status': 401,
+    'message': 'Sesi telah berakhir. Silakan login kembali.',
+    'data': null,
+    'errors': null,
+  };
 
   Future<Map<String, String>?> _authHeaders({bool json = false}) async {
     final token = await _auth.getToken();
@@ -57,7 +57,8 @@ class MedicalNoteService {
     } catch (e) {
       return {
         'success': false,
-        'message': 'Respons server tidak valid (bukan JSON). '
+        'message':
+            'Respons server tidak valid (bukan JSON). '
             'Status code: ${response.statusCode}',
         'data': null,
         'errors': null,
@@ -92,8 +93,10 @@ class MedicalNoteService {
 
     try {
       final response = await http.get(
-        Uri.parse('$baseUrl${ApiConstants.childrenEndpoint}'
-            '/$childId/medical-notes$suffix'),
+        Uri.parse(
+          '$baseUrl${ApiConstants.childrenEndpoint}'
+          '/$childId/medical-notes$suffix',
+        ),
         headers: headers,
       );
 
@@ -116,7 +119,8 @@ class MedicalNoteService {
 
       return {
         'success': false,
-        'message': body['message']?.toString() ?? 'Gagal memuat catatan keluhan.',
+        'message':
+            body['message']?.toString() ?? 'Gagal memuat catatan keluhan.',
         'data': null,
         'errors': body['errors'],
       };
@@ -158,8 +162,10 @@ class MedicalNoteService {
 
     try {
       final response = await http.post(
-        Uri.parse('$baseUrl${ApiConstants.kaderChildrenEndpoint}'
-            '/$childId/medical-notes'),
+        Uri.parse(
+          '$baseUrl${ApiConstants.kaderChildrenEndpoint}'
+          '/$childId/medical-notes',
+        ),
         headers: headers,
         body: json.encode({
           'note_date': noteDate,

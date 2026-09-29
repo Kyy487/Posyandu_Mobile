@@ -91,8 +91,7 @@ class _DashboardIbuScreenState extends State<DashboardIbuScreen> {
     );
   }
 
-  Child? get _anakAktif =>
-      _anak.isEmpty ? null : _anak[_selectedAnakIndex];
+  Child? get _anakAktif => _anak.isEmpty ? null : _anak[_selectedAnakIndex];
 
   @override
   Widget build(BuildContext context) {
@@ -103,7 +102,11 @@ class _DashboardIbuScreenState extends State<DashboardIbuScreen> {
         backgroundColor: Colors.pink[400],
         title: const Text(
           'Smart Posyandu Bunda',
-          style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+          style: TextStyle(
+            color: Colors.white,
+            fontSize: 18,
+            fontWeight: FontWeight.bold,
+          ),
         ),
         actions: [
           IconButton(
@@ -133,9 +136,7 @@ class _DashboardIbuScreenState extends State<DashboardIbuScreen> {
 
   Widget _buildBody() {
     if (_isLoading) {
-      return const Center(
-        child: CircularProgressIndicator(color: Colors.pink),
-      );
+      return const Center(child: CircularProgressIndicator(color: Colors.pink));
     }
 
     if (_errorMessage != null) {
@@ -161,13 +162,13 @@ class _DashboardIbuScreenState extends State<DashboardIbuScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-              _buildQuickMenu(),
-              const SizedBox(height: 16),
-              _buildImunisasiMenu(),
-              const SizedBox(height: 16),
-              _buildKeluhanMenu(),
-              const SizedBox(height: 24),
-              _buildStatusGizi(),
+                  _buildQuickMenu(),
+                  const SizedBox(height: 16),
+                  _buildImunisasiMenu(),
+                  const SizedBox(height: 16),
+                  _buildKeluhanMenu(),
+                  const SizedBox(height: 24),
+                  _buildStatusGizi(),
                   const SizedBox(height: 20),
                   _buildInsight(),
                 ],
@@ -333,14 +334,30 @@ class _DashboardIbuScreenState extends State<DashboardIbuScreen> {
             mainAxisAlignment: MainAxisAlignment.spaceAround,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _buildMenuButton(Icons.camera_alt, 'Sepiring\nBergizi', Colors.orange,
-                  () => _info('Cek gizi makanan $nama')),
-              _buildMenuButton(Icons.auto_graph, 'Grafik\nTumbuh', Colors.blue,
-                  () => _info('Grafik pertumbuhan $nama')),
-              _buildMenuButton(Icons.play_circle_fill, 'Edukasi\n& Tips', Colors.purple,
-                  () => _info('Video edukasi')),
-              _buildMenuButton(Icons.calendar_month, 'Jadwal\nPosyandu', Colors.teal,
-                  _bukaJadwalPosyandu),
+              _buildMenuButton(
+                Icons.camera_alt,
+                'Sepiring\nBergizi',
+                Colors.orange,
+                () => _info('Cek gizi makanan $nama'),
+              ),
+              _buildMenuButton(
+                Icons.auto_graph,
+                'Grafik\nTumbuh',
+                Colors.blue,
+                () => _info('Grafik pertumbuhan $nama'),
+              ),
+              _buildMenuButton(
+                Icons.play_circle_fill,
+                'Edukasi\n& Tips',
+                Colors.purple,
+                () => _info('Video edukasi'),
+              ),
+              _buildMenuButton(
+                Icons.calendar_month,
+                'Jadwal\nPosyandu',
+                Colors.teal,
+                _bukaJadwalPosyandu,
+              ),
             ],
           ),
         ),
@@ -362,10 +379,8 @@ class _DashboardIbuScreenState extends State<DashboardIbuScreen> {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => StatusImunisasiScreen(
-          childId: anak.id,
-          childName: anak.name,
-        ),
+        builder: (context) =>
+            StatusImunisasiScreen(childId: anak.id, childName: anak.name),
       ),
     );
   }
@@ -377,10 +392,8 @@ class _DashboardIbuScreenState extends State<DashboardIbuScreen> {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => CatatanKeluhanScreen(
-          childId: anak.id,
-          childName: anak.name,
-        ),
+        builder: (context) =>
+            CatatanKeluhanScreen(childId: anak.id, childName: anak.name),
       ),
     );
   }
@@ -509,8 +522,7 @@ class _DashboardIbuScreenState extends State<DashboardIbuScreen> {
   }
 
   void _info(String pesan) {
-    ScaffoldMessenger.of(context)
-        .showSnackBar(SnackBar(content: Text(pesan)));
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(pesan)));
   }
 
   /// Satu tombol di Menu Cepat: ikon, label dua baris, dan aksi saat ditekan.
@@ -587,7 +599,10 @@ class _DashboardIbuScreenState extends State<DashboardIbuScreen> {
               Expanded(
                 child: Text(
                   'Status Gizi - ${anak.name}',
-                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 14,
+                  ),
                 ),
               ),
             ],
@@ -642,10 +657,7 @@ class _DashboardIbuScreenState extends State<DashboardIbuScreen> {
             ),
           ),
           const SizedBox(height: 4),
-          Text(
-            label,
-            style: const TextStyle(fontSize: 11, color: Colors.grey),
-          ),
+          Text(label, style: const TextStyle(fontSize: 11, color: Colors.grey)),
         ],
       ),
     );
@@ -807,13 +819,20 @@ class _DashboardIbuScreenState extends State<DashboardIbuScreen> {
                         ),
                       ),
                     ),
-                    Text(time, style: TextStyle(color: Colors.grey[500], fontSize: 11)),
+                    Text(
+                      time,
+                      style: TextStyle(color: Colors.grey[500], fontSize: 11),
+                    ),
                   ],
                 ),
                 const SizedBox(height: 6),
                 Text(
                   content,
-                  style: TextStyle(color: Colors.grey[800], fontSize: 13, height: 1.4),
+                  style: TextStyle(
+                    color: Colors.grey[800],
+                    fontSize: 13,
+                    height: 1.4,
+                  ),
                 ),
               ],
             ),
@@ -895,8 +914,18 @@ class _DashboardIbuScreenState extends State<DashboardIbuScreen> {
     if (d == null) return isoDate;
 
     const bulan = [
-      'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
-      'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember',
+      'Januari',
+      'Februari',
+      'Maret',
+      'April',
+      'Mei',
+      'Juni',
+      'Juli',
+      'Agustus',
+      'September',
+      'Oktober',
+      'November',
+      'Desember',
     ];
     return '${d.day} ${bulan[d.month - 1]} ${d.year}';
   }
