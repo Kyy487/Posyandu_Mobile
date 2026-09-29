@@ -5,6 +5,7 @@ import '../../services/auth_service.dart';   // Untuk logout jika diperlukan
 import '../login_screen.dart';        // Sesuaikan path login
 import 'detail_anak_screen.dart';
 import 'jadwal_posyandu_screen.dart';
+import 'rekap_imunisasi_screen.dart';
 
 class DashboardKaderScreen extends StatefulWidget {
   const DashboardKaderScreen({super.key});
@@ -166,6 +167,12 @@ class _DashboardKaderScreenState extends State<DashboardKaderScreen> {
                           Navigator.push(
                             context,
                             MaterialPageRoute(builder: (context) => const JadwalPosyanduScreen()),
+                          );
+                        }),
+                        _buildMenuButton(Icons.vaccines, 'Rekap\nImunisasi', Colors.purple, () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(builder: (context) => const RekapImunisasiScreen()),
                           );
                         }),
                       ],

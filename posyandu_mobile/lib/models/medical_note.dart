@@ -18,6 +18,8 @@
 /// hanya membuka pintu untuk tampilan yang berbeda antara Kader dan Ibu.
 library;
 
+import '../utils/month_label.dart';
+
 class TindakLanjut {
   /// Keluhan ditangani dengan observasi dan saran saja.
   static const String ringan = 'ringan';
@@ -215,30 +217,13 @@ class MedicalNoteList {
 
   /// Label filter untuk ditampilkan di layar, mis. "September 2026".
   ///
-  /// Dipakai hanya untuk teks, jadi parsing dilakukan manual - paket `intl`
-  /// sengaja tidak ditambahkan ke dependensi untuk satu label.
+  /// Memakai helper bersama di `utils/month_label.dart` supaya rekap
+  /// imunisasi menampilkan nama bulan yang sama persis dengan layar ini.
+  /// Kalau dua layar punya daftar nama bulan masing-masing, keduanya pasti
+  /// berbeda suatu saat dan kader akan mengira itu dua bulan yang berbeda.
   String get labelFilter {
     if (all) return 'Semua bulan';
-    if (month == null || month!.isEmpty) return 'Bulan ini';
-    final bagian = month!.split('-');
-    if (bagian.length != 2) return month!;
-    const namaBulan = <String>[
-      'Januari',
-      'Februari',
-      'Maret',
-      'April',
-      'Mei',
-      'Juni',
-      'Juli',
-      'Agustus',
-      'September',
-      'Oktober',
-      'November',
-      'Desember',
-    ];
-    final bulan = int.tryParse(bagian[1]);
-    if (bulan == null || bulan < 1 || bulan > 12) return month!;
-    return '${namaBulan[bulan - 1]} ${bagian[0]}';
+    return labelBulan(month);
   }
 
   factory MedicalNoteList.fromJson(Map<String, dynamic> json) {

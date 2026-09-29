@@ -25,6 +25,14 @@ class ApiConstants {
   static const String immunizationTypesEndpoint = '/immunization-types';
   static const String kaderImmunizationsEndpoint = '/kader/immunizations';
 
+  // Rekap imunisasi bulanan (Opsi E): {kaderImmunizationsEndpoint}/recap
+  //
+  // Kader-only, tidak pernah dibuka untuk Ibu karena eksposisinya seluruh
+  // Posyandu. Hanya baca - tidak ada endpoint tulis rekap, angkanya
+  // diturunkan dari suntikan yang sudah tercatat.
+  static const String kaderImmunizationRecapEndpoint =
+      '/kader/immunizations/recap';
+
   // Jadwal posyandu: Ibu read-only, Kader boleh tulis.
   static const String schedulesEndpoint = '/schedules';
   static const String kaderSchedulesEndpoint = '/kader/schedules';

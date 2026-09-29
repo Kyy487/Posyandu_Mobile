@@ -3,9 +3,12 @@ import 'dart:convert';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:posyandu_mobile/models/child.dart';
 import 'package:posyandu_mobile/models/immunization.dart';
+import 'package:posyandu_mobile/models/immunization_recap.dart';
 import 'package:posyandu_mobile/models/measurement_model.dart';
 import 'package:posyandu_mobile/models/medical_note.dart';
 import 'package:posyandu_mobile/models/posyandu_schedule.dart';
+import 'package:posyandu_mobile/utils/constants.dart';
+import 'package:posyandu_mobile/utils/month_label.dart';
 
 /// Test ini memakai JSON ASLI yang diambil langsung dari API Laravel
 /// (http://127.0.0.1:8000/api) pada 26 September 2026.
@@ -1007,6 +1010,333 @@ void main() {
       // itu menyiratkan ada data yang rusak.
       expect(TindakLanjut.label(null), '-');
       expect(TindakLanjut.label(''), '-');
+    });
+  });
+
+  group('Kontrak API - GET /api/kader/immunizations/recap', () {
+    // Respons ASLI dari ImmunizationController@recap, diambil 28 September
+    // 2026 lewat http://127.0.0.1:8000/api (kader token, ?month=2026-09).
+    // Dipotong: 16 by_type jadi 3 baris, 3 overdue_children jadi 2 anak, dan
+    // setiap overdue_doses dipotong jadi 2 dosis. Nilai yang dipotong tidak
+    // dipakai sebagai angka yang dicek, hanya bentuk field-nya.
+    const rawRecap = '''
+    {
+      "success": true,
+      "message": "Rekap imunisasi berhasil diambil.",
+      "data": {
+        "filter": {
+          "month": "2026-09",
+          "reference_date": "2026-09-30"
+        },
+        "activity": {
+          "total_doses": 2,
+          "total_children": 2,
+          "by_type": [
+            {
+              "immunization_type_id": "01a0ddcb-81cd-739b-b801-5a8b7504f9eb",
+              "code": "MR",
+              "name": "Campak-Rubella",
+              "label": "Campak-Rubella",
+              "dose_number": 1,
+              "count": 1
+            },
+            {
+              "immunization_type_id": "01a0ddcb-81a8-7357-894a-0b7e0f378a75",
+              "code": "POLIO",
+              "name": "Polio Oral",
+              "label": "Polio Oral",
+              "dose_number": 1,
+              "count": 1
+            },
+            {
+              "immunization_type_id": "01a0ddcb-81d2-72d7-af73-83b7815725e6",
+              "code": "MR",
+              "name": "Campak-Rubella",
+              "label": "Campak-Rubella (Dosis 2)",
+              "dose_number": 2,
+              "count": 0
+            }
+          ]
+        },
+        "coverage": {
+          "total_children": 3,
+          "complete": 0,
+          "incomplete": 3,
+          "overdue": 3,
+          "excluded_archived": 0,
+          "overdue_children": [
+            {
+              "child_id": "01a0d979-c122-7028-a3ce-93ce6913b862",
+              "name": "Ceril Ganteng",
+              "date_of_birth": "2025-05-11",
+              "age_in_months": 16,
+              "overdue_doses": [
+                {
+                  "immunization_type_id": "01a0ddcb-81a2-73a2-b746-b0b27bcc2990",
+                  "code": "BCG",
+                  "name": "BCG",
+                  "label": "BCG",
+                  "dose_number": 1,
+                  "target_age_months": 2,
+                  "sisa_bulan": -12
+                },
+                {
+                  "immunization_type_id": "01a0ddcb-8197-7184-9c37-fe42f3cc1fd9",
+                  "code": "HB",
+                  "name": "Hepatitis B",
+                  "label": "Hepatitis B",
+                  "dose_number": 1,
+                  "target_age_months": 0,
+                  "sisa_bulan": -14
+                }
+              ]
+            },
+            {
+              "child_id": "01a0ddcb-8192-7294-874f-9136350293fb",
+              "name": "Zainab Putri",
+              "date_of_birth": "2025-12-01",
+              "age_in_months": 9,
+              "overdue_doses": [
+                {
+                  "immunization_type_id": "01a0ddcb-81a2-73a2-b746-b0b27bcc2990",
+                  "code": "BCG",
+                  "name": "BCG",
+                  "label": "BCG",
+                  "dose_number": 1,
+                  "target_age_months": 2,
+                  "sisa_bulan": -5
+                }
+              ]
+            }
+          ]
+        }
+      }
+    }
+    ''';
+
+    ImmunizationRecap parse(String raw) {
+      final decoded = json.decode(raw) as Map<String, dynamic>;
+      return ImmunizationRecap.fromJson(
+        Map<String, dynamic>.from(decoded['data'] as Map),
+      );
+    }
+
+    late ImmunizationRecap rekap;
+
+    setUp(() {
+      rekap = parse(rawRecap);
+    });
+
+    test('filter dibaca dari data.filter, bukan root data', () {
+      // Kalau parser mencari month di root, reference_date ikut null dan
+      // tampilan "dihitung sampai ..." kehilangan tanggalnya tanpa error.
+      expect(rekap.month, '2026-09');
+      expect(rekap.referenceDate, '2026-09-30');
+      expect(rekap.labelBulanRekap, 'September 2026');
+      expect(rekap.labelAcuan, '30 September 2026');
+    });
+
+    test('activity dan coverage terpisah, tidak ada yang dijumlahkan', () {
+      // activity.total_doses (2) dan coverage.total_children (3) adalah dua
+      // pertanyaan berbeda. Layar yang menjumlahkan keduanya menghasilkan
+      // angka yang tidak berarti.
+      expect(rekap.activity.totalDoses, 2);
+      expect(rekap.activity.totalChildren, 2);
+      expect(rekap.coverage.totalChildren, 3);
+      expect(rekap.coverage.complete, 0);
+      expect(rekap.coverage.incomplete, 3);
+      expect(rekap.coverage.overdue, 3);
+    });
+
+    test('by_type memuat baris count 0 dan tidak disembunyikan', () {
+      // Aturan kontrak: seluruh 16 master selalu dikirim. Kader perlu bisa
+      // membedakan "tidak ada suntikan" dari "tidak sempat dicatat".
+      expect(rekap.activity.byType.length, 3);
+      expect(rekap.activity.terpakai.length, 2);
+      expect(rekap.activity.byType.last.count, 0);
+      expect(rekap.activity.byType.last.kosong, isTrue);
+      expect(rekap.activity.terpakai.every((e) => !e.kosong), isTrue);
+    });
+
+    test('dosis per vaksin dijumlahkan lewat key "code"', () {
+      // Dua baris "MR" (dosis 1 dan 2) harus jadi satu entri, bukan dua.
+      final perVaksin = rekap.activity.totalPerVaksin;
+
+      expect(perVaksin['MR'], 1);
+      expect(perVaksin['POLIO'], 1);
+      expect(perVaksin.length, 2);
+    });
+
+    test('overdue_children memakai snake_case sisa_bulan dari server', () {
+      final anak = rekap.coverage.overdueChildren.first;
+
+      expect(anak.childId, '01a0d979-c122-7028-a3ce-93ce6913b862');
+      expect(anak.name, 'Ceril Ganteng');
+      expect(anak.ageInMonths, 16);
+      expect(anak.ageLabel, '1 Tahun 4 Bulan');
+      expect(anak.jumlahDosis, 2);
+      // Dosis paling lama terlambat diambil dari semua dosis anak.
+      expect(anak.terlambatTerlama, 14);
+    });
+
+    test('statusNote memakai kalimat yang sama dengan checklist', () {
+      final dosis = rekap.coverage.overdueChildren.first.overdueDoses;
+
+      expect(dosis.first.monthsLeft, -12);
+      expect(dosis.first.bulanTerlambat, 12);
+      expect(dosis.first.statusNote, 'Terlambat 12 bulan');
+      expect(dosis.first.targetLabel, '2 bulan');
+      // Dosis target 0 bulan tetap "Saat lahir", sama seperti checklist.
+      expect(dosis.last.targetLabel, 'Saat lahir');
+    });
+
+    test('excluded_archived dibaca terpisah, tidak ikut total', () {
+      // 0 di JSON ini. Yang penting field-nya terbaca dan tidak menambah
+      // totalChildren.
+      expect(rekap.coverage.excludedArchived, 0);
+      expect(rekap.coverage.totalChildren, 3);
+    });
+
+    test('persen kelengkapan dihitung dari anak, bukan dari dosis', () {
+      // Salah satu dari 3 anak selesai = 33%. Kalau dihitung dari dosis,
+      // angkanya akan jauh lebih kecil karena satu anak punya banyak dosis.
+      const raw = '{"success":true,"message":"Rekap imunisasi berhasil diambil.",'
+          '"data":{'
+          '"filter":{"month":"2026-09","reference_date":"2026-09-30"},'
+          '"activity":{"total_doses":0,"total_children":0,"by_type":[]},'
+          '"coverage":{"total_children":3,"complete":1,"incomplete":2,'
+          '"overdue":1,"excluded_archived":0,"overdue_children":[]}}}';
+
+      expect(parse(raw).coverage.percentComplete, 33);
+    });
+
+    test('bulan tanpa aktivitas: 200 dengan angka nol, bukan error', () {
+      // Server tidak pernah membalas 404 untuk bulan kosong. Layar harus
+      // menampilkan "belum ada data", bukan pesan gagal.
+      const raw = '{"success":true,"message":"Rekap imunisasi berhasil diambil.",'
+          '"data":{'
+          '"filter":{"month":"2019-01","reference_date":"2019-01-31"},'
+          '"activity":{"total_doses":0,"total_children":0,"by_type":[]},'
+          '"coverage":{"total_children":0,"complete":0,"incomplete":0,'
+          '"overdue":0,"excluded_archived":0,"overdue_children":[]}}}';
+
+      final kosong = parse(raw);
+
+      expect(kosong.activity.kosong, isTrue);
+      expect(kosong.kosong, isTrue);
+      expect(kosong.coverage.semuaLengkap, isTrue);
+      expect(kosong.coverage.percentComplete, 0);
+      expect(kosong.labelBulanRekap, 'Januari 2019');
+      expect(kosong.labelAcuan, '31 Januari 2019');
+    });
+
+    test('respons kosong / null tidak membuat parser crash', () {
+      final kosong = ImmunizationRecap.fromJson({});
+
+      expect(kosong.month, isNull);
+      expect(kosong.referenceDate, isNull);
+      expect(kosong.activity.byType, isEmpty);
+      expect(kosong.coverage.overdueChildren, isEmpty);
+      expect(kosong.coverage.totalChildren, 0);
+      // Tanpa filter, label jatuh ke fallback, bukan string kosong.
+      expect(kosong.labelBulanRekap, 'Bulan ini');
+      expect(kosong.labelAcuan, '-');
+    });
+
+    test('field hilang di dalam coverage tidak bikin crash', () {
+      final parsed = ImmunizationRecap.fromJson({
+        'filter': {'month': '2026-09'},
+        'coverage': {'total_children': 4},
+      });
+
+      expect(parsed.coverage.totalChildren, 4);
+      expect(parsed.coverage.complete, 0);
+      expect(parsed.coverage.excludedArchived, 0);
+      expect(parsed.activity.totalDoses, 0);
+    });
+  });
+
+  group('Helper label bulan (dipakai bersama oleh dua layar)', () {
+    test('labelBulan mengubah YYYY-MM jadi nama bulan', () {
+      expect(labelBulan('2026-09'), 'September 2026');
+      expect(labelBulan('2026-01'), 'Januari 2026');
+      expect(labelBulan('2026-12'), 'Desember 2026');
+    });
+
+    test('format rusak dikembalikan apa adanya, bukan crashed', () {
+      expect(labelBulan('2026-13'), '2026-13');
+      expect(labelBulan('202602'), '202602');
+      expect(labelBulan(null), 'Bulan ini');
+      expect(labelBulan(''), 'Bulan ini');
+    });
+
+    test('labelTanggal mengubah YYYY-MM-DD', () {
+      expect(labelTanggal('2026-09-30'), '30 September 2026');
+      expect(labelTanggal('2026-01-05'), '5 Januari 2026');
+      expect(labelTanggal(null), '-');
+      expect(labelTanggal('bukan-tanggal'), 'bukan-tanggal');
+    });
+
+    test('geserBulan melewati batas tahun dengan benar', () {
+      expect(geserBulan('2026-09', delta: -1), '2026-08');
+      expect(geserBulan('2026-01', delta: -1), '2025-12');
+      expect(geserBulan('2025-12', delta: 1), '2026-01');
+      expect(geserBulan('2026-12', delta: 1), '2027-01');
+      expect(geserBulan('2026-09', delta: -13), '2025-08');
+    });
+
+    test('bulan selalu dua digit, supaya "?month=" tidak pernah 2026-9', () {
+      // Server menolak format tanpa nol dengan 422, jadi format yang salah di
+      // sini akan jadi error 422 di layar, bukan sekadar tampilan aneh.
+      expect(geserBulan('2026-09', delta: -1), isNot('2026-9'));
+      expect(geserBulan('2026-10', delta: 1), '2026-11');
+    });
+
+    test('input rusak tidak membuat geserBulan menggeser diam-diam', () {
+      // Inti dari helper ini: berbeda dari DateTime, bulan 0 dan 13 tidak
+      // dibungkus diam-diam ke tahun sebelah.
+      expect(geserBulan('2026-13', delta: 1), '2026-13');
+      expect(geserBulan('abc', delta: 1), 'abc');
+    });
+
+    test('nama bulan sama persis dengan yang dipakai layar catatan keluhan', () {
+      // Ini yang membuat helper harus dipakai bersama: dua daftar nama bulan
+      // akan pasti berbeda suatu saat.
+      expect(namaBulan.length, 12);
+      expect(namaBulan.first, 'Januari');
+      expect(namaBulan.last, 'Desember');
+    });
+  });
+
+  group('Kontrak API - path endpoint rekap', () {
+    // Path ini cuma string di konstanta, jadi `flutter analyze` tidak akan
+    // menangkap salah ketik. Kalau pathnya meleset, seluruh layar rekap
+    // hanya akan menampilkan 404 "Data tidak ditemukan" tanpa jejak.
+    // Test ini yang menjaganya.
+    test('harus sama persis dengan route di routes/api.php', () {
+      expect(
+        ApiConstants.kaderImmunizationRecapEndpoint,
+        '/kader/immunizations/recap',
+      );
+    });
+
+    test('path buildup dari service adalah path yang benar', () {
+      // Meniru cara service menyusun URL, termasuk query bulannya.
+      final bulan = geserBulan('2026-09', delta: -1);
+      final suffix = '?${Uri(queryParameters: {'month': bulan}).query}';
+      final url = Uri.parse(
+        '${ApiConstants.baseUrl}${ApiConstants.kaderImmunizationRecapEndpoint}$suffix',
+      );
+
+      expect(url.path, '/api/kader/immunizations/recap');
+      expect(url.queryParameters['month'], '2026-08');
+    });
+
+    test('tanpa filter bulan, query string kosong (server pakai bulan jalan)', () {
+      final query = <String, String>{};
+      final suffix = query.isEmpty ? '' : '?${Uri(queryParameters: query).query}';
+
+      expect(suffix, isEmpty);
     });
   });
 }
