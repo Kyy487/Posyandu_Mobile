@@ -9,6 +9,16 @@ class Child {
   final double? latestZScore;
   final String? nutritionalStatus;
 
+  /// Berat dan panjang lahir, dalam kg dan cm.
+  ///
+  /// Backend sudah mengirim keduanya di `GET /children` (tidak ada `$hidden`
+  /// di `App\Models\Child`), tapi mobile lama tidak membacanya - sehingga form
+  /// edit tidak pernah bisa menampilkan nilai yang sudah tersimpan. Nullable
+  /// karena kolomnya nullable, dan dikosongkan lewat form edit bila memang
+  /// tidak ada.
+  final double? birthWeight;
+  final double? birthHeight;
+
   /// Penanda kondisi khusus, mis. "alergi: penisilin" lalu "asma".
   ///
   /// Nullable dan ditambahkan belakangan (Opsi B) supaya `GET /children` yang
@@ -29,7 +39,52 @@ class Child {
     this.latestZScore,
     this.nutritionalStatus,
     this.medicalFlags,
+    this.birthWeight,
+    this.birthHeight,
   });
+
+  /// Penanda "field ini tidak disentuh" untuk [copyWith].
+  ///
+  /// Diperlukan karena `null` punya arti lain di model ini: pada tiga field
+  /// nullable, `null` berarti "kosongkan". Tanpa penanda, `copyWith(medicalFlags: null)`
+  /// akan diam-diam mempertahankan nilai lama dan penanda kondisi khusus tidak
+  /// pernah bisa dihapus dari form edit.
+  static const Object _tidakDiubah = Object();
+
+  /// Salinan dengan sebagian field diganti.
+  ///
+  /// Dipakai setelah form edit Kader berhasil disimpan, supaya header detail
+  /// anak langsung menampilkan nama/tanggal baru tanpa menunggu refresh dari
+  /// server. Field yang tidak disebut ikut apa adanya.
+  Child copyWith({
+    String? name,
+    String? dateOfBirth,
+    String? gender,
+    Object? birthWeight = _tidakDiubah,
+    Object? birthHeight = _tidakDiubah,
+    Object? medicalFlags = _tidakDiubah,
+  }) {
+    return Child(
+      id: id,
+      nik: nik,
+      name: name ?? this.name,
+      parentName: parentName,
+      dateOfBirth: dateOfBirth ?? this.dateOfBirth,
+      gender: gender ?? this.gender,
+      lastMeasurementDate: lastMeasurementDate,
+      latestZScore: latestZScore,
+      nutritionalStatus: nutritionalStatus,
+      medicalFlags: identical(medicalFlags, _tidakDiubah)
+          ? this.medicalFlags
+          : medicalFlags as String?,
+      birthWeight: identical(birthWeight, _tidakDiubah)
+          ? this.birthWeight
+          : birthWeight as double?,
+      birthHeight: identical(birthHeight, _tidakDiubah)
+          ? this.birthHeight
+          : birthHeight as double?,
+    );
+  }
 
   /// True bila anak sudah pernah ditimbang setidaknya sekali.
   bool get hasMeasurement => lastMeasurementDate != null;
@@ -103,6 +158,8 @@ class Child {
       latestZScore: _parseDouble(json['latest_z_score']),
       nutritionalStatus: _parseString(json['nutritional_status']),
       medicalFlags: _parseString(json['medical_flags']),
+      birthWeight: _parseDouble(json['birth_weight']),
+      birthHeight: _parseDouble(json['birth_height']),
     );
   }
 
@@ -133,6 +190,8 @@ class Child {
       'latest_z_score': latestZScore,
       'nutritional_status': nutritionalStatus,
       'medical_flags': medicalFlags,
+      'birth_weight': birthWeight,
+      'birth_height': birthHeight,
     };
   }
 }

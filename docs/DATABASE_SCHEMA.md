@@ -46,7 +46,8 @@ Menyimpan autentikasi Ibu dan Kader.
 ## 3. `measurements` (e-KMS / Riwayat Tumbuh Kembang)
 
 Migration `2026_09_27_020000_prepare_measurements_for_recap.php` menyiapkan
-tabel ini untuk rekap bulanan (Opsi E).
+tabel ini untuk rekap bulanan (Opsi E). Opsi D (grafik tumbuh kembang) hanya
+membaca tabel ini dan tidak menambah kolom.
 
 * `id` (UUID, PK)
 * `child_id` (UUID, FK -> children.id, **cascade delete**)
@@ -79,15 +80,28 @@ Tabel acuan perhitungan Z-Score berat badan menurut umur. Dihasilkan oleh migrat
 `2026_09_26_010000_create_who_wfa_standards_and_fix_zscore_trigger.php`.
 * `id` (UUID, PK)
 * `age_in_months` (Int) — 0 sampai 60
-* `gender` (Enum: 'L', 'P')
-* `median_weight_kg` (Decimal), `sd_weight_kg` (Decimal)
+* `gender` (Char(1): 'L', 'P')
+* `median_kg` (Decimal), `sd_kg` (Decimal)
 * Unique `(age_in_months, gender)` — 122 baris (61 usia × 2 jenis kelamin)
+
+Tabel ini **satu-satunya** acuan WHO di database. Belum ada acuan TB/U
+(`who_hfa_standards`), jadi `measurements.z_score_hfa` dan status stunting
+tidak ada. Lihat `RANCANGAN_GRAFIK_TUMBUH_KEMBANG.md` bagian 5.1.
+
+Opsi D (grafik tumbuh kembang) membaca tabel ini untuk pita ±2 SD, dan **tidak
+mengubah apa pun**: tidak ada tabel baru, tidak ada kolom baru, dan trigger
+`trg_measurements_who_zscore` tetap sama. `lower_kg` dan `upper_kg` diturunkan
+dari `median_kg` dan `sd_kg` di SQL saat query, bukan disimpan sebagai kolom.
+Jadi `GET /children/{id}/growth` tidak menambah migration apa pun.
 
 ## 5. `immunization_records`
 * `id` (UUID, PK)
 * `child_id` (UUID, FK -> children.id)
-* `kader_id` (UUID, FK -> users.id)
-* `vaccine_name` (String), `date_given` (Date)
+* `immunization_type_id` (UUID, FK -> immunization_types.id, ON DELETE SET NULL)
+* `kader_id` (UUID, FK -> users.id, ON DELETE SET NULL, nullable)
+* `date_given` (Date)
+* `batch_number` (String, nullable), `notes` (Text, nullable)
+* `deleted_at` + partial unique `(child_id, immunization_type_id)`
 
 ## 5.1 `medical_notes` (Catatan Keluhan Kader — Opsi C)
 

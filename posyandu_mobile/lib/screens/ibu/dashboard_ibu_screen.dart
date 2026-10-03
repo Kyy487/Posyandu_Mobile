@@ -3,8 +3,10 @@ import 'package:flutter/material.dart';
 import '../../models/child.dart';
 import '../../services/auth_service.dart';
 import '../../services/child_service.dart';
+import '../../utils/status_gizi.dart';
 import '../login_screen.dart';
 import 'catatan_keluhan_screen.dart';
+import 'grafik_tumbuh_screen.dart';
 import 'jadwal_posyandu_screen.dart';
 import 'status_imunisasi_screen.dart';
 import 'tambah_anak_dialog.dart';
@@ -344,7 +346,7 @@ class _DashboardIbuScreenState extends State<DashboardIbuScreen> {
                 Icons.auto_graph,
                 'Grafik\nTumbuh',
                 Colors.blue,
-                () => _info('Grafik pertumbuhan $nama'),
+                _bukaGrafikTumbuh,
               ),
               _buildMenuButton(
                 Icons.play_circle_fill,
@@ -362,6 +364,25 @@ class _DashboardIbuScreenState extends State<DashboardIbuScreen> {
           ),
         ),
       ],
+    );
+  }
+
+  /// Membuka grafik tumbuh kembang anak yang sedang dipilih.
+  ///
+  /// `null` di sini berarti pengguna belum memilih anak, jadi layar tidak bisa
+  /// dibuka. Dua navigasi lain di file ini (_bukaStatusImunisasi dan
+  /// _bukaCatatanKeluhan) sudah punya penjaga yang sama; tombol grafik tidak
+  /// boleh menjadi satu-satunya yang melempar crash.
+  void _bukaGrafikTumbuh() {
+    final anak = _anakAktif;
+    if (anak == null) return;
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) =>
+            GrafikTumbuhScreen(childId: anak.id, childName: anak.name),
+      ),
     );
   }
 
@@ -572,7 +593,8 @@ class _DashboardIbuScreenState extends State<DashboardIbuScreen> {
     final z = anak.latestZScore;
     final status = anak.nutritionLabel;
 
-    final (Color warna, IconData ikon) = _warnaStatus(status);
+    final ({Color warna, IconData ikon}) gizi = warnaStatusGizi(status);
+    final Color warna = gizi.warna;
 
     return Container(
       width: double.infinity,
@@ -661,22 +683,6 @@ class _DashboardIbuScreenState extends State<DashboardIbuScreen> {
         ],
       ),
     );
-  }
-
-  /// Warna + ikon sesuai klasifikasi status gizi dari trigger WHO.
-  (Color, IconData) _warnaStatus(String? status) {
-    if (status == null) return (Colors.grey, Icons.help_outline);
-
-    if (status.contains('Buruk') || status.contains('Stunting')) {
-      return (Colors.red, Icons.warning_amber);
-    }
-    if (status.contains('Kurang') || status.contains('Risiko')) {
-      return (Colors.orange, Icons.info_outline);
-    }
-    if (status.contains('Lebih')) {
-      return (Colors.deepOrange, Icons.trending_up);
-    }
-    return (Colors.green, Icons.check_circle_outline);
   }
 
   // -----------------------------------------------------------------

@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:posyandu_mobile/models/child.dart';
 import 'package:posyandu_mobile/models/child_timeline.dart';
+import 'package:posyandu_mobile/models/growth_chart.dart';
 import 'package:posyandu_mobile/models/immunization.dart';
 import 'package:posyandu_mobile/models/immunization_recap.dart';
 import 'package:posyandu_mobile/models/measurement_model.dart';
@@ -1676,6 +1677,336 @@ void main() {
       });
 
       expect(child.toJson()['medical_flags'], 'alergi: penisilin');
+    });
+  });
+
+  group('Kontrak API - GET /api/children/{id}/growth', () {
+    // Respons asli dari GrowthChartService (Opsi D). Bentuk `child`, `series`,
+    // dan `who_reference` ini yang dibaca GrowthChart.fromJson, jadi JSON di
+    // bawah disalin dari `docs/RANCANGAN_GRAFIK_TUMBUH_KEMBANG.md` bagian 7.2
+    // - bukan dikarang di sini.
+    const rawGrowth = '''
+    {
+      "success": true,
+      "message": "Data pertumbuhan anak berhasil diambil.",
+      "data": {
+        "child": {
+          "id": "01a0d979-c11f-705b-8dd8-a245652c7aa4",
+          "name": "Siti",
+          "nik": "3273010123456789",
+          "gender": "P",
+          "date_of_birth": "2024-03-12",
+          "age_in_months": 30,
+          "medical_flags": null
+        },
+        "series": {
+          "unit": { "weight": "kg", "height": "cm" },
+          "order": "asc",
+          "points": [
+            {
+              "date": "2026-03-12",
+              "age_in_months": 24,
+              "weight_kg": 11.2,
+              "height_cm": 85.0,
+              "head_circumference_cm": 46.5,
+              "z_score_wfa": -0.32,
+              "status_gizi": "Normal"
+            },
+            {
+              "date": "2026-09-24",
+              "age_in_months": 30,
+              "weight_kg": 12.4,
+              "height_cm": 88.0,
+              "head_circumference_cm": 47.5,
+              "z_score_wfa": 0.21,
+              "status_gizi": "Normal"
+            }
+          ]
+        },
+        "who_reference": {
+          "metric": "weight_for_age",
+          "source": "WHO Child Growth Standards 2006",
+          "gender": "P",
+          "age_range": { "from": 0, "to": 60 },
+          "points": [
+            { "age_in_months": 24, "median_kg": 12.2, "lower_kg": 10.1, "upper_kg": 14.5 },
+            { "age_in_months": 30, "median_kg": 13.3, "lower_kg": 11.2, "upper_kg": 15.7 }
+          ]
+        }
+      }
+    }
+    ''';
+
+    late GrowthChart chart;
+
+    setUp(() {
+      final body = json.decode(rawGrowth) as Map<String, dynamic>;
+      chart = GrowthChart.fromJson(
+        Map<String, dynamic>.from(body['data'] as Map),
+      );
+    });
+
+    test('child terbaca lengkap, medical_flags null tetap null', () {
+      expect(chart.child.id, '01a0d979-c11f-705b-8dd8-a245652c7aa4');
+      expect(chart.child.name, 'Siti');
+      expect(chart.child.nik, '3273010123456789');
+      expect(chart.child.gender, 'P');
+      expect(chart.child.dateOfBirth, '2024-03-12');
+      expect(chart.child.ageInMonths, 30);
+      expect(chart.child.medicalFlags, isNull);
+      expect(chart.child.punyaKondisiKhusus, isFalse);
+    });
+
+    test('age_in_months dibaca dari server, bukan dihitung ulang', () {
+      // 2026-09-24 dikurangi 2024-03-12 memang 30 bulan, tapi tujuannya
+      // checked: kalau parser memakai DateTime, test ini akan gagal begitu
+      // tanggal lahir atau tanggal ukur diubah.
+      expect(chart.child.labelUmur, '2 Tahun 6 Bulan');
+      expect(chart.series.points.first.ageInMonths, 24);
+      expect(chart.series.points.last.ageInMonths, 30);
+    });
+
+    test('unit dan order dibaca apa adanya dari server', () {
+      expect(chart.series.weightUnit, 'kg');
+      expect(chart.series.heightUnit, 'cm');
+      expect(chart.series.order, 'asc');
+    });
+
+    test('points tidak diurutkan ulang oleh klien', () {
+      final tanggal = chart.series.points.map((p) => p.date).toList();
+
+      expect(tanggal, ['2026-03-12', '2026-09-24']);
+      expect(chart.series.points.first.weightKg, 11.2);
+      expect(chart.series.points.last.weightKg, 12.4);
+    });
+
+    test('angka terimpan sebagai double, bukan teks', () {
+      final titik = chart.series.points.first;
+
+      expect(titik.weightKg, isA<double>());
+      expect(titik.heightCm, isA<double>());
+      expect(titik.headCircumferenceCm, isA<double>());
+      expect(titik.zScoreWfa, isA<double>());
+    });
+
+    test('desimal dari PostgreSQL dibaca meski dikirim sebagai string', () {
+      // PostgreSQL mengirim DECIMAL sebagai string, jadi ini bukan kasus yang
+      // mustahil: tanpa konversi eksplisit, semua angka jadi teks dan garis
+      // grafik tidak bisa digambar.
+      final growth = GrowthPoint.fromJson({
+        'date': '2026-09-24',
+        'age_in_months': 30,
+        'weight_kg': '12.40',
+        'height_cm': '88.00',
+        'z_score_wfa': '0.21',
+      });
+
+      expect(growth.weightKg, 12.4);
+      expect(growth.heightCm, 88.0);
+      expect(growth.zScoreWfa, 0.21);
+    });
+
+    test('z-score dan status gizi dibaca apa adanya, tidak dihitung ulang', () {
+      final titik = chart.series.points.last;
+
+      expect(titik.zScoreWfa, 0.21);
+      expect(titik.statusGizi, 'Normal');
+      expect(chart.series.titikStatusTerakhir?.date, '2026-09-24');
+      expect(chart.series.titikStatusTerakhir?.zScoreWfa, 0.21);
+    });
+
+    test('who_reference dibaca sesuai gender anak', () {
+      expect(chart.whoReference.metric, 'weight_for_age');
+      expect(chart.whoReference.source, 'WHO Child Growth Standards 2006');
+      expect(chart.whoReference.gender, 'P');
+      expect(chart.whoReference.ageFrom, 0);
+      expect(chart.whoReference.ageTo, 60);
+      expect(chart.whoReference.kosong, isFalse);
+      expect(chart.tanpaPita, isFalse);
+    });
+
+    test('titik pita punya median dan batas atas-bawah', () {
+      final pita = chart.whoReference.points;
+
+      expect(pita.length, 2);
+      expect(pita.first.ageInMonths, 24);
+      expect(pita.first.medianKg, 12.2);
+      expect(pita.first.lowerKg, 10.1);
+      expect(pita.first.upperKg, 14.5);
+      expect(pita.last.upperKg, 15.7);
+    });
+
+    test('anak tanpa penimbangan: points kosong, pita tetap ada', () {
+      // Ini kasus yang paling sering salah dikira error. Pita tidak bergantung
+      // pada riwayat penimbangan, jadi layar harus bisa menggambar arah tumbuh
+      // anak sebelum kunjungan pertama.
+      final growth = GrowthChart.fromJson({
+        'child': {
+          'id': 'abc',
+          'name': 'Budi',
+          'gender': 'L',
+          'date_of_birth': '2026-01-10',
+          'age_in_months': null,
+          'medical_flags': null,
+        },
+        'series': {
+          'unit': {'weight': 'kg', 'height': 'cm'},
+          'order': 'asc',
+          'points': <dynamic>[],
+        },
+        'who_reference': {
+          'metric': 'weight_for_age',
+          'source': 'WHO Child Growth Standards 2006',
+          'gender': 'L',
+          'age_range': {'from': 0, 'to': 60},
+          'points': [
+            {
+              'age_in_months': 0,
+              'median_kg': 3.3,
+              'lower_kg': 2.5,
+              'upper_kg': 4.4,
+            },
+          ],
+        },
+      });
+
+      expect(growth.tanpaData, isTrue);
+      expect(growth.series.points, isEmpty);
+      expect(growth.tanpaPita, isFalse);
+      expect(growth.whoReference.points.length, 1);
+
+      // Umur null berarti "-", bukan "0 Bulan": tidak ada penimbangan berarti
+      // tidak ada hasil yang bisa ditampilkan.
+      expect(growth.child.labelUmur, '-');
+      expect(growth.child.umurTahun, isNull);
+    });
+
+    test('tanpa pita WHO: grafik tetap punya garis anak', () {
+      // Tidak boleh ada interpolasi dari dua titik mana pun. Pita yang dikarang
+      // terlihat meyakinkan tapi tidak benar.
+      final growth = GrowthChart.fromJson({
+        'child': {'id': 'abc', 'name': 'Budi', 'gender': null},
+        'series': {
+          'unit': {'weight': 'kg', 'height': 'cm'},
+          'order': 'asc',
+          'points': [
+            {'date': '2026-09-24', 'age_in_months': 30, 'weight_kg': 12.4},
+          ],
+        },
+        'who_reference': {
+          'metric': 'weight_for_age',
+          'source': 'WHO Child Growth Standards 2006',
+          'gender': null,
+          'age_range': null,
+          'points': <dynamic>[],
+        },
+      });
+
+      expect(growth.tanpaPita, isTrue);
+      expect(growth.whoReference.kosong, isTrue);
+      expect(growth.whoReference.rentangTahun, isNull);
+      expect(growth.tanpaData, isFalse);
+      expect(growth.series.points.single.weightKg, 12.4);
+    });
+
+    test('nil tidak pernah jadi nol: semua field angka nullable', () {
+      final growth = GrowthPoint.fromJson({
+        'date': '2026-09-24',
+        'age_in_months': null,
+        'weight_kg': null,
+        'height_cm': null,
+        'z_score_wfa': null,
+        'status_gizi': null,
+      });
+
+      expect(growth.weightKg, isNull);
+      expect(growth.heightCm, isNull);
+      expect(growth.zScoreWfa, isNull);
+      expect(growth.umurTahun, isNull);
+
+      // Tanpa umur, titik tidak bisa diposisikan di sumbu x.
+      expect(growth.bisaDigambar, isFalse);
+      expect(growth.bisaDigambarTinggi, isFalse);
+    });
+
+    test('anak di atas 60 bulan tetap dapat titik dengan z_score null', () {
+      // Trigger tidak punya acuan di atas 60 bulan, jadi z-score-nya null.
+      // Itu harus tetap tampil sebagai titik, bukan hilang dari grafik.
+      final growth = GrowthPoint.fromJson({
+        'date': '2026-09-24',
+        'age_in_months': 72,
+        'weight_kg': 15.8,
+        'height_cm': 100.0,
+        'z_score_wfa': null,
+        'status_gizi': null,
+      });
+
+      expect(growth.umurTahun, 6.0);
+      expect(growth.bisaDigambar, isTrue);
+      expect(growth.bisaDigambarTinggi, isTrue);
+      expect(growth.zScoreWfa, isNull);
+    });
+
+    test('ringkasan status memakai titik terakhir yang punya z-score', () {
+      // Titik terakhirnya boleh tanpa z-score (misalnya di atas 60 bulan),
+      // tapi titik sebelumnya masih punya. Menampilkan "null" padahal masih
+      // ada data akan membuat Ibu mengira status terakhirnya hilang.
+      const series = GrowthSeries(
+        points: [
+          GrowthPoint(
+            date: '2026-06-12',
+            ageInMonths: 27,
+            weightKg: 12.0,
+            zScoreWfa: -0.1,
+            statusGizi: 'Normal',
+          ),
+          GrowthPoint(date: '2026-09-24', ageInMonths: 30, weightKg: 12.4),
+        ],
+      );
+
+      expect(series.titikStatusTerakhir?.date, '2026-06-12');
+      expect(series.titikStatusTerakhir?.zScoreWfa, -0.1);
+      expect(series.umurTahunTerakhir, 2.5);
+    });
+
+    test('field hilang atau null tidak membuat parser crash', () {
+      final growth = GrowthChart.fromJson(const <String, dynamic>{});
+
+      expect(growth.child.name, '');
+      expect(growth.series.points, isEmpty);
+      expect(growth.whoReference.points, isEmpty);
+      expect(growth.tanpaData, isTrue);
+      expect(growth.tanpaPita, isTrue);
+    });
+
+    test('field pita yang hilang tidak diam-diam jadi 0', () {
+      // Band median 0 akan menarik sumbu y dan membuat pita terlihat benar
+      // padahal salah, jadi default-nya -1 supaya langsung terlihat rusak.
+      final pita = WhoReferencePoint.fromJson({'age_in_months': 30});
+
+      expect(pita.medianKg, -1);
+      expect(pita.lowerKg, -1);
+      expect(pita.upperKg, -1);
+    });
+
+    test('path endpoint growth benar dan tanpa query string', () {
+      expect(ApiConstants.childGrowthEndpoint, '/growth');
+
+      final url = Uri.parse(
+        '${ApiConstants.baseUrl}${ApiConstants.childrenEndpoint}'
+        '/01a0d979-c11f-705b-8dd8-a245652c7aa4'
+        '${ApiConstants.childGrowthEndpoint}',
+      );
+
+      expect(
+        url.path,
+        '/api/children/01a0d979-c11f-705b-8dd8-a245652c7aa4/growth',
+      );
+
+      // Server sengaja tidak punya paginasi, jadi klien juga tidak menambah
+      // query string. Kalau `?limit=` pernah muncul di sini, layar bisa
+      // menampilkan garis yang terpotong di tengah tanpa terlihat salah.
+      expect(url.query, isEmpty);
     });
   });
 }

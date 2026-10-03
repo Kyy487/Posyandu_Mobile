@@ -62,6 +62,20 @@ class ApiConstants {
   // di `flutter analyze`.
   static const String childTimelineEndpoint = '/timeline';
 
+  // Grafik tumbuh kembang (Opsi D).
+  //
+  // Seluruh riwayat penimbangan satu anak, urut naik, plus pita acuan WHO
+  // BB/U. Path BACA sama seperti timeline: Ibu berhak melihat grafik
+  // anaknya sendiri, jadi tidak ada prefix `/kader/` di sini.
+  //   baca : {childrenEndpoint}/{id}{childGrowthEndpoint}
+  //
+  // Endpoint ini sengaja tidak punya query string apa pun - tidak ada `limit`,
+  // `before`, `from`, maupun `to`, dan tidak ada `meta`. Mobile tidak boleh
+  // menambahkannya sendiri: paginasi di sini akan memotong garis grafik di
+  // tengah, dan grafik yang terpotong lebih menyesatkan daripada grafik penuh
+  // yang sedikit padat.
+  static const String childGrowthEndpoint = '/growth';
+
   // Daftar petugas. NIK tidak pernah ikut respons.
   static const String petugasEndpoint = '/petugas';
 }

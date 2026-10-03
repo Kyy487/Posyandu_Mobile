@@ -2,8 +2,8 @@
 
 **Tanggal:** 28 September 2026
 **Spesifikasi final:** 29 September 2026
-**Status implementasi:** Fase 0 + Fase 1 (backend) selesai 29 September 2026;
-mobile belum dikerjakan
+**Status implementasi:** Fase 0 + Fase 1 (backend) + Fase 2 (mobile)
+selesai 29 September 2026
 **Acuan:** `RANCANGAN.md` bagian 3.1 A, `RENCANA_SELANJUTNYA.md` Opsi B
 **Estado repo saat ditulis:** 6 commit di depan `origin/main` (push tertunda -
 environment tidak punya kredensial GitHub)
@@ -496,4 +496,4 @@ bagian ini, bukan disimpan di commit atau komentar kode.
 | 29 Sep 2026 | Spesifikasi dikunci: keputusan 1 = kolom `children.medical_flags`, keputusan 2 = timeline per kunjungan. Tiga pertanyaan di bagian 12 ditutup. Tujuh aturan di 7.3 dipetakan ke nama test. Inventaris kompatibilitas ditulis di 7.5. Aturan agent dibuat di `posyandu-backend/.ai/rules/`. Belum ada kode fitur yang ditulis. |
 | 29 Sep 2026 | Fase 1 backend selesai. Migration `medical_flags`, `ChildTimelineService` (4 query), `GET /children/{id}/timeline`, validasi kader-saja untuk `medical_flags`, dan `ChildTimelineTest` 21 test. Semua aturan 1-7 terbukti hijau; 96 test total. Dokumentasi di `API_CONTRACT.md`, `DATABASE_SCHEMA.md`, `LAPORAN_BUKU_MEDIS.md`. Mobile belum disentuh. |
 | 29 Sep 2026 | Fase 2 mobile selesai. Model `child_timeline.dart`, service `child_timeline_service.dart`, `medicalFlags` di `Child`, konstanta `childTimelineEndpoint`, integrasi `detail_anak_screen.dart` (badge kondisi khusus + section Buku Medis + pagination + refresh gabungan). 105 test hijau, `flutter analyze` bersih, `dart format` 39 file. |
-| 29 Sep 2026 | Fase 2 mobile selesai. Model `child_timeline.dart`, service `child_timeline_service.dart`, `medicalFlags` di `Child`, konstanta `childTimelineEndpoint`, integrasi `detail_anak_screen.dart` (badge kondisi khusus + section Buku Medis + pagination + refresh gabungan). 105 test hijau, `flutter analyze` bersih, `dart format` 39 file. |
+| 1 Okt 2026 | Judul dan baris status yang masih menyebut "mobile belum dikerjakan" dikoreksi menjadi selesai. `RENCANA_SELANJUTNYA.md` diperbarui: Opsi B ditandai selesai dan Opsi D (grafik tumbuh kembang) masuk sebagai kandidat berikutnya, rancangannya di `RANCANGAN_GRAFIK_TUMBUH_KEMBANG.md`. |

@@ -1,56 +1,84 @@
-# Smart Posyandu - Backend API
+# Smart Posyandu
 
-Sistem Informasi Manajemen Terpadu untuk mendigitalisasi proses pencatatan kesehatan ibu dan anak (KIA). API ini melayani aplikasi mobile Flutter dan berinteraksi dengan microservice AI (Python) untuk deteksi nutrisi.
+Sistem Informasi Manajemen Terpadu untuk mendigitalisasi pencatatan kesehatan ibu dan anak (KIA) di posyandu. Terdiri dari **backend API (Laravel)** dan **aplikasi mobile (Flutter)**, dengan kalkulasi status gizi otomatis berdasarkan standar WHO.
 
-## 👨‍💻 Author
-* **Moch Riezky Dwi Kuswanto** 
+## Author
+
+* **Moch Riezky Dwi Kuswanto**
 * Institut Teknologi Nasional (Itenas) - Informatika (NRP: 152024133)
 
-## 🛠 Tech Stack
-* **Framework:** Laravel 13 (REST API)
-* **Database:** PostgreSQL (Lokal menggunakan Laragon/HeidiSQL)
-* **Authentication:** Laravel Sanctum (Token-based)
-* **Mobile Client:** Flutter
-* **Spatial Data:** PostGIS (direncanakan)
+## Tech Stack
 
-## ⚙️ Persyaratan Sistem
-* PHP 8.4+
-* Composer
-* PostgreSQL (Ekstensi `pdo_pgsql` dan `pgsql` wajib aktif di `php.ini`)
+| Layer | Teknologi |
+|---|---|
+| Backend | Laravel 13 (REST API), PHP 8.4 |
+| Database | PostgreSQL (trigger z-score WHO) |
+| Auth | Laravel Sanctum (token-based) |
+| Mobile | Flutter (Dart) |
+| AI (direncanakan) | Python microservice - deteksi nutrisi |
 
-## 🚀 Cara Setup Lokal
-1. `git clone [repository_url]`
-2. `composer install`
-3. Salin `.env.example` ke `.env` dan atur konfigurasi database PostgreSQL.
-4. `php artisan key:generate`
-5. `php artisan migrate`
-6. `php artisan serve`
+## Struktur Proyek
 
-## 📂 Struktur Dokumentasi
+```
+posyandu/
+├── posyandu-backend/     # API Laravel + migrasi + test (PHPUnit)
+├── posyandu_mobile/      # Aplikasi Flutter + test (flutter_test)
+├── docs/                 # Dokumentasi, kontrak API, rancangan, laporan
+├── uji-api.ps1           # Skrip uji API end-to-end
+└── periksa-teks.ps1      # Pemeriksaan konsistensi teks
+```
 
-**Panduan**
-* `AI_AGENT_RULES.md` - Aturan ketat untuk AI Code Assistant (Cursor/Copilot).
-* `SETUP_LOG.md` - Riwayat konfigurasi dan fitur yang sudah selesai.
-* `Cara_menjalankan.md` - Cara menjalankan backend, test, dan skrip pemeriksaan.
-* `PROJECT_OVERVIEW.md` - Gambaran umum proyek dan pembagian kerja.
+## Fitur
 
-**Kontrak**
-* `API_CONTRACT.md` - Dokumentasi Endpoint API.
-* `DATABASE_SCHEMA.md` - Penjelasan ERD dan relasi tabel.
+| Fitur | Status |
+|---|---|
+| CRUD Data Anak | Selesai |
+| e-KMS & Z-Score WHO (otomatis via trigger DB) | Selesai |
+| Imunisasi & Jadwal Posyandu | Selesai |
+| Buku Medis Digital (timeline medis) | Selesai |
+| Catatan Keluhan Kader | Selesai |
+| Grafik Tumbuh Kembang | Selesai |
+| Edit data anak oleh Kader | Selesai |
+| AI Food Scanner (microservice) | Belum dimulai |
+| Pemetaan Spasial (PostGIS) | Belum dimulai |
 
-**Perencanaan**
-* `RANCANGAN.md` - Rancangan awal seluruh modul (A sampai J).
-* `RENCANA_SELANJUTNYA.md` - Opsi pekerjaan berikutnya beserta statusnya.
-* `RANCANGAN_BUKU_MEDIS.md` - Spesifikasi normatif Buku Medis Digital (Opsi B).
+## Menjalankan Backend
 
-**Laporan implementasi**
-* `LAPORAN_ZSCORE_TRIGGER.md` - Z-Score WHO Weight-for-Age (backend + mobile).
-* `LAPORAN_IMUNISASI_JADWAL.md` - Imunisasi & Jadwal Posyandu (backend + mobile).
-* `LAPORAN_MEDICAL_NOTES.md` - Catatan Keluhan Kader, Opsi C.
-* `LAPORAN_BUKU_MEDIS.md` - Buku Medis Digital (Opsi B), fase 1 backend + fase 2 mobile.
-* `LAPORAN_REKAP_IMUNISASI_BULANAN.md` - Rekap bulanan, Opsi E.
-* `LAPORAN_REKAP_CSV.md` - Export CSV rekap, Opsi E.
+```bash
+cd posyandu-backend
+composer install
+cp .env.example .env        # atur koneksi PostgreSQL
+php artisan key:generate
+php artisan migrate
+php artisan serve
+```
 
-**Aturan untuk agent di dalam repo**
-* `posyandu-backend/.ai/rules/` - `kontrak-timeline.md`, `yang-jangan-diubah.md`,
-  `pengujian.md`. Dibaca otomatis lewat `posyandu-backend/AGENTS.md`.
+**Test backend** (butuh PostgreSQL `posyandu_test`):
+
+```bash
+php artisan test
+```
+
+## Menjalankan Mobile
+
+```bash
+cd posyandu_mobile
+flutter pub get
+flutter run
+```
+
+**Test mobile:**
+
+```bash
+flutter test
+```
+
+## Dokumentasi
+
+| Kategori | File |
+|---|---|
+| Panduan | `AI_AGENT_RULES.md`, `Cara_menjalankan.md`, `SETUP_LOG.md`, `PROJECT_OVERVIEW.md` |
+| Kontrak | `API_CONTRACT.md`, `DATABASE_SCHEMA.md` |
+| Perencanaan | `RANCANGAN.md`, `RENCANA_SELANJUTNYA.md`, `RANCANGAN_BUKU_MEDIS.md`, `RANCANGAN_GRAFIK_TUMBUH_KEMBANG.md` |
+| Laporan | `LAPORAN_ZSCORE_TRIGGER.md`, `LAPORAN_IMUNISASI_JADWAL.md`, `LAPORAN_MEDICAL_NOTES.md`, `LAPORAN_BUKU_MEDIS.md`, `LAPORAN_GRAFIK_TUMBUH_KEMBANG.md`, `LAPORAN_REKAP_IMUNISASI_BULANAN.md`, `LAPORAN_REKAP_CSV.md` |
+| Aturan agent | `posyandu-backend/.ai/rules/` (dibaca otomatis lewat `AGENTS.md`) |

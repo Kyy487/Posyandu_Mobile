@@ -80,6 +80,7 @@ Header Wajib: `Authorization: Bearer {token}` & `Accept: application/json`
 | `GET` | `/children/{id}`| Detail anak, pengukuran, imunisasi | Ibu / Kader |
 | `PUT`/`PATCH` | `/children/{id}` | **[Ubah data anak](#mengubah-data-anak)** | Ibu / Kader |
 | `GET` | `/children/{id}/timeline` | **[Riwayat medis gabungan](#riwayat-medis-anak-timeline)** - per tanggal kunjungan | Ibu (anaknya) / Kader |
+| `GET` | `/children/{id}/growth` | **[Grafik tumbuh kembang](#grafik-tumbuh-kembang-growth)** - deret penimbangan + pita WHO BB/U | Ibu (anaknya) / Kader |
 | `DELETE` | `/children/{id}` | **[Hapus data anak (soft delete)](#menghapus-data-anak-soft-delete)** | **Kader saja** |
 
 ### Kader (POSYANDU)
@@ -387,6 +388,119 @@ Aturan mobile:
 | `403` | Ibu membuka anak orang | `Akses ditolak. Anda tidak berhak melihat data anak ini.` |
 | `422` | `limit` di luar 1-200 atau bukan integer | `Validasi gagal.` + `errors` per-field |
 | `422` | `before` bukan `Y-m-d` | `Validasi gagal.` + `errors.before` |
+
+## Grafik Tumbuh Kembang (Growth)
+
+`GET /children/{id}/growth` — Ibu (anaknya sendiri) + Kader.
+
+Deret waktu pertumbuhan satu anak untuk digambar sebagai grafik: seluruh riwayat
+penimbangan urut naik, ditambah pita acuan WHO BB/U. Bentuk dan batasannya
+dikunci di `docs/RANCANGAN_GRAFIK_TUMBUH_KEMBANG.md` bagian 7.2 dan 7.3.
+
+**Tidak ada parameter apa pun.** Tidak ada `limit`, `before`, `from`, maupun `to`,
+dan tidak ada `meta`. Endpoint ini sengaja tidak dipaginasi: partial unique index
+`measurements_child_date_unique` membatasi satu baris per tanggal, jadi anak
+0-60 bulan paling banyak 61 titik. Query string yang dikirim diabaikan, bukan
+error.
+
+Respons `200`:
+
+```json
+{
+  "success": true,
+  "message": "Data pertumbuhan anak berhasil diambil.",
+  "data": {
+    "child": {
+      "id": "uuid",
+      "name": "Siti",
+      "nik": "3273...",
+      "gender": "P",
+      "date_of_birth": "2024-03-12",
+      "age_in_months": 30,
+      "medical_flags": null
+    },
+    "series": {
+      "unit": { "weight": "kg", "height": "cm" },
+      "order": "asc",
+      "points": [
+        {
+          "date": "2026-09-24",
+          "age_in_months": 30,
+          "weight_kg": 12.4,
+          "height_cm": 88.0,
+          "head_circumference_cm": 47.5,
+          "z_score_wfa": 0.21,
+          "status_gizi": "Normal"
+        }
+      ]
+    },
+    "who_reference": {
+      "metric": "weight_for_age",
+      "source": "WHO Child Growth Standards 2006",
+      "gender": "P",
+      "age_range": { "from": 0, "to": 60 },
+      "points": [
+        { "age_in_months": 30, "median_kg": 13.3, "lower_kg": 11.2, "upper_kg": 15.7 }
+      ]
+    }
+  }
+}
+```
+
+`data` berisi tepat tiga kunci: `child`, `series`, `who_reference`.
+
+Nilai yang tidak dihitung ulang di server: `age_in_months`, `z_score_wfa`, dan
+`status_gizi` dibaca apa adanya dari database karena dihitung trigger
+PostgreSQL. `child.age_in_months` adalah umur **pada penimbangan terakhir**,
+bukan umur hari ini, dan `null` kalau anak belum pernah ditimbang — sama dengan
+`TimelineChild.ageInMonths`.
+
+`z_score_wfa` dan `status_gizi` boleh `null`. Itu berbeda dari "gizi baik": anak
+di luar rentang WHO 0-60 bulan sengaja dibiarkan kosong oleh trigger, bukan
+dipaksa jadi `Normal`.
+
+`who_reference` **hanya untuk BB/U** (`metric: "weight_for_age"`). Tidak ada pita
+TB/U di respons ini karena database tidak punya acuan tinggi badan; `height_cm`
+tetap dikirim sebagai nilai mentah di `points[]`. `who_reference` juga selalu
+dikirim, termasuk ketika `points` kosong, karena pita tidak bergantung pada
+riwayat penimbangan.
+
+Jumlah query tetap dua dan tidak bergantung pada jumlah titik: satu untuk titik
+penimbangan, satu untuk pita WHO.
+
+### Konsumsi mobile
+
+Mobile membaca endpoint ini lewat `GrowthChartService` di
+`posyandu_mobile/lib/services/growth_chart_service.dart`. Model parsing ada di
+`posyandu_mobile/lib/models/growth_chart.dart`. Widget chart ada di
+`posyandu_mobile/lib/widgets/growth_line_chart.dart`.
+
+Layarnya ada dua, tapi keduanya pembungkus tipis atas satu view yang sama di
+`posyandu_mobile/lib/widgets/growth_chart_view.dart` - dibedakan palet warna
+saja, bukan cabang logika:
+
+| Layar | Pemanggil | Palet |
+| :--- | :--- | :--- |
+| `screens/ibu/grafik_tumbuh_screen.dart` | `dashboard_ibu_screen.dart` | pink |
+| `screens/kader/grafik_tumbuh_screen.dart` | `detail_anak_screen.dart` (ikon di `AppBar`) | biru `Colors.blue[800]` |
+
+Jadi menambah role ketiga cukup menambah satu palet dan satu pembungkus, bukan
+menyalin logika grafik. Endpoint, payload, dan hak akses tidak berubah sama
+sekali.
+
+Aturan mobile:
+- Titik tidak diurutkan ulang di klien; `series.order` sudah `"asc"`.
+- Tidak ada parsing ulang umur atau z-score; angka server dipakai apa adanya.
+- Tombol dashboard punya penjaga `_anakAktif == null` yang sama dengan navigasi
+  lain di file itu, jadi tidak pernah membuka layar tanpa `childId`.
+
+### Kode error
+
+| HTTP | Kondisi | `message` |
+| :--- | :--- | :--- |
+| `404` | id bukan UUID / anak tidak ada / sudah di-soft delete | `Data balita tidak ditemukan.` |
+| `403` | Ibu membuka anak orang | `Akses ditolak. Anda tidak berhak melihat data anak ini.` |
+| `200` | anak ada tapi belum pernah ditimbang | `Data pertumbuhan anak berhasil diambil.` dengan `points: []` |
 
 ## Menghapus Data Anak (Soft Delete)
 

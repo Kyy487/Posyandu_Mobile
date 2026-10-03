@@ -77,6 +77,17 @@ Route::middleware('auth:sanctum')->group(function () {
         // dikunci di docs/RANCANGAN_BUKU_MEDIS.md bagian 7.2 dan 7.3.
         Route::get('/children/{id}/timeline', [ChildController::class, 'timeline']);
 
+        // Deret waktu pertumbuhan untuk grafik: seluruh riwayat penimbangan
+        // satu anak, urut naik, plus pita acuan WHO BB/U.
+        //
+        // Didaftarkan di group ini juga, bukan di prefix `/kader/`, supaya Ibu
+        // bisa menggrafik anaknya sendiri tanpa endpoint terpisah. Aksesnya
+        // persis sama dengan `GET /children/{id}` dan `/timeline` di atas.
+        //
+        // Bentuk respons dikunci di docs/RANCANGAN_GRAFIK_TUMBUH_KEMBANG.md
+        // bagian 7.2 dan 7.3, dan sengaja tanpa query string apa pun.
+        Route::get('/children/{id}/growth', [ChildController::class, 'growth']);
+
         // -----------------------------------------------------------------
         // AREA IMUNISASI - dapat diakses Ibu maupun Kader (Ibu read-only)
         //

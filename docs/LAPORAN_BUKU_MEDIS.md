@@ -1,8 +1,8 @@
-# Laporan Opsi B — Buku Medis Digital (Fase 1: Backend)
+# Laporan Opsi B — Buku Medis Digital (Fase 1 Backend + Fase 2 Mobile)
 
 **Tanggal:** 29 September 2026
 **Spesifikasi acuan:** `docs/RANCANGAN_BUKU_MEDIS.md`
-**Status:** Backend selesai, mobile belum dikerjakan (fase berikutnya)
+**Status:** Backend dan mobile selesai 29 September 2026
 
 ---
 

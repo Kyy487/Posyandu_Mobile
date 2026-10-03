@@ -159,7 +159,12 @@ class ChildTimelineTest extends TestCase
 
         $entri = $respons->json('data.entries.0.measurement');
 
-        $this->assertSame((float) $tersimpan->z_score_wfa, $entri['z_score_wfa']);
+        // `assertEqualsWithDelta`, bukan `assertSame`: service memang mengirim
+        // float, tapi `json_encode` menulis `56.0` sebagai `56`, jadi hasil
+        // `json_decode` bisa bertipe integer. Perbandingan tipe membuat test ini
+        // gagal acak - hanya kalau z-score kebetulan bulat, yang bergantung
+        // pada angka acak dari factory. Nilainya tetap harus sama persis.
+        $this->assertEqualsWithDelta(0.0, (float) $entri['z_score_wfa'] - (float) $tersimpan->z_score_wfa, 0.001);
         $this->assertSame($tersimpan->status_gizi, $entri['status_gizi']);
         $this->assertSame((int) $tersimpan->age_in_months, $respons->json('data.child.age_in_months'));
     }
@@ -416,6 +421,90 @@ class ChildTimelineTest extends TestCase
         $respons->assertForbidden();
         $this->assertArrayHasKey('medical_flags', $respons->json('errors'));
         $this->assertNull($anak->fresh()->medical_flags);
+    }
+
+    /**
+     * `medical_flags` yang dikirim `null` harus MENGHAPUS penanda, bukan
+     * diabaikan.
+     *
+     * Ini berbeda dari `medical_flags` yang tidak dikirim sama sekali, dan
+     * perbedaan itulah yang dipakai form edit Kader: mengosongkan kolom harus
+     * bisa menghapus penanda yang salah ketik. Mobile dulu memakai spread
+     * null-aware (`?medicalFlags`) yang membuat key-nya hilang begitu nilainya
+     * `null`, sehingga penghapusan tidak pernah sampai ke server sama sekali.
+     *
+     * Perilaku ini berasal dari `ChildController::update` yang membuang key
+     * nullable yang bernilai `null` **hanya** bila key itu tidak ada di
+     * request. Test ini mengunci kedua sisi aturan itu.
+     */
+    #[Test]
+    public function medical_flags_null_menghapus_penanda(): void
+    {
+        $anak = Child::factory()->create([
+            'date_of_birth' => '2024-01-01',
+            'medical_flags' => 'alergi: penisilin',
+        ]);
+        $kader = User::factory()->kader()->create();
+
+        $this->kader($kader)->patchJson("/api/children/{$anak->id}", [
+            'medical_flags' => null,
+        ])->assertOk();
+
+        $this->assertNull($anak->fresh()->medical_flags);
+    }
+
+    /**
+     * `birth_weight` dan `birth_height` punya aturan null yang sama.
+     *
+     *'incorrect input harus bisa dihapus|Totalỹi| jadi dikoreksi jadi kosong,
+     * bukan terkunci selamanya karena mobile tidak pernah bisa mengirim null.
+     */
+    #[Test]
+    public function berat_dan_panjang_lahir_null_mengosongkan_nilai(): void
+    {
+        $anak = Child::factory()->create([
+            'date_of_birth' => '2024-01-01',
+            'birth_weight' => 3.2,
+            'birth_height' => 49,
+        ]);
+        $kader = User::factory()->kader()->create();
+
+        $this->kader($kader)->patchJson("/api/children/{$anak->id}", [
+            'birth_weight' => null,
+            'birth_height' => null,
+        ])->assertOk();
+
+        $anak->refresh();
+        $this->assertNull($anak->birth_weight);
+        $this->assertNull($anak->birth_height);
+    }
+
+    /**
+     * Field yang tidak dikirim harus utuh - ini pembeda dari kasus di atas.
+     *
+     * Tanpa test ini, loop yang membuang key null di `ChildController::update`
+     * bisa "diperbaiki" dengan menghapus seluruh isset nullable, dan setiap
+     * PATCH parsial akan diam-diam mengosongkan data yang tidak boleh disentuh.
+     */
+    #[Test]
+    public function field_yang_tidak_dikirim_tidak_berubah(): void
+    {
+        $anak = Child::factory()->create([
+            'date_of_birth' => '2024-01-01',
+            'birth_weight' => 3.2,
+            'medical_flags' => 'alergi: penisilin',
+        ]);
+        $kader = User::factory()->kader()->create();
+
+        // Hanya nama yang dikirim.
+        $this->kader($kader)->patchJson("/api/children/{$anak->id}", [
+            'name' => 'Nama Baru',
+        ])->assertOk();
+
+        $anak->refresh();
+        $this->assertSame('Nama Baru', $anak->name);
+        $this->assertEquals(3.2, (float) $anak->birth_weight);
+        $this->assertSame('alergi: penisilin', $anak->medical_flags);
     }
 
     #[Test]

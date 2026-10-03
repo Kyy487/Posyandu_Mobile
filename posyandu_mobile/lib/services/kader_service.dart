@@ -53,8 +53,9 @@ class KaderService {
 
       final Map<String, dynamic> body = _decode(response);
 
-      if (response.statusCode == 401)
+      if (response.statusCode == 401) {
         throw Exception(_unauthenticated()['message']);
+      }
       if (response.statusCode == 200 && body['success'] == true) {
         final data = body['data'];
         if (data is List) {
@@ -184,33 +185,38 @@ class KaderService {
   }
 
   /// Mengubah data anak (PATCH /children/{id}).
+  ///
+  /// [name], [dateOfBirth], dan [gender] wajib dikirim karena form edit selalu
+  /// mengirim seluruh isian yang dikelola, bukan bandage per-field.
+  ///
+  /// [birthWeight], [birthHeight], dan [medicalFlags] nullable, dan `null` di
+  /// sini berarti **kosongkan** field itu, bukan "jangan sentuh". Ini penting:
+  /// backend membedakan "tidak dikirim" (`:294` `ChildController`) dari
+  /// "dikirim null" (nilai dihapus). Versi sebelumnya memakai spread
+  /// null-aware `?birthWeight`, yang diam-diam DROPS key saat null - sehingga
+  /// kadar yang salah ketik tidak pernah bisa dikoreksi jadi kosong.
   Future<Map<String, dynamic>> updateChild({
     required String childId,
-    String? name,
-    String? dateOfBirth,
-    String? gender,
+    required String name,
+    required String dateOfBirth,
+    required String gender,
     double? birthWeight,
     double? birthHeight,
+    String? medicalFlags,
   }) async {
     final headers = await _authHeaders(json: true);
     if (headers == null) return _offlineError();
 
-    // Partial update: hanya field yang tidak null yang dikirim (Aturan #8).
+    // Key nullable sengaja TIDAK memakai `?field`: null di sini adalah
+    // instruksi untuk mengosongkan, jadi key tetap dikirim sebagai null.
     final body = <String, dynamic>{
-      'name': ?name,
-      'date_of_birth': ?dateOfBirth,
-      'gender': ?gender,
-      'birth_weight': ?birthWeight,
-      'birth_height': ?birthHeight,
+      'name': name,
+      'date_of_birth': dateOfBirth,
+      'gender': gender,
+      'birth_weight': birthWeight,
+      'birth_height': birthHeight,
+      'medical_flags': medicalFlags,
     };
-
-    if (body.isEmpty) {
-      return {
-        'success': false,
-        'message': 'Tidak ada data yang diperbarui.',
-        'errors': null,
-      };
-    }
 
     try {
       final response = await http.patch(

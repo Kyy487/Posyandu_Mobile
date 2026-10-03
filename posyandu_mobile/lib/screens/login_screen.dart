@@ -309,12 +309,18 @@ class _LoginScreenState extends State<LoginScreen> {
   Widget _buildFooter(BuildContext context) {
     return Column(
       children: [
+        // `Flexible` karena teks ini tidak boleh memaksa `Row` meluber di
+        // layar sempit: `Row` di dalam `Column` menerima lebar dari
+        // `Column`, dan tanpa batas fleksibel dua teks ini bisa melebihi
+        // lebar layar.
         Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Text(
-              'Belum punya akun?',
-              style: TextStyle(color: Colors.white70, fontSize: 13),
+            Flexible(
+              child: Text(
+                'Belum punya akun?',
+                style: TextStyle(color: Colors.white70, fontSize: 13),
+              ),
             ),
             TextButton(
               onPressed: _bukaRegister,

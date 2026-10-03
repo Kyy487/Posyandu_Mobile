@@ -17,13 +17,54 @@ class DashboardKaderScreen extends StatefulWidget {
 
 class _DashboardKaderScreenState extends State<DashboardKaderScreen> {
   final ChildService _childService = ChildService();
+  final AuthService _authService = AuthService();
 
   List<Child> _allChildren = [];
   List<Child> _filteredChildren = [];
   bool _isLoading = true;
 
+  /// Pesan error singkat, null bila tidak ada.
+  ///
+  /// Sebelumnya error hanya muncul sebagai SnackBar sebentar lalu layar
+  /// menganggap daftar kosong - sehingga kader melihat "Tidak ada data anak
+  /// ditemukan" padahal server-nya yang gagal.
+  String? _errorMessage;
+
+  /// Nama kader dari `GET /api/user`, sama seperti dashboard Ibu.
+  ///
+  /// Dulu header menampilkan nama Posyandu dan RT/RW yang diketik manual dan
+  /// tidak ada di database mana pun.
+  String _namaKader = '';
+
+  /// Controller pencarian.
+  ///
+  /// Diperlukan karena `_fetchChildrenData` menimpa daftar hasil filter.
+  /// Tanpa controller, teks di kotak pencarian tetap tampil tapi hasilnya
+  /// kembali penuh - jadi yang diketik pengguna hilang tanpa penjelasan.
+  final TextEditingController _searchController = TextEditingController();
+
+  String _cari = '';
+
   // TAMBAHAN: Variabel State untuk melacak tab yang aktif
   String _selectedCategory = 'Balita';
+
+  /// Anak yang status gizinya perlu ditindak lanjuti kader.
+  int get _jumlahPerluPerhatian => _allChildren.where((child) {
+    final status = child.nutritionalStatus;
+    return status == 'Gizi Buruk' || status == 'Gizi Kurang';
+  }).length;
+
+  String get _sapaan {
+    final parts = _namaKader.trim().split(RegExp(r'\s+'));
+    if (parts.isEmpty || parts.first.isEmpty) return 'Kader';
+    return parts.first;
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
 
   @override
   void initState() {
@@ -32,50 +73,75 @@ class _DashboardKaderScreenState extends State<DashboardKaderScreen> {
   }
 
   // Mengambil data anak dari API
+  //
+  // `ChildService.getChildren()` tidak pernah melempar exception: semua
+  // kegagalan dikembalikan sebagai map dengan `success: false`. Jadi yang
+  // diperiksa di sini adalah `success`, bukan `try/catch` - membungkus
+  // pemanggilan di `try` lalu mengabaikan hasilnya sama saja dengan tidak
+  // memeriksa apa pun.
   Future<void> _fetchChildrenData() async {
-    setState(() => _isLoading = true);
-    try {
-      final dynamic response = await _childService.getChildren();
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
 
-      List<Child> loadedChildren = [];
+    final hasil = await _childService.getChildren();
+    if (!mounted) return;
 
-      if (response is List) {
-        loadedChildren = response.map((item) => Child.fromJson(item)).toList();
-      } else if (response is Map && response.containsKey('data')) {
-        final List listData = response['data'];
-        loadedChildren = listData.map((item) => Child.fromJson(item)).toList();
+    if (hasil['success'] != true) {
+      // Sesi habis -> arahkan ke login, sama seperti dashboard Ibu. Tanpa ini
+      // kader terjebak di state error dengan satu-satunya tombol "Coba Lagi"
+      // yang akan selalu gagal.
+      if (hasil['status'] == 401) {
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(builder: (context) => const LoginScreen()),
+        );
+        return;
       }
 
       setState(() {
-        _allChildren = loadedChildren;
-        _filteredChildren = loadedChildren;
         _isLoading = false;
+        _errorMessage =
+            hasil['message']?.toString() ?? 'Gagal memuat data anak.';
       });
-    } catch (e) {
-      setState(() => _isLoading = false);
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Gagal memuat data peserta: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
+      return;
     }
+
+    final data = hasil['data'];
+    final loaded = data is List
+        ? data
+              .whereType<Map>()
+              .map((e) => Child.fromJson(Map<String, dynamic>.from(e)))
+              .toList()
+        : <Child>[];
+
+    // Nama kader diambil terpisah: `GET /api/user` hanya dipakai untuk sapaan,
+    // dan kegagalannya tidak boleh menggagalkan daftar anak.
+    final profile = await _authService.getProfile();
+    if (!mounted) return;
+
+    setState(() {
+      _namaKader = profile?['name']?.toString() ?? '';
+      _allChildren = loaded;
+      _isLoading = false;
+    });
+
+    // Filter dijalankan ulang setelah data baru masuk supaya pencarian yang
+    // sedang diketik tidak hilang begitu selesai di-refresh.
+    _filterChildren(_cari);
   }
 
   // Logika Pencarian
   void _filterChildren(String query) {
     setState(() {
+      _cari = query;
       if (query.isEmpty) {
         _filteredChildren = _allChildren;
       } else {
+        final searchLower = query.toLowerCase();
         _filteredChildren = _allChildren.where((child) {
-          final nameLower = child.name.toLowerCase();
-          final nikLower = child.nik.toLowerCase();
-          final searchLower = query.toLowerCase();
-          return nameLower.contains(searchLower) ||
-              nikLower.contains(searchLower);
+          return child.name.toLowerCase().contains(searchLower) ||
+              child.nik.toLowerCase().contains(searchLower);
         }).toList();
       }
     });
@@ -129,14 +195,19 @@ class _DashboardKaderScreenState extends State<DashboardKaderScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text(
-                      'Halo, Kader Posyandu 👋',
-                      style: TextStyle(color: Colors.white70, fontSize: 14),
+                    Text(
+                      'Halo, $_sapaan 👋',
+                      style: const TextStyle(
+                        color: Colors.white70,
+                        fontSize: 14,
+                      ),
                     ),
                     const SizedBox(height: 4),
-                    const Text(
-                      'Posyandu Melati 01',
-                      style: TextStyle(
+                    Text(
+                      _namaKader.isEmpty ? 'Kader Posyandu' : _namaKader,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
                         color: Colors.white,
                         fontSize: 22,
                         fontWeight: FontWeight.bold,
@@ -155,10 +226,10 @@ class _DashboardKaderScreenState extends State<DashboardKaderScreen> {
                         ),
                         const SizedBox(width: 12),
                         _buildStatCard(
-                          'Wilayah Binaan',
-                          'RT 01 / RW 10',
-                          Icons.location_on,
-                          Colors.green,
+                          'Perlu Perhatian',
+                          '$_jumlahPerluPerhatian',
+                          Icons.monitor_heart_outlined,
+                          Colors.redAccent,
                         ),
                       ],
                     ),
@@ -345,15 +416,24 @@ class _DashboardKaderScreenState extends State<DashboardKaderScreen> {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Text(
-                          _selectedCategory == 'Balita'
-                              ? 'Daftar Balita'
-                              : 'Daftar Ibu Hamil',
-                          style: const TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
+                        // `Expanded` + ellipsis: tanpa itu, `Row` ini meluber
+                        // di layar sempit begitu tombol "Tambah Data" bertambah
+                        // lebar. `spaceBetween` sendiri tidak membatasi lebar
+                        // anak-anaknya.
+                        Expanded(
+                          child: Text(
+                            _selectedCategory == 'Balita'
+                                ? 'Daftar Balita'
+                                : 'Daftar Ibu Hamil',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                            ),
                           ),
                         ),
+                        const SizedBox(width: 8),
                         // Hanya tampilkan tombol Tambah jika di Tab Balita
                         if (_selectedCategory == 'Balita')
                           TextButton.icon(
@@ -374,6 +454,7 @@ class _DashboardKaderScreenState extends State<DashboardKaderScreen> {
                     if (_selectedCategory == 'Balita') ...[
                       // Search Bar (Hanya tampil di Balita)
                       TextField(
+                        controller: _searchController,
                         decoration: InputDecoration(
                           hintText: 'Cari nama anak atau NIK...',
                           prefixIcon: const Icon(Icons.search),
@@ -393,81 +474,89 @@ class _DashboardKaderScreenState extends State<DashboardKaderScreen> {
                       const SizedBox(height: 16),
 
                       // Daftar Kartu Anak Berdasarkan API
-                      _isLoading
-                          ? const Center(
-                              child: Padding(
-                                padding: EdgeInsets.all(32.0),
-                                child: CircularProgressIndicator(),
+                      //
+                      // Tiga kondisi dipisah: gagal memuat, tidak ada hasil,
+                      // dan daftar terisi. Sebelumnya gagal memuat ikut masuk
+                      // cabang "kosong", sehingga kader mengira tidak ada anak
+                      // terdaftar padahal server-nya yang tidak merespons.
+                      if (_isLoading)
+                        const Padding(
+                          padding: EdgeInsets.all(32.0),
+                          child: Center(child: CircularProgressIndicator()),
+                        )
+                      else if (_errorMessage != null)
+                        _buildKegagalan(_errorMessage!)
+                      else if (_filteredChildren.isEmpty)
+                        Padding(
+                          padding: const EdgeInsets.all(32.0),
+                          child: Text(
+                            _cari.isEmpty
+                                ? 'Belum ada data anak. Tekan "Tambah Data" untuk mendaftarkan balita pertama.'
+                                : 'Tidak ada anak yang cocok dengan "$_cari".',
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(color: Colors.grey),
+                          ),
+                        )
+                      else
+                        // Tanpa `shrinkWrap` + `NeverScrollableScrollPhysics`.
+                        // Dua kombinasi itu membuat ListView membangun SEMUA
+                        // kartu di luar layar, persis membatalkan virtualisasi
+                        // yang jadi alasan memakai ListView di tempat pertama.
+                        ListView.builder(
+                          itemCount: _filteredChildren.length,
+                          itemBuilder: (context, index) {
+                            final Child child = _filteredChildren[index];
+                            return Card(
+                              elevation: 1,
+                              margin: const EdgeInsets.only(bottom: 10),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
                               ),
-                            )
-                          : _filteredChildren.isEmpty
-                          ? const Padding(
-                              padding: EdgeInsets.all(32.0),
-                              child: Text(
-                                'Tidak ada data anak ditemukan.',
-                                textAlign: TextAlign.center,
-                                style: TextStyle(color: Colors.grey),
+                              child: ListTile(
+                                contentPadding: const EdgeInsets.symmetric(
+                                  horizontal: 16,
+                                  vertical: 8,
+                                ),
+                                leading: CircleAvatar(
+                                  backgroundColor: Colors.blue[100],
+                                  child: Text(
+                                    child.name.isNotEmpty
+                                        ? child.name[0].toUpperCase()
+                                        : 'A',
+                                    style: TextStyle(
+                                      color: Colors.blue[800],
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ),
+                                title: Text(
+                                  child.name,
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                                subtitle: Text(
+                                  'NIK: ${child.nik}\nTanggal Lahir: ${child.dateOfBirth}',
+                                ),
+                                isThreeLine: true,
+                                trailing: const Icon(
+                                  Icons.arrow_forward_ios,
+                                  size: 16,
+                                  color: Colors.grey,
+                                ),
+                                onTap: () {
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (context) =>
+                                          DetailAnakScreen(childData: child),
+                                    ),
+                                  ).then((_) => _fetchChildrenData());
+                                },
                               ),
-                            )
-                          : ListView.builder(
-                              shrinkWrap: true,
-                              physics: const NeverScrollableScrollPhysics(),
-                              itemCount: _filteredChildren.length,
-                              itemBuilder: (context, index) {
-                                final Child child = _filteredChildren[index];
-                                return Card(
-                                  elevation: 1,
-                                  margin: const EdgeInsets.only(bottom: 10),
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(12),
-                                  ),
-                                  child: ListTile(
-                                    contentPadding: const EdgeInsets.symmetric(
-                                      horizontal: 16,
-                                      vertical: 8,
-                                    ),
-                                    leading: CircleAvatar(
-                                      backgroundColor: Colors.blue[100],
-                                      child: Text(
-                                        child.name.isNotEmpty
-                                            ? child.name[0].toUpperCase()
-                                            : 'A',
-                                        style: TextStyle(
-                                          color: Colors.blue[800],
-                                          fontWeight: FontWeight.bold,
-                                        ),
-                                      ),
-                                    ),
-                                    title: Text(
-                                      child.name,
-                                      style: const TextStyle(
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    ),
-                                    subtitle: Text(
-                                      'NIK: ${child.nik}\nTanggal Lahir: ${child.dateOfBirth}',
-                                    ),
-                                    isThreeLine: true,
-                                    trailing: const Icon(
-                                      Icons.arrow_forward_ios,
-                                      size: 16,
-                                      color: Colors.grey,
-                                    ),
-                                    onTap: () {
-                                      Navigator.push(
-                                        context,
-                                        MaterialPageRoute(
-                                          builder: (context) =>
-                                              DetailAnakScreen(
-                                                childData: child,
-                                              ),
-                                        ),
-                                      ).then((_) => _fetchChildrenData());
-                                    },
-                                  ),
-                                );
-                              },
-                            ),
+                            );
+                          },
+                        ),
                     ] else ...[
                       // Tampilan Placeholder untuk Tab Ibu Hamil
                       const Padding(
@@ -535,26 +624,65 @@ class _DashboardKaderScreenState extends State<DashboardKaderScreen> {
               child: Icon(icon, color: color, size: 24),
             ),
             const SizedBox(width: 12),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: const TextStyle(color: Colors.grey, fontSize: 12),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  value,
-                  style: const TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.black87,
+            // `Expanded` itu wajib, bukan kosmetik: tanpa itu `Column` punya
+            // lebar bebas penuh dan teks panjang seperti "Perlu Perhatian"
+            // meluber keluar kartu di layar 360dp.
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    title,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(color: Colors.grey, fontSize: 12),
                   ),
-                ),
-              ],
+                  const SizedBox(height: 2),
+                  Text(
+                    value,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.black87,
+                    ),
+                  ),
+                ],
+              ),
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  /// State gagal memuat, dengan tombol coba lagi.
+  ///
+  /// Dipisah dari state "kosong" karena dua hal itu berbeda bagi kader: satu
+  /// berarti server tidak bisa dihubungi, satu lagi berarti memang tidak ada
+  /// anak yang cocok. Menyatukan keduanya membuat kader berulang kali membuka
+  /// aplikasi tanpa tahu ada masalah.
+  Widget _buildKegagalan(String pesan) {
+    return Padding(
+      padding: const EdgeInsets.all(32.0),
+      child: Column(
+        children: [
+          const Icon(Icons.cloud_off, size: 48, color: Colors.grey),
+          const SizedBox(height: 12),
+          Text(
+            pesan,
+            textAlign: TextAlign.center,
+            style: const TextStyle(color: Colors.grey),
+          ),
+          const SizedBox(height: 16),
+          OutlinedButton.icon(
+            onPressed: _fetchChildrenData,
+            icon: const Icon(Icons.refresh),
+            label: const Text('Coba Lagi'),
+          ),
+        ],
       ),
     );
   }

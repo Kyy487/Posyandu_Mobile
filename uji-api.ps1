@@ -1,4 +1,4 @@
-﻿<#
+<#
   =====================================================================
   SKRIP UJI API - SMART POSYANDU
   =====================================================================
@@ -415,6 +415,69 @@ $cek = Req 'PATCH' "$base/children/$idK1" $tK @{ name = "Cuma Ganti Nama $s" }
 Check "ganti nama tidak memicu hitung ulang" 'Data balita berhasil diperbarui.' $cek.Body.message
 
 # =====================================================================
+Group "8b. Grafik tumbuh kembang (Opsi D)"
+# idK1 sudah ditimbang di grup 7 dan gender-nya sudah diubah ke P di grup 8,
+# jadi pita WHO yang dibaca harus yang untuk perempuan.
+$r = Req 'GET' "$base/children/$idK1/growth" $tK $null
+Check "kader buka grafik -> 200" 200 $r.Status
+$g = $r.Body.data
+Check "  data tepat 3 kunci" 3 @($g.psobject.Properties.Name).Count
+Check "  kunci: child/series/who_reference" 'child series who_reference' (($g.psobject.Properties.Name) -join ' ')
+Check "  order naik" 'asc' $g.series.order
+Check "  ada 1 titik" 1 @($g.series.points).Count
+Check "  gender di blok child" 'P' $g.child.gender
+Check "  gender di pita = gender anak" $g.child.gender $g.who_reference.gender
+Check "  metrik pita" 'weight_for_age' $g.who_reference.metric
+Check "  pita menutup 0-60 (61 titik)" 61 @($g.who_reference.points).Count
+Check "  rentang pita dari 0" 0 $g.who_reference.age_range.from
+Check "  rentang pita sampai 60" 60 $g.who_reference.age_range.to
+Check "  tidak ada meta (tanpa paginasi)" $false ($null -ne $g.meta)
+
+# Angka di server harus identik dengan yang disimpan trigger, bukan dihitung ulang.
+$tr3 = $g.series.points[0]
+Check "  tanggal titik sama dengan penimbangan" $tr2.measurement_date $tr3.date
+Check "  z-score sama dengan kolom database" $tr2.z_score_wfa $tr3.z_score_wfa
+Check "  status gizi sama dengan kolom database" $tr2.status_gizi $tr3.status_gizi
+Check "  umur = umur penimbangan" $tr2.age_in_months $tr3.age_in_months
+Note "titik: $($tr3.date) | $($tr3.age_in_months) bln | $($tr3.weight_kg) kg | z $($tr3.z_score_wfa) | $($tr3.status_gizi)"
+
+# Batas pita harus mengapit median.
+$pita = $g.who_reference.points[30]
+Check "  median di dalam batas pita" $true ($pita.lower_kg -lt $pita.median_kg -and $pita.median_kg -lt $pita.upper_kg)
+Note "pita bln 30: $pita.lower_kg / $pita.median_kg / $pita.upper_kg kg"
+
+# Tidak ada pita tinggi badan: database hanya punya acuan BB/U.
+Check "  tidak ada pita TB" $false ($null -ne $g.who_hfa_reference)
+Check "  height_cm tetap ada di titik" $true ($null -ne $tr3.height_cm)
+
+# Query string harus diabaikan, bukan dipatuhi.
+$r2 = Req 'GET' "$base/children/$idK1/growth?limit=1&before=2020-01-01" $tK $null
+Check "query string diabaikan -> 200" 200 $r2.Status
+Check "  titik tetap lengkap" 1 @($r2.Body.data.series.points).Count
+
+# Otorisasi sama persis dengan GET /children/{id}.
+$r = Req 'GET' "$base/children/$idB/growth" $tA $null
+Check "Ibu A buka grafik anak Ibu B -> 403" 403 $r.Status
+# Pesan penuh, bukan "Akses ditolak" polos: `ChildController` menambahkan
+# kata kerjanya, dan `API_CONTRACT.md` bagian grafik menyebut kalimat lengkapnya.
+# Kalau someday nama endpoint ikut berubah di situ, cek juga
+# GrowthChartTest.php yang mengunci string yang sama.
+Check "  pesan" 'Akses ditolak. Anda tidak berhak melihat data anak ini.' $r.Body.message
+$r = Req 'GET' "$base/children/$idB/growth" $tB $null
+Check "Ibu B buka grafik anaknya -> 200" 200 $r.Status
+Check "  data.right 3 kunci" 3 @($r.Body.data.psobject.Properties.Name).Count
+$r = Req 'GET' "$base/children/bukan-uuid/growth" $tK $null
+Check "id bukan UUID -> 404" 404 $r.Status
+
+# Anak tanpa penimbangan: 200 dengan points kosong, pita tetap ada.
+$r = Req 'GET' "$base/children/$idA2/growth" $tA $null
+Check "anak tanpa penimbangan -> 200 (bukan 404)" 200 $r.Status
+Check "  points kosong" 0 @($r.Body.data.series.points).Count
+Check "  child tetap terbaca" $idA2 $r.Body.data.child.id
+Check "  umur null" $true ($null -eq $r.Body.data.child.age_in_months)
+Check "  pita tetap dikirim" 61 @($r.Body.data.who_reference.points).Count
+
+# =====================================================================
 Group "9. Menghapus anak (soft delete)"
 $r = Req 'DELETE' "$base/children/$idB" $tB $null
 Check "Ibu hapus anak -> 403" 403 $r.Status
@@ -732,12 +795,31 @@ Group "9e. Catatan keluhan (Opsi C)"
 #     penimbangan itu (lihat catatan kontrak di bawah).
 # =====================================================================
 
-# Tanggal uji: mundur beberapa hari supaya tidak bentrok dengan data seed
-# seeder, yang memakai tanggal hari ini dan tanggal bulan lalu.
-$tglUji  = (Get-Date).AddDays(-4).ToString('yyyy-MM-dd')
-$tglUji2 = (Get-Date).AddDays(-5).ToString('yyyy-MM-dd')
-$blnIni  = (Get-Date).ToString('yyyy-MM')
-$blnLalu = (Get-Date).AddMonths(-1).ToString('yyyy-MM')
+# Tanggal uji HARUS di dalam bulan berjalan. `GET /kader/children/{id}/medical-notes`
+# meringkas bulan berjalan secara default (`MedicalNoteController`), jadi kalau
+# tanggal catatannya jatuh di bulan lalu, ringkasannya nol - grup ini gagal
+# karena tanggal, bukan karena kode. Versi lama memakai "hari ini - 4 hari",
+# yang berarti skrip ini hanya lulus di tanggal 5 s.d. akhir bulan.
+$skrg     = Get-Date
+$blnIni   = $skrg.ToString('yyyy-MM')
+$blnLalu  = $skrg.AddMonths(-1).ToString('yyyy-MM')
+# Cap di tengah bulan:hindari hari 1-2 yang tidak punya cukup tanggal
+# yang sudah lewat untuk dua catatan pada anak yang sama.
+$hariUji  = [Math]::Min($skrg.Day, 15)
+$hariUji2 = [Math]::Min($skrg.Day - 1, 14)
+$bulanIniCukup = ($hariUji -ge 2) -and ($hariUji2 -ge 1)
+if ($bulanIniCukup) {
+    $tglUji  = '{0}-{1:D2}' -f $blnIni, $hariUji
+    $tglUji2 = '{0}-{1:D2}' -f $blnIni, $hariUji2
+} else {
+    # Tanggal 1: hanya satu hari bulan ini yang sudah lewat. Tanggal catatan
+    # jadi tidak penting, karena ringkasan di bawah dibaca dengan `all=1`.
+    $tglUji  = $skrg.AddDays(-4).ToString('yyyy-MM-dd')
+    $tglUji2 = $skrg.AddDays(-5).ToString('yyyy-MM-dd')
+}
+if (-not $bulanIniCukup) {
+    Note "tanggal 1 bulan ini: ringkasan dibaca dengan all=1, tidak ada dua tanggal yang sudah lewat"
+}
 
 $r = Req 'GET' "$base/children/$idA/medical-notes" $tK $null
 Check "GET daftar keluhan -> 200" 200 $r.Status
@@ -831,7 +913,11 @@ Check "  pesan menyebut milik anak tersebut" $true ($null -ne $r.Body.errors.mea
 Req 'DELETE' "$base/kader/measurements/$ukurAnakLain" $tK $null | Out-Null
 
 # Ibu: baca boleh, tulis tidak.
-$r = Req 'GET' "$base/children/$idA/medical-notes" $tA $null
+# Tanpa `?all=1` ringkasan hanya menghitung bulan berjalan - itulah yang diuji
+# di sini. Kalau tanggal uji tidak muat di bulan berjalan (hanya terjadi di
+# tanggal 1), pembacaan memakai `all=1` supaya yang diuji tetap sama.
+$qKeluhan = if ($bulanIniCukup) { '' } else { '?all=1' }
+$r = Req 'GET' "$base/children/$idA/medical-notes$qKeluhan" $tA $null
 Check "Ibu baca keluhan anaknya -> 200" 200 $r.Status
 Check "  2 catatan" 2 $r.Body.data.summary.total
 Check "  1 demam" 1 $r.Body.data.summary.demam
@@ -957,9 +1043,20 @@ Check "  overdue_children berupa array" $true ($r.Body.data.coverage.overdue_chi
 Check "  total = lengkap + kurang" ($r.Body.data.coverage.complete + $r.Body.data.coverage.incomplete) $r.Body.data.coverage.total_children
 
 # Aktivitas: suntikan bulan berjalan terhitung per jenis vaksin.
+# Rekap bersifat agregat SELURUH Posyandu - bukan cuma anak uji - karena itu
+# angka HB0 tidak boleh diasumsikan mulai dari nol. Kalau database dev masih
+# punya suntikan bulan ini dari sesi sebelumnya, hitungannya bukan 1. Yang
+# diuji adalah kenaikannya: +1 setelah disuntik, kembali ke semula setelah
+# dibatalkan. Versi lama memakai angka mutlak dan gagal begitu ada data lain.
 $anakUji = Req 'POST' "$base/children" $tA @{ name = "Anak Rekap $s"; date_of_birth = '2024-01-15'; gender = 'P' }
 Check "anak untuk rekap -> 201" 201 $anakUji.Status
 $idAnakRekap = $anakUji.Body.data.id
+
+$countHb0Awal = 0
+foreach ($d in (Req 'GET' "$base/kader/immunizations/recap?month=$bulanUji" $tK $null).Body.data.activity.by_type) {
+    if ($d.immunization_type_id -eq $typeHB0) { $countHb0Awal = $d.count }
+}
+Note "HB0 di bulan ini sebelum suntikan uji: $countHb0Awal (dari data lain, kalau ada)"
 
 $r = Req 'POST' "$base/kader/children/$idAnakRekap/immunizations" $tK @{ immunization_type_id = $typeHB0; date_given = $hariIni; batch_number = 'REKAP-001' }
 Check "suntikan tanggal hari ini -> 201" 201 $r.Status
@@ -968,7 +1065,7 @@ $countHB0 = 0
 foreach ($d in (Req 'GET' "$base/kader/immunizations/recap?month=$bulanUji" $tK $null).Body.data.activity.by_type) {
     if ($d.immunization_type_id -eq $typeHB0) { $countHB0 = $d.count }
 }
-Check "  HB0 terhitung di aktivitas bulan ini" 1 $countHB0
+Check "  HB0 naik tepat 1 dari hitungan sebelumnya" ($countHb0Awal + 1) $countHB0
 
 # Batalkan suntikannya. Aktivitas harus turun karena global scope soft delete,
 # dan barisnya tetap ada di database (dicek di grup 12 lewat "sisa suntikan").
@@ -984,7 +1081,7 @@ $countHB0Sesudah = 0
 foreach ($d in (Req 'GET' "$base/kader/immunizations/recap?month=$bulanUji" $tK $null).Body.data.activity.by_type) {
     if ($d.immunization_type_id -eq $typeHB0) { $countHB0Sesudah = $d.count }
 }
-Check "  count HB0 turun jadi 0" 0 $countHB0Sesudah
+Check "  count HB0 kembali ke hitungan semula" $countHb0Awal $countHB0Sesudah
 Note "suntikan dibatalkan tidak boleh masuk rekap (soft delete)"
 
 # Laporan historis harus reproduktif: bulan yang sama diminta dua kali

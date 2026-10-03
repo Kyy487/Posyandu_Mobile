@@ -7,7 +7,10 @@ import '../../models/medical_note.dart';
 import '../../services/child_timeline_service.dart';
 import '../../services/kader_service.dart';
 import '../../utils/month_label.dart';
+import '../../utils/status_gizi.dart';
 import 'catatan_keluhan_screen.dart';
+import 'edit_child_screen.dart';
+import 'grafik_tumbuh_screen.dart';
 import 'imunisasi_screen.dart';
 import 'input_penimbangan_screen.dart';
 
@@ -23,6 +26,14 @@ class DetailAnakScreen extends StatefulWidget {
 class _DetailAnakScreenState extends State<DetailAnakScreen> {
   final KaderService _kaderService = KaderService();
   final ChildTimelineService _timelineService = ChildTimelineService();
+
+  /// Salinan lokal data anak, bukan `widget.childData` langsung.
+  ///
+  /// Setelah form edit disimpan, seluruh layar ini harus langsung mengikuti
+  /// nilai baru. `widget.childData` datang dari dashboard dan tidak berubah
+  /// selama layar ini terbuka, jadi tanpa salinan ini kadernya masih melihat
+  /// nama lama sampai menekan back.
+  late Child _anak = widget.childData;
 
   List<MeasurementModel> _riwayat = [];
   bool _isLoading = true;
@@ -43,11 +54,31 @@ class _DetailAnakScreenState extends State<DetailAnakScreen> {
     _loadTimeline();
   }
 
+  /// Membuka form edit dan menjalankan perubahan bila kader menyimpannya.
+  ///
+  /// Form mengembalikan [Child] yang sudah diperbarui, jadi layar ini cukup
+  /// menukar salinan lokalnya - tidak perlu fetch ulang seluruh daftar anak.
+  Future<void> _bukaEditAnak() async {
+    final hasil = await Navigator.of(context).push<Child>(
+      MaterialPageRoute(builder: (_) => EditChildScreen(child: _anak)),
+    );
+    if (hasil == null || !mounted) return;
+
+    setState(() => _anak = hasil);
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Data ${hasil.name} berhasil diperbarui.'),
+        backgroundColor: Colors.green,
+      ),
+    );
+  }
+
   // Mengambil riwayat penimbangan anak ini dari API
   Future<void> _loadRiwayat() async {
     setState(() => _isLoading = true);
     try {
-      final raw = await _kaderService.getMeasurements(widget.childData.id);
+      final raw = await _kaderService.getMeasurements(_anak.id);
       final parsed = raw
           .whereType<Map<String, dynamic>>()
           .map((e) => MeasurementModel.fromJson(Map<String, dynamic>.from(e)))
@@ -82,7 +113,7 @@ class _DetailAnakScreenState extends State<DetailAnakScreen> {
       });
     }
 
-    final hasil = await _timelineService.getTimeline(widget.childData.id);
+    final hasil = await _timelineService.getTimeline(_anak.id);
 
     if (!mounted) return;
 
@@ -109,10 +140,7 @@ class _DetailAnakScreenState extends State<DetailAnakScreen> {
 
     setState(() => _memuatHalamanBerikutnya = true);
 
-    final hasil = await _timelineService.getTimeline(
-      widget.childData.id,
-      before: cursor,
-    );
+    final hasil = await _timelineService.getTimeline(_anak.id, before: cursor);
 
     if (!mounted) return;
 
@@ -191,9 +219,7 @@ class _DetailAnakScreenState extends State<DetailAnakScreen> {
   /// tetap dipakai supaya badge tidak ikut hilang-ganti setiap kali layar dibuka.
   String? get _kondisiKhusus {
     final teks = _timeline?.child.medicalFlags;
-    return (teks != null && teks.isNotEmpty)
-        ? teks
-        : widget.childData.medicalFlags;
+    return (teks != null && teks.isNotEmpty) ? teks : _anak.medicalFlags;
   }
 
   /// Badge penanda kondisi khusus.
@@ -255,8 +281,28 @@ class _DetailAnakScreenState extends State<DetailAnakScreen> {
                 context,
                 MaterialPageRoute(
                   builder: (context) => CatatanKeluhanScreen(
-                    childId: widget.childData.id,
-                    childName: widget.childData.name,
+                    childId: _anak.id,
+                    childName: _anak.name,
+                  ),
+                ),
+              );
+            },
+          ),
+          IconButton(
+            tooltip: 'Grafik Tumbuh',
+            icon: const Icon(Icons.show_chart),
+            // Endpoint-nya sudah terbuka untuk Kader sejak Opsi D, jadi layar
+            // ini tidak menambah hak akses apa pun - hanya tempat untuk
+            // membukanya. Tanpa penjaga apa pun di sini karena
+            // `_anak.id` selalu ada: layar ini sendiri sudah butuh
+            // id itu untuk memuat riwayat dan timeline.
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => GrafikTumbuhScreen(
+                    childId: _anak.id,
+                    childName: _anak.name,
                   ),
                 ),
               );
@@ -269,23 +315,16 @@ class _DetailAnakScreenState extends State<DetailAnakScreen> {
               Navigator.push(
                 context,
                 MaterialPageRoute(
-                  builder: (context) => ImunisasiScreen(
-                    childId: widget.childData.id,
-                    childName: widget.childData.name,
-                  ),
+                  builder: (context) =>
+                      ImunisasiScreen(childId: _anak.id, childName: _anak.name),
                 ),
               );
             },
           ),
           IconButton(
             icon: const Icon(Icons.edit),
-            onPressed: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Fitur edit data anak segera hadir'),
-                ),
-              );
-            },
+            tooltip: 'Edit Data Anak',
+            onPressed: _bukaEditAnak,
           ),
         ],
       ),
@@ -314,9 +353,7 @@ class _DetailAnakScreenState extends State<DetailAnakScreen> {
                     radius: 35,
                     backgroundColor: Colors.blue[100],
                     child: Text(
-                      widget.childData.name.isNotEmpty
-                          ? widget.childData.name[0].toUpperCase()
-                          : 'A',
+                      _anak.name.isNotEmpty ? _anak.name[0].toUpperCase() : 'A',
                       style: TextStyle(
                         fontSize: 30,
                         fontWeight: FontWeight.bold,
@@ -330,7 +367,7 @@ class _DetailAnakScreenState extends State<DetailAnakScreen> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          widget.childData.name,
+                          _anak.name,
                           style: const TextStyle(
                             fontSize: 18,
                             fontWeight: FontWeight.bold,
@@ -338,7 +375,7 @@ class _DetailAnakScreenState extends State<DetailAnakScreen> {
                         ),
                         const SizedBox(height: 4),
                         Text(
-                          'NIK: ${widget.childData.nik}',
+                          'NIK: ${_anak.nik}',
                           style: TextStyle(
                             color: Colors.grey[600],
                             fontSize: 13,
@@ -346,7 +383,7 @@ class _DetailAnakScreenState extends State<DetailAnakScreen> {
                         ),
                         const SizedBox(height: 4),
                         Text(
-                          'Ibu: ${widget.childData.parentName}',
+                          'Ibu: ${_anak.parentName}',
                           style: TextStyle(
                             color: Colors.grey[600],
                             fontSize: 13,
@@ -354,7 +391,7 @@ class _DetailAnakScreenState extends State<DetailAnakScreen> {
                         ),
                         const SizedBox(height: 4),
                         Text(
-                          _hitungUmur(widget.childData.dateOfBirth ?? ''),
+                          _hitungUmur(_anak.dateOfBirth ?? ''),
                           style: TextStyle(
                             color: Colors.blue[700],
                             fontWeight: FontWeight.w600,
@@ -448,7 +485,7 @@ class _DetailAnakScreenState extends State<DetailAnakScreen> {
                   _buildStatCard(
                     'Status Gizi',
                     terakhir.statusGizi ?? '-',
-                    _warnaStatus(terakhir.statusGizi),
+                    warnaStatusGizi(terakhir.statusGizi).warna,
                   ),
                 ],
               ),
@@ -457,11 +494,11 @@ class _DetailAnakScreenState extends State<DetailAnakScreen> {
                 width: double.infinity,
                 padding: const EdgeInsets.all(14),
                 decoration: BoxDecoration(
-                  color: _warnaStatus(terakhir.statusGizi)
+                  color: warnaStatusGizi(terakhir.statusGizi).warna
                       .withValues(alpha: 0.08),
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(
-                    color: _warnaStatus(terakhir.statusGizi)
+                    color: warnaStatusGizi(terakhir.statusGizi).warna
                         .withValues(alpha: 0.4),
                   ),
                 ),
@@ -469,7 +506,7 @@ class _DetailAnakScreenState extends State<DetailAnakScreen> {
                   children: [
                     Icon(
                       Icons.calculate,
-                      color: _warnaStatus(terakhir.statusGizi),
+                      color: warnaStatusGizi(terakhir.statusGizi).warna,
                       size: 20,
                     ),
                     const SizedBox(width: 10),
@@ -482,7 +519,7 @@ class _DetailAnakScreenState extends State<DetailAnakScreen> {
                             style: TextStyle(
                               fontWeight: FontWeight.bold,
                               fontSize: 15,
-                              color: _warnaStatus(terakhir.statusGizi),
+                              color: warnaStatusGizi(terakhir.statusGizi).warna,
                             ),
                           ),
                           Text(
@@ -515,8 +552,8 @@ class _DetailAnakScreenState extends State<DetailAnakScreen> {
                       context,
                       MaterialPageRoute(
                         builder: (context) => CatatanKeluhanScreen(
-                          childId: widget.childData.id,
-                          childName: widget.childData.name,
+                          childId: _anak.id,
+                          childName: _anak.name,
                         ),
                       ),
                     );
@@ -590,7 +627,7 @@ class _DetailAnakScreenState extends State<DetailAnakScreen> {
                     tb: '${m.heightCm} cm',
                     zScore: m.zScoreWfa?.toStringAsFixed(2) ?? '-',
                     statusGizi: m.statusGizi,
-                    warnaStatus: _warnaStatus(m.statusGizi),
+                    warnaStatus: warnaStatusGizi(m.statusGizi).warna,
                     isLatest: isLatest,
                   );
                 },
@@ -614,8 +651,7 @@ class _DetailAnakScreenState extends State<DetailAnakScreen> {
           final saved = await Navigator.push<bool>(
             context,
             MaterialPageRoute(
-              builder: (context) =>
-                  InputPenimbanganScreen(childId: widget.childData.id),
+              builder: (context) => InputPenimbanganScreen(childId: _anak.id),
             ),
           );
           // Muat ulang riwayat agar Z-Score & Status Gizi ter-update otomatis,
@@ -841,7 +877,7 @@ class _DetailAnakScreenState extends State<DetailAnakScreen> {
 
   /// Baris penimbangan: BB, TB, z-score, status gizi, kader.
   Widget _buildBagianPenimbangan(TimelineMeasurement m) {
-    final warna = _warnaStatus(m.statusGizi);
+    final warna = warnaStatusGizi(m.statusGizi).warna;
 
     return Container(
       width: double.infinity,
@@ -1126,22 +1162,6 @@ class _DetailAnakScreenState extends State<DetailAnakScreen> {
         ),
       ],
     );
-  }
-
-  /// Pemetaan warna indikator sesuai status gizi hasil hitungan Z-Score.
-  Color _warnaStatus(String? status) {
-    switch (status) {
-      case 'Gizi Buruk':
-        return Colors.red;
-      case 'Gizi Kurang':
-        return Colors.orange[800] ?? Colors.orange;
-      case 'Risiko Gizi Lebih':
-        return Colors.blueGrey;
-      case 'Normal':
-        return Colors.green;
-      default:
-        return Colors.grey;
-    }
   }
 
   // Widget Bantuan: Kartu Statistik

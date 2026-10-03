@@ -7,6 +7,7 @@ use App\Models\Child;
 use App\Models\Measurement;
 use App\Models\User;
 use App\Services\ChildTimelineService;
+use App\Services\GrowthChartService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
@@ -521,6 +522,54 @@ class ChildController extends Controller
             ], 422);
         } catch (\Throwable $e) {
             Log::error('Gagal mengambil timeline anak: '.$e->getMessage(), [
+                'user_id' => $user->id,
+                'child_id' => $id,
+                'exception' => $e,
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Terjadi kesalahan server. Silakan coba lagi.',
+                'errors' => null,
+            ], 500);
+        }
+    }
+
+    /**
+     * Deret waktu pertumbuhan satu anak untuk digambar sebagai grafik.
+     *
+     * Bookkeeping-nya ada di `GrowthChartService`; method ini hanya memastikan
+     * akses lalu mengembalikan bentuk envelope baku.
+     *
+     * Endpoint ini sengaja tidak punya query string: tidak ada `limit`,
+     * `before`, `from`, maupun `to`. Partial unique index
+     * `measurements_child_date_unique` membatasi satu baris penimbangan per
+     * tanggal, jadi anak 0-60 bulan paling banyak 61 titik. Menambah
+     * pagination justru berisiko memotong grafik di tengah, dan grafik yang
+     * terpotong adalah grafik yang salah.
+     */
+    public function growth(Request $request, $id, GrowthChartService $growth)
+    {
+        $user = $request->user();
+
+        try {
+            // `findChildForUser` yang dipakai, bukan pemeriksaan sendiri: Ibu
+            // hanya boleh grafik anaknya sendiri, dan aturan 404-untuk-id-bukan-UUID
+            // di sana sudah benar.
+            $child = $this->findChildForUser($id, $user, 'melihat');
+
+            if (! $child instanceof Child) {
+                return $child;
+            }
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Data pertumbuhan anak berhasil diambil.',
+                'data' => $growth->chartFor($child),
+            ], 200);
+
+        } catch (\Throwable $e) {
+            Log::error('Gagal mengambil data pertumbuhan anak: '.$e->getMessage(), [
                 'user_id' => $user->id,
                 'child_id' => $id,
                 'exception' => $e,
