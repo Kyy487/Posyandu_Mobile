@@ -45,9 +45,9 @@ posyandu/
 ## Tampilan
 
 <p align="center">
-  <img src="docs/dokumentasi/Login.png" width="200" alt="Layar Login" />
-  <img src="docs/dokumentasi/Dashboard kader.png" width="200" alt="Dashboard Kader" />
-  <img src="docs/dokumentasi/Dashboard ibu.png" width="200" alt="Dashboard Ibu" />
+  <img src="dokumentasi/Login.png" width="200" alt="Layar Login" />
+  <img src="dokumentasi/Dashboard kader.png" width="200" alt="Dashboard Kader" />
+  <img src="dokumentasi/Dashboard ibu.png" width="200" alt="Dashboard Ibu" />
 </p>
 
 ## Menjalankan Backend
