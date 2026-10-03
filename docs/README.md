@@ -42,6 +42,14 @@ posyandu/
 | AI Food Scanner (microservice) | Belum dimulai |
 | Pemetaan Spasial (PostGIS) | Belum dimulai |
 
+## Tampilan
+
+<p align="center">
+  <img src="docs/dokumentasi/Login.png" width="200" alt="Layar Login" />
+  <img src="docs/dokumentasi/Dashboard kader.png" width="200" alt="Dashboard Kader" />
+  <img src="docs/dokumentasi/Dashboard ibu.png" width="200" alt="Dashboard Ibu" />
+</p>
+
 ## Menjalankan Backend
 
 ```bash
