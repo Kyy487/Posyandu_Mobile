@@ -54,6 +54,10 @@ membaca tabel ini dan tidak menambah kolom.
 * `kader_id` (UUID, FK -> users.id, nullable, **set null**) — nullable + `ON
   DELETE SET NULL` supaya riwayat penimbangan tetap utuh walau akun kader
   dihapus. Nilai `NULL` berarti "kader tidak diketahui", bukan "riwayat hilang".
+* `visit_id` (UUID, FK -> visits.id, nullable, **set null**) — kunjungan tempat
+  penimbangan dicatat. Ditambahkan migration
+  `2026_10_11_233501_add_visit_id_to_measurements_table.php` (P0-1). `NULL`
+  berarti penimbangan tidak terkait kunjungan (alur lama tetap sah).
 * `measurement_date` (Date)
 * `weight_kg`, `height_cm`, `head_circumference_cm` (Decimal)
 * `age_in_months` (Int), `z_score_wfa` (Decimal), `status_gizi` (String)
@@ -97,6 +101,9 @@ Jadi `GET /children/{id}/growth` tidak menambah migration apa pun.
 ## 5. `immunization_records`
 * `id` (UUID, PK)
 * `child_id` (UUID, FK -> children.id)
+* `visit_id` (UUID, FK -> visits.id, nullable, **set null**) — kunjungan tempat
+  suntikan dicatat. Migration
+  `2026_10_11_233502_add_visit_id_to_immunization_records_table.php` (P0-1).
 * `immunization_type_id` (UUID, FK -> immunization_types.id, ON DELETE SET NULL)
 * `kader_id` (UUID, FK -> users.id, ON DELETE SET NULL, nullable)
 * `date_given` (Date)
@@ -111,6 +118,9 @@ Migration `2026_09_27_010000_create_medical_notes_table.php`. Satu anak punya
 * `id` (UUID, PK)
 * `child_id` (UUID, FK -> children.id, **cascade delete**)
 * `measurement_id` (UUID, FK -> measurements.id, nullable, **set null**) — boleh kosong karena keluhan bisa dicatat tanpa menimbang. Lihat catatan penting di bawah soal soft delete.
+* `visit_id` (UUID, FK -> visits.id, nullable, **set null**) — kunjungan tempat
+  keluhan dicatat. Migration
+  `2026_10_11_233503_add_visit_id_to_medical_notes_table.php` (P0-1).
 * `kader_id` (UUID, FK -> users.id, nullable, **set null**) — nullable agar catatan lama tetap utuh walau akun kader dihapus
 * `note_date` (Date)
 * `demam`, `rewel`, `diare` (Boolean, default `false`)
@@ -149,6 +159,46 @@ Migration `2026_09_27_010000_create_medical_notes_table.php`. Satu anak punya
 > melepas tautan seperti biasa. Kalau suatu saat tautan perlu dilepas saat
 > pembatalan, itu harus dilakukan eksplisit — bukan diharapkan dari efek
 > samping `delete()`.
+
+## 5.2 `visits` (Kunjungan Layanan — P0-1)
+
+Migration `2026_10_11_233500_create_visits_table.php`. Satu kunjungan
+merepresentasikan **satu sesi layanan** untuk satu anak dan menjadi payung bagi
+pengukuran, imunisasi, dan keluhan yang terjadi di dalamnya. Spesifikasi penuh
+ada di `docs/RANCANGAN_VISIT.md`.
+
+* `id` (UUID, PK)
+* `child_id` (UUID, FK -> children.id, **cascade delete**)
+* `schedule_id` (UUID, FK -> posyandu_schedules.id, nullable, **set null**) —
+  agenda posyandu bila kunjungan terjadi pada sesi terjadwal
+* `visit_date` (Date)
+* `visit_type` (String(20)) — `posyandu` / `kunjungan_rumah` / `rujukan`
+* `kader_id` (UUID, FK -> users.id, nullable, **set null**) — nullable agar
+  riwayat kunjungan tetap utuh walau akun kader dihapus
+* `anamnesis` (Text, nullable) — keluhan utama
+* `catatan_kader` (Text, nullable)
+* `deleted_at` (Timestamp, nullable) — soft delete
+* `created_at`, `updated_at`
+
+**Index dan constraint:**
+
+* Index `(child_id, visit_date)` (`visits_child_date_index`) — melayani daftar
+  kunjungan per anak per periode
+* CHECK `visit_type IN ('posyandu','kunjungan_rumah','rujukan')`
+  (`visits_visit_type_check`)
+
+> **Tidak ada unique `(child_id, visit_date)`.** Satu anak boleh punya lebih
+> dari satu kunjungan di tanggal yang sama (mis. posyandu pagi lalu kunjungan
+> rumah sore). Keputusan ini sudah ditutup di `docs/RANCANGAN_VISIT.md` §7.1.
+>
+> **`visit_type` memakai string + CHECK, bukan enum PostgreSQL**, konsisten
+> dengan `medical_notes.tindak_lanjut` dan `posyandu_schedules.status`. Menambah
+> tipe baru cukup migration biasa.
+>
+> **Backfill.** Penimbangan lama yang belum punya `visit_id` dibuatkan satu
+> kunjungan "legacy" per `(anak, tanggal)` oleh migration
+> `2026_10_11_233504_backfill_legacy_visits_for_measurements.php`
+> (keputusan §7.3). Migration ini tidak melakukan apa pun di driver non-pgsql.
 
 ## 6. `spatial_zones` (Pemetaan - PostGIS) *Coming Soon*
 * `id` (UUID, PK), `child_id` (UUID, FK)

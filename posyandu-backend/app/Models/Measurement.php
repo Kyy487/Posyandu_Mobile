@@ -25,6 +25,7 @@ class Measurement extends Model
 
     protected $fillable = [
         'child_id',
+        'visit_id',
         'kader_id',
         'measurement_date',
         'weight_kg',
@@ -39,6 +40,12 @@ class Measurement extends Model
     public function child()
     {
         return $this->belongsTo(Child::class);
+    }
+
+    /** Kunjungan tempat penimbangan ini dicatat. Null bila diluar sesi kunjungan. */
+    public function visit()
+    {
+        return $this->belongsTo(Visit::class);
     }
 
     /**

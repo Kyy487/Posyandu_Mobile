@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Child;
 use App\Models\Measurement;
+use App\Models\Visit;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
@@ -40,15 +41,32 @@ class MeasurementController extends Controller
                 'weight_kg' => 'required|numeric|min:0.5|max:50',
                 'height_cm' => 'required|numeric|min:20|max:150',
                 'head_circumference_cm' => 'nullable|numeric|min:20|max:60',
+                // Opsional (P0-1): menautkan penimbangan ke sesi kunjungan.
+                // Boleh dikosongkan agar klien lama tetap jalan.
+                'visit_id' => 'nullable|uuid',
             ]);
 
             // Pastikan anak yang dituju memang ada
             $child = Child::findOrFail($validated['child_id']);
 
+            // Bila kunjungan disebut, kunjungan itu harus ada, aktif, dan milik
+            // anak yang sama. Dicek di sini agar tidak menautkan penimbangan ke
+            // kunjungan anak lain dengan pesan yang jelas (422, bukan 500).
+            $visit = Visit::findForChild($validated['visit_id'] ?? null, $child->id);
+
+            if (! empty($validated['visit_id']) && $visit === null) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Kunjungan tidak ditemukan atau bukan milik anak ini.',
+                    'errors' => ['visit_id' => ['Kunjungan tidak ditemukan untuk anak tersebut.']],
+                ], 422);
+            }
+
             // 2. Simpan Data Penimbangan
             // Kader yang sedang login otomatis menjadi pencatat
             $measurement = Measurement::create([
                 'child_id' => $child->id,
+                'visit_id' => $visit?->id,
                 'kader_id' => $request->user()->id,
                 'measurement_date' => $validated['measurement_date'],
                 'weight_kg' => $validated['weight_kg'],

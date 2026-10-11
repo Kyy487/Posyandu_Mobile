@@ -89,6 +89,12 @@ class Child extends Model
         return $this->hasMany(Measurement::class);
     }
 
+    /** Satu Anak memiliki banyak kunjungan layanan. */
+    public function visits(): HasMany
+    {
+        return $this->hasMany(Visit::class);
+    }
+
     /**
      * Pengukuran terakhir anak, diurutkan dari yang terbaru.
      *

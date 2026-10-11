@@ -8,6 +8,8 @@ use App\Http\Controllers\Api\MeasurementController;
 use App\Http\Controllers\Api\MedicalNoteController;
 use App\Http\Controllers\Api\PetugasController;
 use App\Http\Controllers\Api\PosyanduScheduleController;
+use App\Http\Controllers\Api\ReminderController;
+use App\Http\Controllers\Api\VisitController;
 use App\Http\Middleware\RoleCheck;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
@@ -88,6 +90,16 @@ Route::middleware('auth:sanctum')->group(function () {
         // bagian 7.2 dan 7.3, dan sengaja tanpa query string apa pun.
         Route::get('/children/{id}/growth', [ChildController::class, 'growth']);
 
+        // Daftar kunjungan satu anak (P0-1). Didaftarkan di group ini, bukan di
+        // prefix `/kader/`, supaya Ibu bisa membaca kunjungan anaknya sendiri.
+        // Aksesnya sama persis dengan `GET /children/{id}`, `/timeline`, dan
+        // `/growth` di atas. Lihat docs/RANCANGAN_VISIT.md.
+        Route::get('/children/{id}/visits', [ChildController::class, 'visits']);
+
+        // Detail satu kunjungan (pemilik anak / Kader). Otorisasi per-kunjungan
+        // di VisitController; hanya membaca, jadi taruh di group Ibu+Kader.
+        Route::get('/visits/{id}', [VisitController::class, 'show']);
+
         // -----------------------------------------------------------------
         // AREA IMUNISASI - dapat diakses Ibu maupun Kader (Ibu read-only)
         //
@@ -120,6 +132,18 @@ Route::middleware('auth:sanctum')->group(function () {
     });
 
     // -----------------------------------------------------------------
+    // AREA KHUSUS IBU
+    //
+    // Pengingat Ibu adalah endpoint Ibu, bukan endpoint bersama: `indexIbu`
+    // membaca anak milik pengguna yang login. Kader memakai endpoint sendiri,
+    // `GET /kader/reminders`. Dipisah supaya Kader tidak bisa memanggil endpoint
+    // Ibu (dan sebaliknya) - lihat ReminderTest.
+    // -----------------------------------------------------------------
+    Route::middleware([RoleCheck::class.':ibu'])->group(function () {
+        Route::get('/ibu/reminders', [ReminderController::class, 'indexIbu']);
+    });
+
+    // -----------------------------------------------------------------
     // AREA KHUSUS KADER POSYANDU
     // -----------------------------------------------------------------
     Route::middleware([RoleCheck::class.':kader'])->group(function () {
@@ -130,9 +154,22 @@ Route::middleware('auth:sanctum')->group(function () {
         // menghapus data anaknya, meski path endpoint tetap /children/{id}.
         Route::delete('/children/{id}', [ChildController::class, 'destroy']);
 
+        // -----------------------------------------------------------------
+        // AREA KUNJUNGAN (P0-1) - Kader membuat dan mengoreksi
+        //
+        // Kunjungan dibuat EKSPLISIT saat kader menekan "Mulai kunjungan",
+        // bukan otomatis. Daftar per-anak dan detail dikunci di group Ibu+Kader
+        // di atas; tulis hanya lewat prefix `/visits` di sini.
+        // -----------------------------------------------------------------
+        Route::post('/visits', [VisitController::class, 'store']);
+        Route::patch('/visits/{id}', [VisitController::class, 'update']);
+
         Route::get('/kader/measurements', [MeasurementController::class, 'index']);
         Route::post('/kader/measurements', [MeasurementController::class, 'store']);
         Route::delete('/kader/measurements/{id}', [MeasurementController::class, 'destroy']);
+
+        // Pengingat untuk Kader: agenda petugas + jumlah anak terlambat.
+        Route::get('/kader/reminders', [ReminderController::class, 'indexKader']);
 
         // -----------------------------------------------------------------
         // AREA IMUNISASI - Kader mencatat dan mengoreksi

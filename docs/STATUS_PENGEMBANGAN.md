@@ -1,0 +1,146 @@
+# Status Pengembangan Smart Posyandu
+
+> **Terakhir diperbarui:** 12 Oktober 2026
+> **Dokumen acuan utama:** `PERANCANGAN_PERKUATAN.md`
+> **Aturan agent:** `AI_AGENT_RULES.md` dan `posyandu-backend/AGENTS.md`
+
+---
+
+## 1. Ringkasan Proyek
+
+| Layer | Teknologi |
+|---|---|
+| Backend | Laravel 13 (REST API), PHP 8.4 |
+| Database | PostgreSQL (`posyandu_db`) |
+| Auth | Laravel Sanctum |
+| Mobile | Flutter (Dart) |
+
+**Prinsip kunci:** kalkulasi Z-score WHO **wajib di trigger/function PostgreSQL**, bukan di PHP.
+
+---
+
+## 2. Sudah Dikerjakan
+
+### 2.1 Fitur yang sudah selesai (sebelum sesi ini)
+
+| Fitur | Status |
+|---|---|
+| CRUD Data Anak (Kader & Ibu) | Selesai |
+| Autentikasi (Sanctum), role ibu/kader | Selesai |
+| e-KMS + Z-Score BB/U via trigger | Selesai |
+| Imunisasi & Jadwal Posyandu | Selesai |
+| Buku Medis Digital (timeline) | Selesai |
+| Catatan Keluhan Kader | Selesai |
+| Grafik Tumbuh Kembang | Selesai |
+| Edit data anak oleh Kader | Selesai |
+| Reminder / notifikasi | Selesai (uncommitted) |
+
+### 2.2 P0-2 — Validasi WHO Multidimensi (HFA + BFA + WFH) — 10 Okt 2026
+
+Yang **selesai**:
+
+- **Tabel referensi baru**: `who_hfa_standards` (TB/U), `who_bfa_standards` (IMT/U), dan `who_wfh_standards` (BB/TB, 0–24 bln, panjang 45–110 cm; kolom `length_cm`, `gender`, `l`, `m`, `s`). Ketiganya memakai **PK UUID** (`default gen_random_uuid()`), seragam dengan `who_wfa_standards` sesuai `.ai/rules`.
+- **Seed**: `who_hfa_standards` = **122 baris**, `who_bfa_standards` = **122 baris** (gender L/P, bulan 0–60), `who_wfh_standards` = **1302 baris** (gender L/P, 45.0–110.0 cm, interpolasi 0.1 cm). Sumber file di `docs/data_who/`, output `database/seeders/who_hfa_bfa_seed.sql` dan `who_wfh_seed.sql`.
+- **Kolom baru di `measurements`**: `z_score_hfa`, `z_score_wfh`, `z_score_bfa`, `status_stunting`, `status_gizi_imt`.
+- **Function** `calculate_who_zscore_lms()` (formula Box-Cox LMS) + perluasan `calculate_measurement_who_zscore()` untuk menghitung WFA, HFA, WFH, BFA dan status gizi komposit.
+- **Perbaikan bug**:
+  - Kolom `m` diubah dari `DECIMAL(8,6)` → `DECIMAL(8,4)` (penyebab error `numeric field overflow` karena nilai TB > 100 cm).
+  - Bug fatal trigger `calculate_measurement_who_zscore` (`SELECT median_kg, sd_kg INTO v_wfa_z` ke skalar, padahal dipakai `v_wfa_z.sd_kg`) → semua INSERT/UPDATE `measurements` gagal. Diperbaiki dengan variabel `v_wfa_median` & `v_wfa_sd`.
+  - Hapus migration scaffold duplikat `2026_10_10_103955_create_who_hfa_standards_table.php` (pending, akan menggagalkan `php artisan migrate`).
+- **Backfill** 7 `measurements` lama; kolom z-score baru kini terisi.
+
+**Migrasi terkait:**
+
+| Migration | Fungsi |
+|---|---|
+| `2026_10_10_104330_create_who_hfa_standards_table` | Tabel TB/U |
+| `2026_10_10_104404_create_who_bfa_standards_table` | Tabel IMT/U |
+| `2026_10_10_104713_add_who_multidim_columns_to_measurements` | Kolom z-score baru |
+| `2026_10_10_104811_update_zscore_trigger_for_lms` | Function LMS + trigger (WFA/HFA/WFH/BFA) |
+| `2026_10_10_104853_seed_who_hfa_bfa_standards` | Seed HFA & BFA |
+| `2026_10_10_110126_fix_who_standards_m_column_precision` | Fix presisi kolom `m` |
+| `2026_10_10_112842_create_who_wfh_standards_table` | Tabel BB/TB + kolom `z_score_wfh` |
+| `2026_10_10_112843_seed_who_wfh_standards` | Seed WFH + backfill |
+
+**Contoh hasil backfill:**
+
+| Anak | Bln | WFA | HFA | WFH | BFA |
+|---|---|---|---|---|---|
+| Budi (L) | 16 | 13.18 Risiko Gizi Lebih | 7.66 Normal | 5.59 | 4.84 Risiko Gizi Lebih |
+| Naya (P) | 35 | -0.86 Normal | -1.69 Normal | — (usia ≥24) | 0.53 Normal |
+
+---
+
+### 2.3 P0-1 — Entitas Kunjungan (`visits`) — 12 Okt 2026
+
+Rancangan lengkap: `docs/RANCANGAN_VISIT.md`.
+
+Yang **selesai**:
+
+- **Tabel `visits`** (UUID, soft delete) sebagai payung satu sesi layanan;
+  `visit_type` = `posyandu`/`kunjungan_rumah`/`rujukan` (string + CHECK, bukan
+  enum PostgreSQL).
+- **Kolom `visit_id`** (nullable, `nullOnDelete`) di `measurements`,
+  `immunization_records`, dan `medical_notes`.
+- **Backfill**: penimbangan lama tanpa `visit_id` dibuatkan satu kunjungan
+  "legacy" per `(anak, tanggal)`.
+- **Model & relasi**: `Child::visits()`, `Visit::child/schedule/kader/measurements/immunizationRecords/medicalNotes()`.
+- **API**: `POST /visits`, `GET /children/{id}/visits` (di `ChildController`,
+  seperti `timeline`/`growth`), `GET /visits/{id}`, `PATCH /visits/{id}`.
+  Endpoint pencatatan menerima `visit_id` opsional (harus milik anak yang sama).
+- **Test**: `tests/Feature/VisitTest.php` (26 test, semua lulus).
+
+**Migrasi terkait:**
+
+| Migration | Fungsi |
+|---|---|
+| `2026_10_11_233500_create_visits_table` | Tabel `visits` |
+| `2026_10_11_233501_add_visit_id_to_measurements_table` | FK `visit_id` di penimbangan |
+| `2026_10_11_233502_add_visit_id_to_immunization_records_table` | FK `visit_id` di imunisasi |
+| `2026_10_11_233503_add_visit_id_to_medical_notes_table` | FK `visit_id` di keluhan |
+| `2026_10_11_233504_backfill_legacy_visits_for_measurements` | Backfill kunjungan legacy |
+
+> **Keputusan yang ditutup:** tidak ada unique `(child_id, visit_date)`
+> (kunjungan ganda per hari diizinkan); kunjungan dibuat eksplisit lewat
+> `POST`; `visit_date` boleh berbeda dari tanggal data anak.
+
+---
+
+## 3. Yang Harus Dikerjakan (Roadmap)
+
+### 3.1 Prioritas P0
+
+| ID | Pekerjaan | Status |
+|---|---|---|
+| P0-2 | **Validasi WHO Multidimensi** (WFA/U, TB/U, BB/TB, IMT/U) | **Selesai** |
+| P0-1 | **Entitas `Visit`**: tambah tabel `visits` + relasi `measurements.visit_id` | **Selesai** |
+| P0-3 | **Klarifikasi "16 Imunisasi"** (dosis vs jenis) + jadwal Kemenkes RI | **Blocked** — butuh keputusan dosen |
+
+### 3.2 Prioritas selanjutnya (ringkas, lihat `PERANCANGAN_PERKUATAN.md`)
+
+- P1: Audit trail, Consent, WFH (jika belum P0), perbaikan kualitas data.
+- P2: KMS Digital interaktif, AI Food Scanner, Pemetaan Spasial (PostGIS), IoT Smart Triage.
+
+---
+
+## 4. Aturan Wajib Saat Bekerja
+
+1. Logika Z-score **hanya** di trigger/procedure PostgreSQL (`AI_AGENT_RULES.md` #9).
+2. Primary key **UUID** (`HasUuids`), foreign key pakai `foreignUuid()`.
+3. Migration bersifat **additive** — jangan ubah migration lama yang sudah dijalankan.
+4. Jangan ubah `AuthController`, struktur route, atau schema inti tanpa instruksi eksplisit.
+5. Jangan jalankan/mengubah apa pun tanpa persetujuan pengguna.
+6. Data WHO diambil dari `docs/data_who/` (format xlsx; kolom: A=usia, B=L, C=M, D=S).
+
+---
+
+## 5. Referensi Dokumen
+
+| Kebutuhan | Dokumen |
+|---|---|
+| Prioritas & perancangan | `PERANCANGAN_PERKUATAN.md` |
+| Aturan teknis | `AI_AGENT_RULES.md` |
+| Kontrak API | `API_CONTRACT.md` |
+| Skema database | `DATABASE_SCHEMA.md` |
+| Setup & riwayat | `SETUP_LOG.md` |
+| Data referensi WHO | `docs/data_who/` |

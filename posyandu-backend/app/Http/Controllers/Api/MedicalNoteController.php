@@ -7,6 +7,7 @@ use App\Models\Child;
 use App\Models\Measurement;
 use App\Models\MedicalNote;
 use App\Models\User;
+use App\Models\Visit;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\JsonResponse;
@@ -141,6 +142,8 @@ class MedicalNoteController extends Controller
         try {
             $validated = $request->validate([
                 'measurement_id' => ['nullable', 'uuid', Rule::exists('measurements', 'id')],
+                // Opsional (P0-1): menautkan keluhan ke sesi kunjungan.
+                'visit_id' => ['nullable', 'uuid'],
                 'note_date' => ['required', 'date_format:Y-m-d', 'before_or_equal:today'],
                 'demam' => ['nullable', 'boolean'],
                 'rewel' => ['nullable', 'boolean'],
@@ -156,6 +159,12 @@ class MedicalNoteController extends Controller
 
             if ($measurementError !== null) {
                 return $measurementError;
+            }
+
+            $visitError = $this->assertVisitBelongsToChild($validated['visit_id'] ?? null, $child);
+
+            if ($visitError !== null) {
+                return $visitError;
             }
 
             $isiError = $this->assertHasContent($validated);
@@ -183,6 +192,7 @@ class MedicalNoteController extends Controller
             $note = MedicalNote::create([
                 'child_id' => $child->id,
                 'measurement_id' => $validated['measurement_id'] ?? null,
+                'visit_id' => $validated['visit_id'] ?? null,
                 'kader_id' => $user->id,
                 'note_date' => $validated['note_date'],
                 'demam' => $validated['demam'] ?? false,
@@ -277,6 +287,7 @@ class MedicalNoteController extends Controller
         try {
             $validated = $request->validate([
                 'measurement_id' => ['sometimes', 'nullable', 'uuid', Rule::exists('measurements', 'id')],
+                'visit_id' => ['sometimes', 'nullable', 'uuid'],
                 'note_date' => ['sometimes', 'required', 'date_format:Y-m-d', 'before_or_equal:today'],
                 'demam' => ['sometimes', 'nullable', 'boolean'],
                 'rewel' => ['sometimes', 'nullable', 'boolean'],
@@ -301,6 +312,14 @@ class MedicalNoteController extends Controller
 
                 if ($measurementError !== null) {
                     return $measurementError;
+                }
+            }
+
+            if (array_key_exists('visit_id', $validated)) {
+                $visitError = $this->assertVisitBelongsToChild($validated['visit_id'], $note->child);
+
+                if ($visitError !== null) {
+                    return $visitError;
                 }
             }
 
@@ -501,6 +520,35 @@ class MedicalNoteController extends Controller
     }
 
     /**
+     * Memastikan kunjungan yang dilampirkan milik anak yang sama dan masih aktif.
+     *
+     * Seperti `assertMeasurementBelongsToChild`: tanpa cek ini, keluhan anak ini
+     * bisa ditempelkan ke kunjungan anak lain tanpa error.
+     *
+     * @return JsonResponse|null null bila tidak ada masalah
+     */
+    private function assertVisitBelongsToChild(?string $visitId, ?Child $child): ?JsonResponse
+    {
+        if ($visitId === null) {
+            return null;
+        }
+
+        // `findForChild` mengembalikan null bila kunjungan tidak ada, sudah
+        // dibatalkan (soft delete), atau milik anak lain.
+        if ($child && Visit::findForChild($visitId, $child->id) === null) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Kunjungan tidak sesuai.',
+                'errors' => [
+                    'visit_id' => ['Kunjungan ini bukan milik anak tersebut.'],
+                ],
+            ], 422);
+        }
+
+        return null;
+    }
+
+    /**
      * Membersihkan `catatan`: `null` jadi `null`, spasi excess dibuang, dan
      * teks kosong jadi `null`.
      *
@@ -599,6 +647,7 @@ class MedicalNoteController extends Controller
             'id' => $note->id,
             'child_id' => $note->child_id,
             'measurement_id' => $note->measurement_id,
+            'visit_id' => $note->visit_id,
             'kader_id' => $note->kader_id,
             'kader' => $note->kader ? [
                 'id' => $note->kader->id,

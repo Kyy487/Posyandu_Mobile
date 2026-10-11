@@ -81,6 +81,8 @@ Header Wajib: `Authorization: Bearer {token}` & `Accept: application/json`
 | `PUT`/`PATCH` | `/children/{id}` | **[Ubah data anak](#mengubah-data-anak)** | Ibu / Kader |
 | `GET` | `/children/{id}/timeline` | **[Riwayat medis gabungan](#riwayat-medis-anak-timeline)** - per tanggal kunjungan | Ibu (anaknya) / Kader |
 | `GET` | `/children/{id}/growth` | **[Grafik tumbuh kembang](#grafik-tumbuh-kembang-growth)** - deret penimbangan + pita WHO BB/U | Ibu (anaknya) / Kader |
+| `GET` | `/children/{id}/visits` | **[Daftar kunjungan](#kunjungan-visit--p0-1)** - per sesi layanan | Ibu (anaknya) / Kader |
+| `GET` | `/visits/{id}` | **[Detail kunjungan](#kunjungan-visit--p0-1)** + data tertaut | Ibu (anaknya) / Kader |
 | `DELETE` | `/children/{id}` | **[Hapus data anak (soft delete)](#menghapus-data-anak-soft-delete)** | **Kader saja** |
 
 ### Kader (POSYANDU)
@@ -91,6 +93,8 @@ Header Wajib: `Authorization: Bearer {token}` & `Accept: application/json`
 | `GET` | `/kader/measurements` | Riwayat penimbangan |
 | `POST` | `/kader/measurements` | Input penimbangan (e-KMS) — endpoint yang dipakai mobile |
 | `DELETE` | `/kader/measurements/{id}` | Batalkan penimbangan (soft delete) |
+| `POST` | `/visits` | **[Buat kunjungan](#kunjungan-visit--p0-1)** |
+| `PATCH` | `/visits/{id}` | **[Koreksi kunjungan](#kunjungan-visit--p0-1)** |
 | `GET` | `/kader/immunizations/recap` | **[Rekap bulanan](#get-kaderimmunizationsrecap)** - aktivitas + kelengkapan, Kader saja. `?format=csv` untuk laporan ke BIDAN |
 | `POST` | `/kader/children/{child}/immunizations` | Catat suntikan — **[lihat bagian imunisasi](#imunisasi)** |
 | `PATCH` | `/kader/immunizations/{record}` | Koreksi suntikan yang sudah tercatat |
@@ -536,6 +540,127 @@ Child::withTrashed()->find($id)->restore();
 
 > NIK anak tetap unik termasuk baris yang sudah di-soft delete. Bila NIK tersebut
 > dipakai lagi, API membalas `422` dengan pesan yang menyebut nama anak yang sudah dihapus.
+
+
+## Kunjungan (Visit) — P0-1
+
+Satu kunjungan merepresentasikan **satu sesi layanan** untuk satu anak dan
+menjadi payung bagi penimbangan, imunisasi, dan keluhan yang dicatat di dalamnya.
+Spesifikasi penuh ada di `docs/RANCANGAN_VISIT.md`.
+
+| Method | Path | Peran |
+| :--- | :--- | :--- |
+| `POST` | `/visits` | Kader membuat kunjungan |
+| `GET` | `/children/{id}/visits` | Ibu (anaknya) / Kader |
+| `GET` | `/visits/{id}` | pemilik anak / Kader |
+| `PATCH` | `/visits/{id}` | Kader (koreksi) |
+
+**Tipe kunjungan (`visit_type`):** `posyandu`, `kunjungan_rumah`, `rujukan`.
+
+### `POST /visits`
+
+Kader membuat kunjungan. `kader_id` diisi otomatis dari akun yang login.
+
+Request body:
+
+```json
+{
+  "child_id": "01a0dc0d-...",
+  "visit_date": "2026-10-12",
+  "visit_type": "posyandu",
+  "schedule_id": null,
+  "anamnesis": "Demam sejak semalam",
+  "catatan_kader": null
+}
+```
+
+Respons `201`:
+
+```json
+{
+  "success": true,
+  "message": "Kunjungan berhasil dibuat.",
+  "data": {
+    "id": "01a12d58-...",
+    "child_id": "01a0dc0d-...",
+    "schedule_id": null,
+    "visit_date": "2026-10-12",
+    "visit_type": "posyandu",
+    "kader_id": "01a12d58-...",
+    "kader": { "id": "01a12d58-...", "name": "Kader Sari" },
+    "anamnesis": "Demam sejak semalam",
+    "catatan_kader": null,
+    "created_at": "2026-10-12T03:00:00+00:00",
+    "updated_at": "2026-10-12T03:00:00+00:00"
+  }
+}
+```
+
+### `GET /children/{id}/visits`
+
+Daftar kunjungan satu anak, terbaru lebih dulu. Setiap baris memuat jumlah data
+tertaut (`jumlah_pengukuran`, `jumlah_imunisasi`, `jumlah_keluhan`).
+
+Respons `200`:
+
+```json
+{
+  "success": true,
+  "message": "Daftar kunjungan anak berhasil diambil.",
+  "data": {
+    "child": { "id": "01a0dc0d-...", "name": "Naya" },
+    "visits": [
+      {
+        "id": "01a12d58-...",
+        "child_id": "01a0dc0d-...",
+        "schedule_id": null,
+        "visit_date": "2026-10-12",
+        "visit_type": "posyandu",
+        "kader_id": "01a12d58-...",
+        "kader": { "id": "01a12d58-...", "name": "Kader Sari" },
+        "anamnesis": null,
+        "catatan_kader": null,
+        "jumlah_pengukuran": 1,
+        "jumlah_imunisasi": 0,
+        "jumlah_keluhan": 1,
+        "created_at": "2026-10-12T03:00:00+00:00",
+        "updated_at": "2026-10-12T03:00:00+00:00"
+      }
+    ]
+  }
+}
+```
+
+### `GET /visits/{id}`
+
+Detail satu kunjungan, termasuk data yang tertaut. Menambahkan kunci
+`pengukuran`, `imunisasi`, dan `catatan_keluhan` pada `data`.
+
+### `PATCH /visits/{id}`
+
+Koreksi sebagian. Hanya field yang dikirim yang berubah. `child_id` **tidak**
+bisa dipindah: kunjungan yang salah anak dibatalkan lalu dibuat ulang.
+
+```json
+{ "anamnesis": "Batuk pilek sejak 2 hari" }
+```
+
+### Menautkan data ke kunjungan (`visit_id` opsional)
+
+`POST /kader/measurements`, `POST /kader/children/{child}/immunizations`, dan
+`POST /kader/children/{child}/medical-notes` menerima `visit_id` **opsional**.
+Bila dikirim, kunjungan itu harus ada, aktif, dan **milik anak yang sama** -
+kalau tidak, server membalas `422` dengan error `visit_id`. Field `visit_id`
+juga ikut pada respons ketiga endpoint itu. Klien lama yang tidak mengirim
+`visit_id` tetap bekerja (nilainya `null`).
+
+### Kode error
+
+| Kode | Kondisi |
+| :--- | :--- |
+| `422` | Field wajib kurang, `visit_type` tidak dikenal, tanggal di masa depan, `schedule_id`/`child_id` tidak ada, atau `visit_id` bukan milik anak itu |
+| `403` | Ibu mencoba menulis kunjungan, atau membuka kunjungan anak orang lain |
+| `404` | `id` bukan UUID, atau kunjungan sudah dibatalkan (soft delete) |
 
 
 ## Imunisasi

@@ -7,6 +7,7 @@ use App\Models\Child;
 use App\Models\ImmunizationRecord;
 use App\Models\ImmunizationType;
 use App\Models\User;
+use App\Models\Visit;
 use App\Services\ImmunizationChecklistService;
 use App\Services\ImmunizationRecapCsv;
 use App\Services\ImmunizationRecapService;
@@ -180,7 +181,20 @@ class ImmunizationController extends Controller
                 'date_given' => 'required|date_format:Y-m-d|before_or_equal:today',
                 'batch_number' => 'nullable|string|max:60',
                 'notes' => 'nullable|string|max:1000',
+                // Opsional (P0-1): menautkan suntikan ke sesi kunjungan.
+                'visit_id' => 'nullable|uuid',
             ]);
+
+            // Bila kunjungan disebut, harus ada, aktif, dan milik anak yang sama.
+            $visit = Visit::findForChild($validated['visit_id'] ?? null, $child->id);
+
+            if (! empty($validated['visit_id']) && $visit === null) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Kunjungan tidak ditemukan atau bukan milik anak ini.',
+                    'errors' => ['visit_id' => ['Kunjungan tidak ditemukan untuk anak tersebut.']],
+                ], 422);
+            }
 
             // Dosis yang sama tidak boleh dicatat dua kali untuk satu anak.
             // Dicek di sini agar pesannya ramah; unique constraint di database
@@ -214,6 +228,7 @@ class ImmunizationController extends Controller
 
             $record = ImmunizationRecord::create([
                 'child_id' => $child->id,
+                'visit_id' => $visit?->id,
                 'kader_id' => $user->id,
                 'immunization_type_id' => $validated['immunization_type_id'],
                 'date_given' => $validated['date_given'],
@@ -531,6 +546,7 @@ class ImmunizationController extends Controller
         return [
             'id' => $record->id,
             'child_id' => $record->child_id,
+            'visit_id' => $record->visit_id,
             'kader_id' => $record->kader_id,
             'immunization_type_id' => $record->immunization_type_id,
             'date_given' => $record->date_given?->format('Y-m-d'),

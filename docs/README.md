@@ -85,8 +85,9 @@ flutter test
 
 | Kategori | File |
 |---|---|
-| Panduan | `AI_AGENT_RULES.md`, `Cara_menjalankan.md`, `SETUP_LOG.md`, `PROJECT_OVERVIEW.md` |
+| Status | `STATUS_PENGEMBANGAN.md` (progres & rencana terkini) |
+| Panduan | `AI_AGENT_RULES.md`, `Cara_menjalankan.md`, `SETUP_LOG.md` |
 | Kontrak | `API_CONTRACT.md`, `DATABASE_SCHEMA.md` |
-| Perencanaan | `RANCANGAN.md`, `RENCANA_SELANJUTNYA.md`, `RANCANGAN_BUKU_MEDIS.md`, `RANCANGAN_GRAFIK_TUMBUH_KEMBANG.md` |
+| Perencanaan | `PERANCANGAN_PERKUATAN.md` (acuan utama), `RANCANGAN.md`, `RANCANGAN_BUKU_MEDIS.md`, `RANCANGAN_GRAFIK_TUMBUH_KEMBANG.md`, `RANCANGAN_NOTIFIKASI.md`, `RANCANGAN_VISIT.md` |
 | Laporan | `LAPORAN_ZSCORE_TRIGGER.md`, `LAPORAN_IMUNISASI_JADWAL.md`, `LAPORAN_MEDICAL_NOTES.md`, `LAPORAN_BUKU_MEDIS.md`, `LAPORAN_GRAFIK_TUMBUH_KEMBANG.md`, `LAPORAN_REKAP_IMUNISASI_BULANAN.md`, `LAPORAN_REKAP_CSV.md` |
 | Aturan agent | `posyandu-backend/.ai/rules/` (dibaca otomatis lewat `AGENTS.md`) |

@@ -8,6 +8,7 @@ use App\Models\Measurement;
 use App\Models\User;
 use App\Services\ChildTimelineService;
 use App\Services\GrowthChartService;
+use App\Services\VisitService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
@@ -570,6 +571,55 @@ class ChildController extends Controller
 
         } catch (\Throwable $e) {
             Log::error('Gagal mengambil data pertumbuhan anak: '.$e->getMessage(), [
+                'user_id' => $user->id,
+                'child_id' => $id,
+                'exception' => $e,
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Terjadi kesalahan server. Silakan coba lagi.',
+                'errors' => null,
+            ], 500);
+        }
+    }
+
+    /**
+     * Daftar kunjungan satu anak (P0-1), terbaru lebih dulu.
+     *
+     * Didaftarkan di group `RoleCheck:ibu,kader` yang sama dengan `timeline`
+     * dan `growth`, supaya aturan aksesnya persis sama: Ibu hanya anaknya
+     * sendiri, Kader semua. Otorisasi memakai `findChildForUser()` yang sudah
+     * ada, bukan salinan baru.
+     *
+     * Bentuk keluaran ada di `VisitService::listForChild()`; controller hanya
+     * memasang envelope baku.
+     */
+    public function visits(Request $request, $id, VisitService $visits)
+    {
+        $user = $request->user();
+
+        try {
+            $child = $this->findChildForUser($id, $user, 'melihat');
+
+            if (! $child instanceof Child) {
+                return $child;
+            }
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Daftar kunjungan anak berhasil diambil.',
+                'data' => [
+                    'child' => [
+                        'id' => $child->id,
+                        'name' => $child->name,
+                    ],
+                    'visits' => $visits->listForChild($child),
+                ],
+            ], 200);
+
+        } catch (\Throwable $e) {
+            Log::error('Gagal mengambil daftar kunjungan anak: '.$e->getMessage(), [
                 'user_id' => $user->id,
                 'child_id' => $id,
                 'exception' => $e,
