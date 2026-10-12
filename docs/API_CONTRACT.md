@@ -101,6 +101,7 @@ Header Wajib: `Authorization: Bearer {token}` & `Accept: application/json`
 | `DELETE` | `/kader/immunizations/{record}` | Batalkan suntikan (soft delete) |
 | `POST` | `/kader/schedules` | **[Agenda posyandu](#jadwal-posyandu-agenda-kegiatan)** — buat agenda |
 | `PATCH`/`DELETE` | `/kader/schedules/{id}` | Ubah / hapus agenda |
+| `GET` | `/kader/audit-logs` | Riwayat audit (siapa mengubah apa) |
 
 > **Tidak ada `GET /kader/schedules`.** Membaca daftar agenda tidak perlu prefix
 > `kader`: Ibu dan Kader memakai endpoint yang sama, `GET /api/schedules`.
@@ -1167,6 +1168,36 @@ Menghapus ulang id yang sama membalas `404`.
 | `422` | `status` di luar enum | pesan `status` |
 | `422` | tidak ada field yang dikirim | `Tidak ada data yang diperbarui.` |
 | `404` | id agenda tidak ada | `Data yang diminta tidak ditemukan.` |
+
+### `GET /kader/audit-logs`
+
+Riwayat audit — siapa mengubah apa, kapan, dan dari nilai apa ke nilai apa.
+Hanya untuk Kader.
+
+Filter opsional via query string:
+
+| Parameter | Keterangan |
+| :--- | :--- |
+| `auditable_type` | Class model, mis. `App\Models\Child` |
+| `auditable_id` | UUID entitas |
+| `event` | `created` / `updated` / `deleted` / `restored` |
+
+Setiap baris berisi:
+
+| Field | Keterangan |
+| :--- | :--- |
+| `id` | UUID baris audit |
+| `auditable_type` | Class model yang diubah |
+| `auditable_id` | UUID entitas yang diubah |
+| `event` | `created` / `updated` / `deleted` / `restored` |
+| `actor` | `{ id, name }` atau `null` (perubahan sistem) |
+| `old_values` | Nilai sebelum perubahan (null untuk `created`) |
+| `new_values` | Nilai sesudah perubahan (null untuk `deleted`) |
+| `ip_address` | Alamat IP asal permintaan |
+| `created_at` | Waktu perubahan |
+
+> **Tidak ada penghapusan riwayat.** Baris audit tidak bisa dihapus lewat API.
+> Riwayat hanya bertambah.
 
 ## Daftar Petugas
 

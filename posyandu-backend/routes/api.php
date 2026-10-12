@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Api\AuditLogController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\ChildController;
 use App\Http\Controllers\Api\ImmunizationController;
@@ -221,5 +222,13 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/kader/schedules', [PosyanduScheduleController::class, 'store']);
         Route::patch('/kader/schedules/{id}', [PosyanduScheduleController::class, 'update']);
         Route::delete('/kader/schedules/{id}', [PosyanduScheduleController::class, 'destroy']);
+
+        // -----------------------------------------------------------------
+        // AREA AUDIT TRAIL - Kader membaca riwayat perubahan
+        //
+        // Riwayat audit hanya untuk Kader: isinya bisa mengungkap jadwal kerja
+        // orang lain dan data klinis anak. Ibu tidak boleh.
+        // -----------------------------------------------------------------
+        Route::get('/kader/audit-logs', [AuditLogController::class, 'index']);
     });
 });

@@ -232,6 +232,33 @@ ada di `docs/RANCANGAN_VISIT.md`.
 > `2026_10_11_233504_backfill_legacy_visits_for_measurements.php`
 > (keputusan §7.3). Migration ini tidak melakukan apa pun di driver non-pgsql.
 
+## 5.3 `audit_logs` (Riwayat Audit)
+
+Migration `2026_10_12_013352_create_audit_logs_table.php`. Satu baris = satu
+perubahan yang dilakukan aplikasi pada entitas audited (`Child`, `Visit`,
+`Measurement`, `ImmunizationRecord`, `MedicalNote`).
+
+* `id` (UUID, PK)
+* `auditable_type` (String) — class model, mis. `App\Models\Child`
+* `auditable_id` (UUID) — primary key entitas yang diubah
+* `event` (String 20) — `created` / `updated` / `deleted` / `restored`
+* `actor_id` (UUID, FK -> users.id, nullable, **set null**) — pelaku perubahan;
+  null bila dilakukan sistem (seeder, backfill)
+* `old_values` (JSONB, nullable) — nilai sebelum perubahan
+* `new_values` (JSONB, nullable) — nilai sesudah perubahan
+* `ip_address` (String 45, nullable) — alamat IP asal permintaan
+* `timestamps`
+
+**Index dan constraint:**
+
+* Index `(auditable_type, auditable_id)` — riwayat per entitas
+* Index `(created_at)` — urut kronologis
+* Index `(actor_id)` — riwayat per pelaku
+* CHECK `event IN ('created','updated','deleted','restored')`
+
+> **Tidak ada penghapusan riwayat.** Baris audit tidak bisa dihapus lewat API.
+> Riwayat hanya bertambah.
+
 ## 6. `spatial_zones` (Pemetaan - PostGIS) *Coming Soon*
 * `id` (UUID, PK), `child_id` (UUID, FK)
 * `coordinate` (Geometry/Point)
