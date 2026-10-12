@@ -3,6 +3,7 @@
 use App\Http\Controllers\Api\AuditLogController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\ChildController;
+use App\Http\Controllers\Api\FhirController;
 use App\Http\Controllers\Api\ImmunizationController;
 // -- Area Controller --//
 use App\Http\Controllers\Api\MeasurementController;
@@ -230,5 +231,15 @@ Route::middleware('auth:sanctum')->group(function () {
         // orang lain dan data klinis anak. Ibu tidak boleh.
         // -----------------------------------------------------------------
         Route::get('/kader/audit-logs', [AuditLogController::class, 'index']);
+
+        // -----------------------------------------------------------------
+        // AREA FHIR R4 - Jembatan integrasi SATUSEHAT
+        //
+        // Endpoint baca mengembalikan data lokal dalam format FHIR R4.
+        // Endpoint kirim meneruskan ke SATUSEHAT (atau log saja bila kredensial
+        // belum diisi). Hanya untuk Kader.
+        // -----------------------------------------------------------------
+        Route::get('/kader/fhir/{resourceType}/{id}', [FhirController::class, 'show']);
+        Route::post('/kader/fhir/{resourceType}/{id}/send', [FhirController::class, 'send']);
     });
 });

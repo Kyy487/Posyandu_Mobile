@@ -102,6 +102,8 @@ Header Wajib: `Authorization: Bearer {token}` & `Accept: application/json`
 | `POST` | `/kader/schedules` | **[Agenda posyandu](#jadwal-posyandu-agenda-kegiatan)** — buat agenda |
 | `PATCH`/`DELETE` | `/kader/schedules/{id}` | Ubah / hapus agenda |
 | `GET` | `/kader/audit-logs` | Riwayat audit (siapa mengubah apa) |
+| `GET` | `/kader/fhir/{resourceType}/{id}` | Data FHIR R4 (Patient/Encounter/Observation/Immunization) |
+| `POST` | `/kader/fhir/{resourceType}/{id}/send` | Kirim data FHIR ke SATUSEHAT |
 
 > **Tidak ada `GET /kader/schedules`.** Membaca daftar agenda tidak perlu prefix
 > `kader`: Ibu dan Kader memakai endpoint yang sama, `GET /api/schedules`.
@@ -1198,6 +1200,33 @@ Setiap baris berisi:
 
 > **Tidak ada penghapusan riwayat.** Baris audit tidak bisa dihapus lewat API.
 > Riwayat hanya bertambah.
+
+### `GET /kader/fhir/{resourceType}/{id}`
+
+Mengembalikan data lokal dalam format HL7 FHIR R4. Resource yang didapat:
+`Patient`, `Encounter`, `Observation`, `Immunization`. Hanya untuk Kader.
+
+```json
+{
+  "resourceType": "Patient",
+  "name": [{ "use": "official", "text": "Budi Santoso" }],
+  "gender": "male",
+  "birthDate": "2024-01-01"
+}
+```
+
+| HTTP | Kondisi | `message` |
+| :--- | :--- | :--- |
+| `403` | Ibu memanggil endpoint `/kader/*` | `Akses ditolak.` |
+| `404` | id tidak ada | `Data yang diminta tidak ditemukan.` |
+| `422` | `resourceType` tidak dikenal | pesan `resourceType` |
+
+### `POST /kader/fhir/{resourceType}/{id}/send`
+
+Meneruskan data ke SATUSEHAT. Selama `SATUSEHAT_CLIENT_ID` dan
+`SATUSEHAT_CLIENT_SECRET` belum diisi di `.env`, payload hanya dicatat ke
+`storage/logs/satusehat.log`. Begitu kredensial diisi, endpoint yang sama
+menembak API SATUSEHAT.
 
 ## Daftar Petugas
 
