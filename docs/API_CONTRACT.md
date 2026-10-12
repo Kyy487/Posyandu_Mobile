@@ -109,7 +109,7 @@ Header Wajib: `Authorization: Bearer {token}` & `Accept: application/json`
 ### Imunisasi & Agenda (Ibu dan Kader)
 | Method | Endpoint | Description | Role Akses |
 | :--- | :--- | :--- | :--- |
-| `GET` | `/immunization-types` | Master 16 dosis imunisasi | Ibu / Kader |
+| `GET` | `/immunization-types` | Master dosis imunisasi aktif | Ibu / Kader |
 | `GET` | `/children/{id}/immunizations` | Checklist imunisasi + status per dosis | Ibu (anaknya) / Kader |
 | `GET` | `/petugas` | Daftar petugas untuk dipilih di agenda | Ibu / Kader |
 | `GET` | `/schedules` | Daftar agenda kegiatan | Ibu / Kader |
@@ -681,22 +681,32 @@ server menghitung ulang umur anak lalu menetapkan status tiap dosis:
 
 ### `GET /immunization-types`
 
-Master 16 dosis (program HB Indonesia). Field `label` sudah diformat server,
-mis. `"Hepatitis B (Dosis 2)"`.
+Master dosis imunisasi dasar lengkap (program nasional Indonesia). Field
+`label` sudah diformat server, mis. `"Hepatitis B (Dosis 2)"`.
+
+Endpoint ini **hanya** mengembalikan dosis yang masih aktif (`is_active =
+true`). Dosis program lama yang sudah tidak dipakai tidak dihapus, melainkan
+dinonaktifkan (lihat `docs/DATABASE_SCHEMA.md`), sehingga catatan anak lama
+tetap utuh dan tidak ikut terkirim ke klien.
 
 | Dosis | `code` | Target |
 | :--- | :--- | :--- |
-| Hepatitis B 1-4 | `HB` | 0, 2, 4, 6 bulan |
-| BCG 1 | `BCG` | 2 bulan |
-| Polio Oral 1-5 | `POLIO` | 0, 2, 3, 4, 6 bulan |
-| DPT-HB-Hib 1-4 | `DPT-HB-HIB` | 2, 3, 4, 6 bulan |
+| Hepatitis B 1 | `HB` | 0 bulan |
+| BCG 1 | `BCG` | 1 bulan |
+| Polio Oral 1-4 | `POLIO` | 1, 2, 3, 4 bulan |
+| DPT-HB-Hib 1-4 | `DPT-HB-HIB` | 2, 3, 4, 18 bulan |
+| Polio Inaktif 1-2 | `IPV` | 4, 9 bulan |
+| Rotavirus 1-3 | `ROTAVIRUS` | 2, 3, 4 bulan |
+| Pneumokokus 1-3 | `PCV` | 2, 3, 12 bulan |
 | Campak-Rubella 1-2 | `MR` | 9, 18 bulan |
+| Japanese Encephalitis 1 | `JE` | 10 bulan (wilayah endemis) |
 
 **Urutan baris adalah bagian dari kontrak.** Baris dikirim sesuai urutan
 suntikan, yaitu `target_age_months` menaik, lalu `code`, lalu `dose_number`.
-Jadi `HB` (target 0) dan `POLIO` (target 0) didahulukan, baru `BCG`,
-`DPT-HB-HIB` 1, `HB` 2, `POLIO` 2 (semuanya target 2), dan seterusnya sampai
-`MR` 2 di target 18. Dosis tanpa `target_age_months` ada di akhir.
+Jadi target 0 hanya `HB` 1; target 1 `BCG` 1 dan `POLIO` 1; target 2
+`DPT-HB-HIB` 1, `POLIO` 2, `PCV` 1, dan `ROTAVIRUS` 1; dan seterusnya sampai
+`DPT-HB-HIB` 4 dan `MR` 2 di target 18. Dosis tanpa `target_age_months` ada di
+akhir.
 
 Dua alasan kenapa klien tidak boleh mengurutkan ulang:
 
@@ -945,10 +955,11 @@ rekap September yang dibuat di November angkanya sama dengan yang dibuat di
 Oktober. field ini dikirim supaya klien tidak perlu menghitung ulang sendiri,
 dan tidak bisa salah mengira rekap ini memakai hari ini.
 
-**3. `by_type` selalu memuat seluruh master 16 dosis, termasuk yang `count`-nya
-`0`.** Kader perlu melihat "tidak ada yang disuntik bulan ini" untuk satu jenis
-vaksin. Kalau baris nol disembunyikan, "memang tidak ada suntikan" dan "tidak
-sempat dicatat" tampil sama saja.
+**3. `by_type` selalu memuat seluruh master dosis **aktif**, termasuk yang
+`count`-nya `0`.** Kader perlu melihat "tidak ada yang disuntik bulan ini" untuk
+satu jenis vaksin. Kalau baris nol disembunyikan, "memang tidak ada suntikan"
+dan "tidak sempat dicatat" tampil sama saja. Dosis yang sudah dinonaktifkan
+(`is_active = false`) tidak ikut.
 
 **4. `excluded_archived` adalah anak yang dihitung KECUALI.** Anak yang sudah
 di-soft delete tidak masuk `total_children` maupun `overdue`, karena rekap ini

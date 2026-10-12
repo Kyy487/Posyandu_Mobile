@@ -61,6 +61,7 @@ class ImmunizationChecklistService
             ->keyBy('immunization_type_id');
 
         return ImmunizationType::query()
+            ->active()
             ->orderedForDosing()
             ->get()
             ->map(fn (ImmunizationType $type) => $this->buildItem(
@@ -95,7 +96,7 @@ class ImmunizationChecklistService
         array $givenTypeIds,
         ?Collection $types = null,
     ): array {
-        $types ??= ImmunizationType::query()->orderedForDosing()->get();
+        $types ??= ImmunizationType::query()->active()->orderedForDosing()->get();
 
         $sudahDisuntik = array_flip($givenTypeIds);
         $missing = [];

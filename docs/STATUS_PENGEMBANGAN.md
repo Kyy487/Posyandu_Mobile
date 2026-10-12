@@ -33,7 +33,7 @@
 | Catatan Keluhan Kader | Selesai |
 | Grafik Tumbuh Kembang | Selesai |
 | Edit data anak oleh Kader | Selesai |
-| Reminder / notifikasi | Selesai (uncommitted) |
+| Reminder / notifikasi | Selesai |
 
 ### 2.2 P0-2 — Validasi WHO Multidimensi (HFA + BFA + WFH) — 10 Okt 2026
 
@@ -106,6 +106,31 @@ Yang **selesai**:
 
 ---
 
+### 2.4 P0-3 — Pembaruan Jadwal Imunisasi Kemenkes — 12 Okt 2026
+
+Rancangan lengkap: `docs/RANCANGAN_IMUNISASI_JADWAL.md`.
+
+Yang **selesai**:
+
+- **Master `immunization_types` diperbarui** ke Program Imunisasi Rutin:
+  **21 dosis aktif** — HB 1 (0 bln), BCG 1 (1), Polio Oral 4 (1–4),
+  DPT-HB-Hib 4 (2/3/4/18), IPV 2 (4/9), Rotavirus 3 (2/3/4), PCV 3 (2/3/12),
+  MR 2 (9/18), JE 1 (10, wilayah endemis).
+- Dosis lama **HB 2–4 dan Polio 5 dinonaktifkan**, bukan dihapus.
+- **Kolom baru `is_active`** (migrasi aditif, default `true`). Checklist, rekap
+  bulanan, dan `GET /immunization-types` hanya membaca dosis aktif (scope
+  `ImmunizationType::active()`); catatan anak lama tetap utuh.
+- Test: `ImmunizationTypeOrderTest` diperbarui (fixture 21 dosis) + 1 test
+  non-aktif; full suite lulus.
+
+**Migrasi terkait:**
+
+| Migration | Fungsi |
+|---|---|
+| `2026_10_12_011440_add_is_active_to_immunization_types_table` | Kolom `is_active` pada master imunisasi |
+
+---
+
 ## 3. Yang Harus Dikerjakan (Roadmap)
 
 ### 3.1 Prioritas P0
@@ -114,7 +139,7 @@ Yang **selesai**:
 |---|---|---|
 | P0-2 | **Validasi WHO Multidimensi** (WFA/U, TB/U, BB/TB, IMT/U) | **Selesai** |
 | P0-1 | **Entitas `Visit`**: tambah tabel `visits` + relasi `measurements.visit_id` | **Selesai** |
-| P0-3 | **Klarifikasi "16 Imunisasi"** (dosis vs jenis) + jadwal Kemenkes RI | **Blocked** — butuh keputusan dosen |
+| P0-3 | **Klarifikasi "16 Imunisasi"** (dosis vs jenis) + jadwal Kemenkes RI | **Selesai** — jadwal 21 dosis aktif; keputusan dosen direspons belakangan lewat `PERANCANGAN_PERKUATAN.md` §10 |
 
 ### 3.2 Prioritas selanjutnya (ringkas, lihat `PERANCANGAN_PERKUATAN.md`)
 

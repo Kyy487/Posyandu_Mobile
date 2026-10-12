@@ -98,13 +98,45 @@ mengubah apa pun**: tidak ada tabel baru, tidak ada kolom baru, dan trigger
 dari `median_kg` dan `sd_kg` di SQL saat query, bukan disimpan sebagai kolom.
 Jadi `GET /children/{id}/growth` tidak menambah migration apa pun.
 
+## 4.1 `immunization_types` (Master Dosis Imunisasi)
+
+Migration `2026_09_26_031000_create_immunization_types_table.php`. Satu baris =
+satu dosis. Ini **data referensi** program nasional yang dibaca seluruh anak
+untuk menyusun checklist; tidak ada data anak di tabel ini.
+
+* `id` (UUID, PK)
+* `code` (String 20) — mis. `HB`, `BCG`, `POLIO`, `DPT-HB-HIB`, `MR`, `IPV`,
+  `ROTAVIRUS`, `PCV`, `JE`
+* `name` (String)
+* `dose_number` (Smallint, default 1)
+* `target_age_months` (Smallint, nullable) — usia target dalam bulan; `0` = saat lahir
+* `interval_months` (Smallint, nullable) — jarak dari dosis sebelumnya. Hanya
+  dikirim ke klien untuk tampilan; **tidak** dipakai server untuk validasi
+  tanggal (validasi membandingkan tanggal dosis tetangga yang benar-benar dicatat)
+* `notes` (Text, nullable)
+* `is_active` (Boolean, default `true`) — ditambahkan migration
+  `2026_10_12_011440_add_is_active_to_immunization_types_table.php`
+* `timestamps`
+* Unique `(code, dose_number)` (`immunization_types_code_dose_unique`)
+
+**Kenapa `is_active`, bukan `DELETE`?** `immunization_records.immunization_type_id`
+memakai `restrictOnDelete` (lihat bagian 5), sehingga menghapus baris master yang
+sudah dipakai akan gagal. Karena itu dosis yang sudah tidak dipakai (mis. jadwal
+lama berganti) di-`is_active = false`, bukan dihapus. Checklist, rekap, dan
+`GET /immunization-types` hanya membaca dosis aktif (scope
+`ImmunizationType::active()`), sementara catatan lama tetap utuh. Seeder master
+mengikuti kebijakan ini (lihat `DatabaseSeeder::seedImmunizationTypes()`).
+
+> Jadwal master terkini (jumlah dosis dan target usia) ada di
+> `docs/API_CONTRACT.md` bagian `GET /immunization-types`.
+
 ## 5. `immunization_records`
 * `id` (UUID, PK)
 * `child_id` (UUID, FK -> children.id)
 * `visit_id` (UUID, FK -> visits.id, nullable, **set null**) — kunjungan tempat
   suntikan dicatat. Migration
   `2026_10_11_233502_add_visit_id_to_immunization_records_table.php` (P0-1).
-* `immunization_type_id` (UUID, FK -> immunization_types.id, ON DELETE SET NULL)
+* `immunization_type_id` (UUID, FK -> immunization_types.id, **restrict on delete**)
 * `kader_id` (UUID, FK -> users.id, ON DELETE SET NULL, nullable)
 * `date_given` (Date)
 * `batch_number` (String, nullable), `notes` (Text, nullable)

@@ -95,6 +95,7 @@ class ImmunizationController extends Controller
     public function types()
     {
         $types = ImmunizationType::query()
+            ->active()
             ->orderedForDosing()
             ->get(['id', 'code', 'name', 'dose_number', 'target_age_months', 'interval_months', 'notes']);
 
