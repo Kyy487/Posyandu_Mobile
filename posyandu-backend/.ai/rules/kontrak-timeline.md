@@ -30,9 +30,11 @@ memperbarui tabel di 7.3 - kalau tidak, pemetaan itu berbohong.
 ## Bentuk respons tidak boleh berubah sendiri
 `data` berisi tepat tiga kunci: `child`, `entries`, `meta`. Di dalam `entries`
 ada `date` (`Y-m-d`) plus `measurement`, `immunizations`, `medical_note`, dan
-tiga kunci itu boleh `null`. `meta` berisi `has_more` dan `next_before`.
-Menambah field baru itu boleh dan tidak merusak klien; mengganti nama,
-menghapus, atau mengubah tipe field yang ada tidak boleh.
+`referrals` (kunci keempat ditambahkan 13 Okt 2026, aditif). `measurement` dan
+`medical_note` boleh `null`; `immunizations` dan `referrals` selalu array.
+`meta` berisi `has_more` dan `next_before`. Menambah field baru itu boleh dan
+tidak merusak klien; mengganti nama, menghapus, atau mengubah tipe field yang
+ada tidak boleh.
 
 ## Tidak ada penghitungan ulang di server maupun klien
 Z-score, `status_gizi`, dan status imunisasi dibaca apa adanya dari database.
@@ -59,11 +61,11 @@ keluhan menghasilkan `entries: []` dengan status 200. `404` hanya untuk anak
 yang memang tidak ada.
 
 ## Soft delete harus difilter eksplisit di query mentah
-`measurements`, `immunization_records`, dan `medical_notes` semuanya punya
-`deleted_at`. Query lewat Eloquent memakai global scope, tapi query lewat
-`DB::query()` atau `DB::select()` **tidak**, jadi `deleted_at IS NULL` harus
-ditulis sendiri di setiap cabang. Lupa menulisnya berarti baris yang sudah
-dibatalkan kader muncul lagi di timeline.
+`measurements`, `immunization_records`, `medical_notes`, dan `referrals`
+semuanya punya `deleted_at`. Query lewat Eloquent memakai global scope, tapi
+query lewat `DB::query()` atau `DB::select()` **tidak**, jadi `deleted_at IS
+NULL` harus ditulis sendiri di setiap cabang. Lupa menulisnya berarti baris yang
+sudah dibatalkan kader muncul lagi di timeline.
 
 ## Otorisasi mengikuti `GET /children/{id}`, jangan buat aturan sendiri
 Route timeline wajib didaftarkan di group yang sama dengan
@@ -80,8 +82,11 @@ menyalin logika otorisasi dari `ChildController` adalah duplikasi yang pasti
 kelak berbeda satu sama lain.
 
 ## Jumlah query harus tetap
-Empat query: satu untuk daftar tanggal, tiga untuk isi jendela. Kalau
-perubahan membuat jumlah query tumbuh seiring jumlah tanggal, itu salah.
+Lima query: satu `UNION` untuk daftar tanggal (atas empat kolom tanggal), empat
+untuk isi jendela. Angka ini naik dari empat ke lima pada 13 Okt 2026 saat
+`referrals` masuk; yang dijaga adalah **jumlahnya tidak bergantung pada jumlah
+tanggal**. Kalau perubahan membuat jumlah query tumbuh seiring jumlah tanggal,
+itu salah. Test penghitung query mengunci angka ini.
 
 ## Route yang ada sekarang tidak boleh hilang atau berubah
 Ada 29 route API sebelum Opsi B, dan setelah timeline ada 30. Jangan

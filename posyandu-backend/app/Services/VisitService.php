@@ -99,6 +99,7 @@ class VisitService
             'measurements' => fn ($q) => $q->orderBy('measurement_date'),
             'immunizationRecords.immunizationType',
             'medicalNotes',
+            'referrals' => fn ($q) => $q->with('kader:id,name')->orderBy('referral_date'),
         ]);
 
         return $this->present($visit, withRecords: true);
@@ -174,6 +175,25 @@ class VisitService
                     'catatan' => $n->catatan,
                     'tindak_lanjut' => $n->tindak_lanjut,
                     'ringkasan' => $n->ringkasan,
+                ])
+                ->values()
+                ->all();
+
+            // Rujukan yang tercatat pada kunjungan ini (aditif; kunci baru,
+            // tidak menggantikan yang lama).
+            $data['rujukan'] = $visit->referrals
+                ->map(fn ($r): array => [
+                    'id' => $r->id,
+                    'referral_date' => CarbonImmutable::parse((string) $r->referral_date)->toDateString(),
+                    'referral_type' => $r->referral_type,
+                    'reason' => $r->reason,
+                    'facility_name' => $r->facility_name,
+                    'status' => $r->status,
+                    'kader_id' => $r->kader_id,
+                    'kader' => $r->kader === null ? null : [
+                        'id' => $r->kader->id,
+                        'name' => $r->kader->name,
+                    ],
                 ])
                 ->values()
                 ->all();

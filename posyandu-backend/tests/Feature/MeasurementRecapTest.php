@@ -339,7 +339,7 @@ class MeasurementRecapTest extends TestCase
 
         $this->assertSame('kader', $kader->role);
         $this->assertSame('ibu', $ibu->role);
-        $this->assertDatabaseHas('users', ['nik' => $kader->nik, 'role' => 'kader']);
+        $this->assertDatabaseHas('users', ['nik_hash' => $kader->nik_hash, 'role' => 'kader']);
     }
 
     // -----------------------------------------------------------------

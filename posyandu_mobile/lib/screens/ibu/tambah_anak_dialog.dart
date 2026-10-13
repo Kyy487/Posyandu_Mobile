@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../models/child.dart';
+import '../../models/consent.dart';
 import '../../services/child_service.dart';
 
 /// Menampilkan form tambah anak dan mengirimnya ke `POST /api/children`.
@@ -33,6 +34,11 @@ class _TambahAnakDialogState extends State<_TambahAnakDialog> {
   final _tanggalController = TextEditingController();
 
   String? _gender = 'L';
+
+  /// Persetujuan pemrosesan data (UU PDP). Wajib dicentang sebelum anak bisa
+  /// didaftarkan; server menolak `POST /children` tanpa `consent_type`.
+  bool _setuju = false;
+
   bool _isSubmitting = false;
   String? _errorMessage;
 
@@ -67,6 +73,14 @@ class _TambahAnakDialogState extends State<_TambahAnakDialog> {
   Future<void> _simpan() async {
     if (!_formKey.currentState!.validate()) return;
 
+    if (!_setuju) {
+      setState(() {
+        _errorMessage =
+            'Centang persetujuan pemrosesan data sebelum menyimpan.';
+      });
+      return;
+    }
+
     setState(() {
       _isSubmitting = true;
       _errorMessage = null;
@@ -76,6 +90,8 @@ class _TambahAnakDialogState extends State<_TambahAnakDialog> {
       name: _namaController.text.trim(),
       dateOfBirth: _tanggalController.text.trim(),
       gender: _gender!,
+      consentType: ConsentTipe.dataProcessing,
+      consentDocumentVersion: kConsentDocumentVersion,
       nik: _nikController.text.trim(),
     );
 
@@ -180,6 +196,24 @@ class _TambahAnakDialogState extends State<_TambahAnakDialog> {
                   DropdownMenuItem(value: 'P', child: Text('Perempuan')),
                 ],
                 onChanged: (value) => setState(() => _gender = value),
+              ),
+              const SizedBox(height: 8),
+              CheckboxListTile(
+                value: _setuju,
+                onChanged: _isSubmitting
+                    ? null
+                    : (value) => setState(() => _setuju = value ?? false),
+                controlAffinity: ListTileControlAffinity.leading,
+                contentPadding: EdgeInsets.zero,
+                title: const Text(
+                  'Saya setuju data anak diproses',
+                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+                ),
+                subtitle: const Text(
+                  'Data dipakai untuk pencatatan tumbuh kembang dan layanan '
+                  'Posyandu. Persetujuan bisa dicabut kapan saja.',
+                  style: TextStyle(fontSize: 11),
+                ),
               ),
               if (_errorMessage != null) ...[
                 const SizedBox(height: 12),

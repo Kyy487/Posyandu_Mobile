@@ -51,13 +51,13 @@ Base URL: `http://localhost:8000/api`
   "success": true,
   "message": "Registrasi berhasil",
   "data": {
-    "user": { "id": "...", "nik": "...", "name": "...", "role": "ibu" },
+    "user": { "id": "...", "name": "...", "role": "ibu" },
     "token": "1|xxxxxxxx"
   }
 }
 ```
 
-> Field `password` tidak pernah ikut respons (`$hidden` pada model `User`).
+> Field `password`, `nik`, dan `nik_hash` tidak pernah ikut respons (`$hidden` pada model `User`). NIK disimpan terenkripsi (AES-256-GCM) dan tidak dikirim ke klien.
 
 ### Kode error
 
@@ -83,6 +83,11 @@ Header Wajib: `Authorization: Bearer {token}` & `Accept: application/json`
 | `GET` | `/children/{id}/growth` | **[Grafik tumbuh kembang](#grafik-tumbuh-kembang-growth)** - deret penimbangan + pita WHO BB/U | Ibu (anaknya) / Kader |
 | `GET` | `/children/{id}/visits` | **[Daftar kunjungan](#kunjungan-visit--p0-1)** - per sesi layanan | Ibu (anaknya) / Kader |
 | `GET` | `/visits/{id}` | **[Detail kunjungan](#kunjungan-visit--p0-1)** + data tertaut | Ibu (anaknya) / Kader |
+| `GET` | `/children/{id}/consents` | **[Consent aktif](#consent-management-uu-pdp)** - daftar persetujuan | Ibu (anaknya) / Kader |
+| `POST` | `/children/{id}/consents` | **[Beri/beri ulang consent](#consent-management-uu-pdp)** | Ibu (anaknya) |
+| `DELETE` | `/children/{id}/consents` | **[Cabut consent](#consent-management-uu-pdp)** | Ibu (anaknya) |
+| `GET` | `/children/{id}/referrals` | **[Daftar rujukan](#rujukan-referral)** - tindak lanjut per fasilitas | Ibu (anaknya) / Kader |
+| `GET` | `/referrals/{id}` | **[Detail rujukan](#rujukan-referral)** | Ibu (anaknya) / Kader |
 | `DELETE` | `/children/{id}` | **[Hapus data anak (soft delete)](#menghapus-data-anak-soft-delete)** | **Kader saja** |
 
 ### Kader (POSYANDU)
@@ -95,6 +100,9 @@ Header Wajib: `Authorization: Bearer {token}` & `Accept: application/json`
 | `DELETE` | `/kader/measurements/{id}` | Batalkan penimbangan (soft delete) |
 | `POST` | `/visits` | **[Buat kunjungan](#kunjungan-visit--p0-1)** |
 | `PATCH` | `/visits/{id}` | **[Koreksi kunjungan](#kunjungan-visit--p0-1)** |
+| `POST` | `/referrals` | **[Buat rujukan](#rujukan-referral)** - wajib `visit_id` |
+| `PATCH` | `/referrals/{id}` | **[Koreksi/ubah status rujukan](#rujukan-referral)** |
+| `DELETE` | `/referrals/{id}` | **[Batalkan rujukan (soft delete)](#rujukan-referral)** |
 | `GET` | `/kader/immunizations/recap` | **[Rekap bulanan](#get-kaderimmunizationsrecap)** - aktivitas + kelengkapan, Kader saja. `?format=csv` untuk laporan ke BIDAN |
 | `POST` | `/kader/children/{child}/immunizations` | Catat suntikan — **[lihat bagian imunisasi](#imunisasi)** |
 | `PATCH` | `/kader/immunizations/{record}` | Koreksi suntikan yang sudah tercatat |
@@ -148,8 +156,14 @@ dengan kontrak identik. Keduanya mengembalikan respons yang sama.
 | `birth_height` | numeric | Tidak | TB lahir (cm) |
 | `ibu_nik` | string(16) | Kader¹ | NIK ibu |
 | `user_id` | uuid | Kader¹ | UUID ibu |
+| `consent_type` | enum | Ya | `data_processing`, `data_sharing`, atau `research` — lihat [Consent](#consent-management-uu-pdp) |
+| `consent_document_version` | string(20) | Ya | Versi formulir persetujuan yang ditandatangani/disetujui |
 
 ¹ Wajib **salah satu** untuk Kader; tidak wajib untuk Ibu.
+
+> **Consent wajib saat pendaftaran.** `POST /children` menolak (`422`) bila
+> `consent_type` atau `consent_document_version` tidak dikirim. Satu baris
+> `consents` dibuat otomatis dengan `granted_by` = pengguna yang login.
 
 ### Contoh request (Kader)
 
@@ -201,6 +215,8 @@ Relasi `mother` selalu ikut dikembalikan agar mobile bisa menampilkan nama dan N
 | `422` | `user_id` dan `ibu_nik` tidak sinkron | `user_id dan ibu_nik harus menunjuk Ibu yang sama.` |
 | `422` | target bukan role `ibu` | `Data anak hanya dapat ditambahkan pada akun dengan role ibu.` |
 | `422` | Kader tidak mengirim ibu | pesan validasi `user_id` / `ibu_nik` |
+| `422` | `consent_type` kosong / tidak dikenal | pesan validasi `consent_type` |
+| `422` | `consent_document_version` kosong | pesan validasi `consent_document_version` |
 | `422` | field lain tidak valid | `Validasi gagal.` + `errors` per-field |
 | `403` | Ibu memanggil `/kader/children` | Pesan middleware role |
 
@@ -305,9 +321,9 @@ lama tidak berubah apa pun.
 
 `GET /children/{id}/timeline` — Ibu (anaknya sendiri) + Kader.
 
-Seluruh riwayat satu anak dalam satu layar: penimbangan, suntikan, dan keluhan
-dikelompokkan **per tanggal kunjungan**. Bentuk dan batasannya dikunci di
-`docs/RANCANGAN_BUKU_MEDIS.md` bagian 7.2 dan 7.3.
+Seluruh riwayat satu anak dalam satu layar: penimbangan, suntikan, keluhan, dan
+rujukan dikelompokkan **per tanggal kunjungan**. Bentuk dan batasannya dikunci
+di `docs/RANCANGAN_BUKU_MEDIS.md` bagian 7.2 dan 7.3.
 
 | Parameter | Default | Validasi | Keterangan |
 | :--- | :--- | :--- | :--- |
@@ -354,7 +370,18 @@ Respons `200`:
           "diare": false,
           "catatan": "Demam sejak 2 hari",
           "tindak_lanjut": "rujuk"
-        }
+        },
+        "referrals": [
+          {
+            "id": "uuid",
+            "referral_date": "2026-09-24",
+            "referral_type": "puskesmas",
+            "reason": "Demam tinggi lebih dari 3 hari",
+            "facility_name": "Puskesmas Ciputat",
+            "status": "dibuat",
+            "kader": { "id": "uuid", "name": "Kader 1" }
+          }
+        ]
       }
     ],
     "meta": { "has_more": true, "next_before": "2026-08-15" }
@@ -362,9 +389,12 @@ Respons `200`:
 }
 ```
 
-`data` berisi tepat tiga kunci: `child`, `entries`, `meta`. Tiga kunci di dalam
-setiap entri boleh `null` — tanggal yang punya keluhan tapi tanpa penimbangan
-tetap muncul sebagai entri, karena itu kunjungan yang sah.
+`data` berisi tepat tiga kunci: `child`, `entries`, `meta`. `measurement` dan
+`medical_note` boleh `null`; `immunizations` dan `referrals` selalu array (boleh
+kosong). Tanggal yang punya keluhan — atau hanya punya rujukan — tapi tanpa
+penimbangan tetap muncul sebagai entri, karena itu kunjungan yang sah. Rujukan
+yang sudah dibatalkan (soft delete) tidak muncul, dan `kader` bernilai `null`
+bila akun pencatatnya dihapus.
 
 Menuju halaman berikutnya: kirim `before` dengan nilai `meta.next_before`.
 `next_before` bernilai `null` di halaman terakhir, bukan string kosong.
@@ -382,8 +412,8 @@ Mobile membaca endpoint ini lewat `ChildTimelineService` di
 
 Aturan mobile:
 - Entri dikelompokkan per bulan memakai `labelBulan()` tanpa mengubah urutan.
-- Di dalam satu tanggal: penimbangan, suntikan, keluhan.
-- Tanggal dengan keluhan tanpa penimbangan tetap tampil.
+- Di dalam satu tanggal: penimbangan, suntikan, keluhan, rujukan.
+- Tanggal dengan keluhan (atau rujukan) tanpa penimbangan tetap tampil.
 - Pagination memakai tombol "Muat lebih banyak" dengan cursor `meta.next_before`.
 - Refresh memakai `IconButton(Icons.refresh)` yang sudah ada, bukan `RefreshIndicator`.
 
@@ -637,7 +667,7 @@ Respons `200`:
 ### `GET /visits/{id}`
 
 Detail satu kunjungan, termasuk data yang tertaut. Menambahkan kunci
-`pengukuran`, `imunisasi`, dan `catatan_keluhan` pada `data`.
+`pengukuran`, `imunisasi`, `catatan_keluhan`, dan `rujukan` pada `data`.
 
 ### `PATCH /visits/{id}`
 
@@ -664,6 +694,176 @@ juga ikut pada respons ketiga endpoint itu. Klien lama yang tidak mengirim
 | `422` | Field wajib kurang, `visit_type` tidak dikenal, tanggal di masa depan, `schedule_id`/`child_id` tidak ada, atau `visit_id` bukan milik anak itu |
 | `403` | Ibu mencoba menulis kunjungan, atau membuka kunjungan anak orang lain |
 | `404` | `id` bukan UUID, atau kunjungan sudah dibatalkan (soft delete) |
+
+
+## Consent Management (UU PDP)
+
+Persetujuan pemrosesan data anak (UU PDP No. 27/2022). Satu baris `consents`
+mewakili satu `consent_type` per anak. Pencabutan mengisi `revoked_at` (bukan
+menghapus baris), sehingga jejak persetujuan tetap tersimpan.
+
+| `consent_type` | Arti |
+| :--- | :--- |
+| `data_processing` | Persetujuan memproses data tumbuh kembang anak |
+| `data_sharing` | Persetujuan berbagi data dengan pihak lain (mis. BIDAN) |
+| `research` | Persetujuan pemakaian data untuk penelitian |
+
+### Akses
+
+| Method | Endpoint | Role |
+| :--- | :--- | :--- |
+| `GET` | `/children/{id}/consents` | Ibu (anaknya) / Kader (semua anak) |
+| `POST` | `/children/{id}/consents` | **Ibu (anaknya) saja** |
+| `DELETE` | `/children/{id}/consents` | **Ibu (anaknya) saja** |
+
+### `GET /children/{id}/consents`
+
+Mengembalikan **hanya consent aktif** (`revoked_at = null`), urut naik menurut
+`consent_type`.
+
+```json
+{
+  "success": true,
+  "message": "Data consent berhasil diambil.",
+  "data": [
+    {
+      "id": "01a135ca-010a-70fa-b7e4-3c0efdabf434",
+      "child_id": "01a135ca-00f7-7...",
+      "granted_by": "01a135ca-00f1-71b2-9559-5f0fcf57525c",
+      "consent_type": "data_processing",
+      "granted_at": "2026-10-13T15:03:13+00:00",
+      "revoked_at": null,
+      "document_version": "1.0",
+      "notes": null,
+      "created_at": "2026-10-13T15:03:13+00:00",
+      "updated_at": "2026-10-13T15:03:13+00:00"
+    }
+  ]
+}
+```
+
+### `POST /children/{id}/consents`
+
+| Field | Tipe | Wajib | Keterangan |
+| :--- | :--- | :--- | :--- |
+| `consent_type` | enum | Ya | `data_processing`, `data_sharing`, `research` |
+| `document_version` | string(20) | Ya | Versi formulir consent |
+| `notes` | string(500) | Tidak | Catatan tambahan |
+
+Respons `201` bila consent baru. Bila consent tipe itu pernah dicabut, baris
+lama diaktifkan kembali (`revoked_at` direset) dan server membalas `200`
+(`"Consent berhasil diberikan ulang."`).
+
+### `DELETE /children/{id}/consents`
+
+Body: `consent_type` (wajib). Mengisi `revoked_at` pada consent aktif tipe
+tersebut.
+
+### Kode error
+
+| Kode | Kondisi |
+| :--- | :--- |
+| `422` | `consent_type` / `document_version` tidak valid atau kosong |
+| `403` | Kader mencoba memberi/mencabut, atau Ibu mengakses anak orang lain |
+| `404` | `id` bukan UUID, anak tidak ada, atau (saat cabut) consent aktif tidak ditemukan |
+| `409` | Consent tipe itu sudah aktif (belum dicabut) |
+
+
+## Rujukan (Referral)
+
+Tindak lanjut anak dari Posyandu ke fasilitas kesehatan
+(`PERANCANGAN_PERKUATAN.md` §1.3). Setiap rujukan **wajib** terhubung ke satu
+kunjungan (`visit_id`) dan satu anak (`child_id`). Rujukan yang salah input
+dibatalkan dengan soft delete (`deleted_at`), bukan dihapus.
+
+| `referral_type` | Arti |
+| :--- | :--- |
+| `puskesmas` | Rujukan ke Puskesmas |
+| `rs` | Rujukan ke Rumah Sakit |
+| `faskes_lain` | Rujukan ke fasilitas kesehatan lain |
+
+| `status` | Arti |
+| :--- | :--- |
+| `dibuat` | Rujukan baru dibuat (default) |
+| `dilaporkan` | Sudah diserahkan ke fasilitas tujuan |
+| `selesai` | Tindak lanjut selesai |
+
+### Akses
+
+| Method | Endpoint | Role |
+| :--- | :--- | :--- |
+| `POST` | `/referrals` | **Kader saja** |
+| `GET` | `/children/{id}/referrals` | Ibu (anaknya) / Kader (semua anak) |
+| `GET` | `/referrals/{id}` | Ibu (anaknya) / Kader |
+| `PATCH` | `/referrals/{id}` | **Kader saja** |
+| `DELETE` | `/referrals/{id}` | **Kader saja** |
+
+### `POST /referrals`
+
+| Field | Tipe | Wajib | Keterangan |
+| :--- | :--- | :--- | :--- |
+| `child_id` | uuid | Ya | Anak yang dirujuk |
+| `visit_id` | uuid | Ya | **Harus milik `child_id`** yang sama, selain itu `422` |
+| `referral_date` | date | Ya | `YYYY-MM-DD`, tidak boleh di masa depan |
+| `referral_type` | enum | Ya | `puskesmas`, `rs`, `faskes_lain` |
+| `reason` | string(2000) | Ya | Alasan rujukan |
+| `facility_name` | string(255) | Ya | Nama fasilitas tujuan |
+| `status` | enum | Tidak | Default `dibuat` |
+
+`kader_id` diisi dari pengguna yang login (Kader), bukan dari body.
+
+### Contoh respons (`201`)
+
+```json
+{
+  "success": true,
+  "message": "Rujukan berhasil dibuat.",
+  "data": {
+    "id": "01a13...",
+    "child_id": "01a13...",
+    "visit_id": "01a13...",
+    "referral_date": "2026-08-15",
+    "referral_type": "puskesmas",
+    "reason": "Demam tinggi lebih dari 3 hari",
+    "facility_name": "Puskesmas Ciputat",
+    "status": "dibuat",
+    "kader_id": "01a13...",
+    "kader": { "id": "01a13...", "name": "Kader Siti" },
+    "created_at": "2026-08-15T03:00:00+00:00",
+    "updated_at": "2026-08-15T03:00:00+00:00"
+  }
+}
+```
+
+### `GET /children/{id}/referrals`
+
+Mengembalikan `data.child` (`{id, name}`) dan `data.referrals` (terbaru lebih
+dulu; rujukan yang sudah dibatalkan tidak ikut).
+
+### `PATCH /referrals/{id}`
+
+Partial update. Field yang boleh diubah: `referral_date`, `referral_type`,
+`reason`, `facility_name`, `status`. `child_id` dan `visit_id` **tidak** bisa
+dipindah; rujukan yang salah anak/kunjungan dibatalkan lalu dibuat ulang.
+Kirim minimal satu field, selain itu `422`.
+
+### `DELETE /referrals/{id}`
+
+Soft delete. Membalas `200` dengan `data.id`. Rujukan yang sudah dibatalkan
+membalas `404`.
+
+### Detail kunjungan
+
+`GET /visits/{id}` menambahkan kunci `rujukan` pada `data` — daftar rujukan
+yang tertaut ke kunjungan itu (kunci baru bersifat aditif).
+
+### Kode error
+
+| Kode | Kondisi |
+| :--- | :--- |
+| `422` | Field wajib kurang, `referral_type`/`status` tidak dikenal, `referral_date` di masa depan, atau `visit_id` bukan milik `child_id` |
+| `403` | Ibu mencoba membuat/mengubah/menghapus rujukan, atau membuka rujukan anak orang lain |
+| `404` | `id` bukan UUID, rujukan tidak ada, atau rujukan sudah dibatalkan |
 
 
 ## Imunisasi

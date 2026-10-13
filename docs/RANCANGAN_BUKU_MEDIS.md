@@ -140,8 +140,8 @@ Konsekuensi yang harus diterima, supaya tidak dianggap bug nanti:
 ### 5.2 Timeline = PER KUNJUNGAN (dikelompokkan per tanggal)
 
 Satu tanggal = satu entri `entries[]`, di dalamnya ada `measurement`
-(nullable), `immunizations` (array), dan `medical_note` (nullable). Bukan satu
-baris per kejadian.
+(nullable), `immunizations` (array), `medical_note` (nullable), dan `referrals`
+(array). Bukan satu baris per kejadian.
 
 Alasan: satu kunjungan ke Posyandu hampir selalu menghasilkan penimbangan,
 keluhan, dan suntikan pada tanggal yang sama. Kalau dipisah per kejadian, satu
@@ -149,16 +149,24 @@ kunjungan jadi tiga baris terpisah dan kader harus membacanya sebagai satu
 kesatuan. Bentuknya ada di bagian 7.2; urutan isi di dalam satu tanggal ada di
 bagian 8.2.
 
+> **Perluasan 13 Oktober 2026.** `referrals` ditambahkan sebagai kunci keempat
+> di dalam `entries` setelah entitas rujukan (`docs/RANCANGAN_RUJUKAN.md`) ada.
+> Rujukan dikelompokkan pada `referral_date`-nya, boleh lebih dari satu per
+> tanggal, dan tanggal yang hanya punya rujukan tetap muncul sebagai entri.
+> Ini perubahan **aditif** - kunci lama tidak berubah - tetapi karena bagian
+> 7.2 semula mengunci "tepat tiga kunci per entri", dokumen ini yang diperbarui
+> lebih dulu, sesuai aturan di `kontrak-timeline.md`.
+
 ---
 
 ## 6. Rancangan Data
 
 ### 6.1 Timeline: tidak butuh tabel baru
 
-Timeline bukan tabel. Dia hasil penggabungan tiga tabel yang sudah ada
-(`measurements`, `immunization_records`, `medical_notes`) berdasarkan
-`child_id`, lalu dikelompokkan per tanggal. Tidak ada tabel baru dan tidak ada
-duplikasi data.
+Timeline bukan tabel. Dia hasil penggabungan empat tabel yang sudah ada
+(`measurements`, `immunization_records`, `medical_notes`, `referrals`)
+berdasarkan `child_id`, lalu dikelompokkan per tanggal. Tidak ada tabel baru
+dan tidak ada duplikasi data.
 
 ### 6.2 Pilihan tabel yang TIDAK dipakai
 
@@ -247,7 +255,18 @@ kalau tidak ada halaman berikutnya.
           "diare": false,
           "catatan": "Demam sejak 2 hari",
           "tindak_lanjut": "rujuk"
-        }
+        },
+        "referrals": [
+          {
+            "id": "uuid",
+            "referral_date": "2026-09-24",
+            "referral_type": "puskesmas",
+            "reason": "Demam tinggi lebih dari 3 hari",
+            "facility_name": "Puskesmas Ciputat",
+            "status": "dibuat",
+            "kader": { "id": "uuid", "name": "Kader 1" }
+          }
+        ]
       }
     ],
     "meta": { "has_more": true, "next_before": "2026-08-15" }
@@ -255,8 +274,11 @@ kalau tidak ada halaman berikutnya.
 }
 ```
 
-Tiga kunci di dalam `entries` boleh `null`. Tanggal tanpa penimbangan tapi ada
-keluhan tetap muncul sebagai entri — itu kunjungan yang sah.
+`measurement` dan `medical_note` boleh `null`; `immunizations` dan `referrals`
+selalu array (boleh kosong). Tanggal tanpa penimbangan tapi ada keluhan — atau
+hanya ada rujukan — tetap muncul sebagai entri, karena itu kunjungan yang sah.
+Rujukan yang sudah dibatalkan (soft delete) tidak muncul, dan `kader` bernilai
+`null` bila akun pencatatnya sudah dihapus.
 
 ### 7.3 Aturan yang tidak boleh dilanggar
 
@@ -285,6 +307,7 @@ yang sama:
 | `limit` di luar 1-200 dan `before` bukan `Y-m-d` membalas `422`. | `parameter_tidak_valid_membalas_422` |
 | Penanda kondisi khusus **hanya boleh ditulis Kader**; Ibu tidak. | `ibu_tidak_bisa_menulis_medical_flags`, `kader_bisa_menulis_medical_flags` |
 | `medical_flags` anak terbaca apa adanya di respons timeline. | `medical_flags_terbaca_apa_adanya` |
+| **Rujukan tampil di tanggalnya.** Rujukan masuk ke `entries[].referrals` pada `referral_date`-nya; rujukan yang dibatalkan disembunyikan; tanggal yang hanya punya rujukan tetap muncul sebagai entri. | `rujukan_muncul_pada_tanggal_nya` |
 
 ### 7.4 Endpoint lain yang berubah
 
@@ -364,7 +387,7 @@ menangkap bug nyata.
 
 | Lapisan | Isi | Status |
 |---------|-----|--------|
-| Feature test PHP | Hit HTTP endpoint sungguhan, cek aturan 1–7 satu per satu | Selesai (21 test) |
+| Feature test PHP | Hit HTTP endpoint sungguhan, cek aturan 1–7 dan rujukan satu per satu | Selesai (25 test) |
 | `uji-api.ps1` grup baru | Cek aturan 1–7 lewat HTTP, termasuk 403 untuk Ibu | Belum ditulis |
 | Flutter test | Parsing model timeline terhadap JSON asli, bukan JSON buatan | Selesai (13 test) |
 | Manual | Buka di emulator, scroll ke bawah | Belum dilakukan |
@@ -450,6 +473,13 @@ belum ada.
    assertion). `uji-api.ps1` belum ditulis; `flutter analyze` / `flutter test`
    sudah hijau (105 test).
 
+10. ~~**Rujukan masuk timeline**~~ **Selesai 13 Oktober 2026.** `referrals`
+    ditambahkan ke `entries[]` (aditif). `ChildTimelineService` memakai lima
+    query: satu `UNION` atas empat kolom tanggal, empat query isi. Test
+    `rujukan_muncul_pada_tanggal_nya` menambah cakupan aturan; test bentuk
+    respons dan penghitung query ikut disesuaikan. Integrasi mobile untuk
+    menampilkan rujukan belum dikerjakan (langkah terpisah).
+
 ---
 
 ## 11. Estimasi
@@ -497,3 +527,4 @@ bagian ini, bukan disimpan di commit atau komentar kode.
 | 29 Sep 2026 | Fase 1 backend selesai. Migration `medical_flags`, `ChildTimelineService` (4 query), `GET /children/{id}/timeline`, validasi kader-saja untuk `medical_flags`, dan `ChildTimelineTest` 21 test. Semua aturan 1-7 terbukti hijau; 96 test total. Dokumentasi di `API_CONTRACT.md`, `DATABASE_SCHEMA.md`, `LAPORAN_BUKU_MEDIS.md`. Mobile belum disentuh. |
 | 29 Sep 2026 | Fase 2 mobile selesai. Model `child_timeline.dart`, service `child_timeline_service.dart`, `medicalFlags` di `Child`, konstanta `childTimelineEndpoint`, integrasi `detail_anak_screen.dart` (badge kondisi khusus + section Buku Medis + pagination + refresh gabungan). 105 test hijau, `flutter analyze` bersih, `dart format` 39 file. |
 | 1 Okt 2026 | Judul dan baris status yang masih menyebut "mobile belum dikerjakan" dikoreksi menjadi selesai. `RENCANA_SELANJUTNYA.md` diperbarui: Opsi B ditandai selesai dan Opsi D (grafik tumbuh kembang) masuk sebagai kandidat berikutnya, rancangannya di `RANCANGAN_GRAFIK_TUMBUH_KEMBANG.md`. |
+| 13 Okt 2026 | `referrals` ditambahkan ke `entries[]` (kunci keempat, aditif) setelah entitas rujukan jadi. Dokumen 5.2/6.1/7.2/7.3 diperbarui lebih dulu: sumber timeline jadi empat tabel, `limit` tetap menghitung tanggal, rujukan dikelompokkan pada `referral_date`. Aturan baru dipetakan ke test `rujukan_muncul_pada_tanggal_nya`. Jumlah query service 4 → 5. Mobile belum menampilkan rujukan. |

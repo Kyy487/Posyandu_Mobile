@@ -95,6 +95,8 @@ class ChildService {
     required String name,
     required String dateOfBirth,
     required String gender,
+    required String consentType,
+    required String consentDocumentVersion,
     String? nik,
   }) async {
     final headers = await _authHeaders(json: true);
@@ -108,6 +110,10 @@ class ChildService {
           'name': name,
           'date_of_birth': dateOfBirth,
           'gender': gender,
+          // `POST /children` WAJIB menyertakan persetujuan (UU PDP); tanpa ini
+          // server membalas 422 dan anak tidak pernah tersimpan.
+          'consent_type': consentType,
+          'consent_document_version': consentDocumentVersion,
           if (nik != null && nik.isNotEmpty) 'nik': nik,
         }),
       );

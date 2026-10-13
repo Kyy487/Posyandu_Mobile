@@ -13,10 +13,23 @@ class ImunisasiScreen extends StatefulWidget {
   final String childId;
   final String childName;
 
+  /// Kunjungan tempat suntikan baru menempel (opsional).
+  ///
+  /// Hanya berlaku untuk pencatatan dosis BARU; koreksi dosis lama tetap
+  /// mengubah record yang sudah ada dan tidak memindah kunjungannya. Dipakai
+  /// alur "buat kunjungan → input data" dari `KunjunganScreen`.
+  final String? visitId;
+
+  /// Label kunjungan untuk ditampilkan di banner. Boleh null bila [visitId]
+  /// null.
+  final String? visitLabel;
+
   const ImunisasiScreen({
     super.key,
     required this.childId,
     required this.childName,
+    this.visitId,
+    this.visitLabel,
   });
 
   @override
@@ -78,6 +91,7 @@ class _ImunisasiScreenState extends State<ImunisasiScreen> {
         childId: widget.childId,
         item: item,
         service: _service,
+        visitId: widget.visitId,
       ),
     );
 
@@ -125,6 +139,10 @@ class _ImunisasiScreenState extends State<ImunisasiScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
+            if (widget.visitId != null) ...[
+              _buildBannerKunjungan(),
+              const SizedBox(height: 12),
+            ],
             _buildHeader(checklist),
             const SizedBox(height: 16),
             ImmunizationSummaryCard(summary: checklist.summary),
@@ -141,6 +159,46 @@ class _ImunisasiScreenState extends State<ImunisasiScreen> {
             const SizedBox(height: 32),
           ],
         ),
+      ),
+    );
+  }
+
+  /// Penanda bahwa suntikan baru menempel pada satu kunjungan.
+  Widget _buildBannerKunjungan() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.blue[50],
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: Colors.blue[200]!),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(Icons.event_available, size: 18, color: Colors.blue[700]),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Suntikan baru menempel pada kunjungan',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.blue[800],
+                  ),
+                ),
+                if (widget.visitLabel != null)
+                  Text(
+                    widget.visitLabel!,
+                    style: TextStyle(fontSize: 11, color: Colors.blue[700]),
+                  ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -229,10 +287,15 @@ class _FormImunisasi extends StatefulWidget {
   final ImmunizationItem item;
   final ImmunizationService service;
 
+  /// Kunjungan tempat dosis baru menempel (opsional). Diabaikan saat koreksi
+  /// record lama.
+  final String? visitId;
+
   const _FormImunisasi({
     required this.childId,
     required this.item,
     required this.service,
+    this.visitId,
   });
 
   @override
@@ -300,6 +363,7 @@ class _FormImunisasiState extends State<_FormImunisasi> {
             dateGiven: tanggal,
             batchNumber: _batchController.text.trim(),
             notes: _notesController.text.trim(),
+            visitId: widget.visitId,
           )
         : await widget.service.updateRecord(
             recordId: existing.id,

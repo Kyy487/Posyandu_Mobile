@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../models/consent.dart';
 import '../../services/kader_service.dart';
 
 class AddChildScreen extends StatefulWidget {
@@ -24,6 +25,11 @@ class _AddChildScreenState extends State<AddChildScreen> {
 
   String? _selectedGender;
   DateTime? _selectedDate;
+
+  /// Kader menegaskan persetujuan sudah diperoleh dari ibu/wali. Server tetap
+  /// mewajibkan `consent_type` pada `POST /children`, jadi tanpa centang ini
+  /// pengiriman ditolak sebelum sempat disimpan.
+  bool _setuju = false;
 
   Future<void> _pickDate() async {
     final DateTime? picked = await showDatePicker(
@@ -52,6 +58,16 @@ class _AddChildScreenState extends State<AddChildScreen> {
           .showSnackBar(const SnackBar(content: Text('Pilih jenis kelamin')));
       return;
     }
+    if (!_setuju) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Centang pernyataan persetujuan ibu/wali sebelum menyimpan.',
+          ),
+        ),
+      );
+      return;
+    }
 
     setState(() => _isLoading = true);
 
@@ -67,6 +83,8 @@ class _AddChildScreenState extends State<AddChildScreen> {
       birthWeight: double.parse(_weightController.text),
       birthHeight: double.parse(_heightController.text),
       ibuNik: _ibuNikController.text,
+      consentType: ConsentTipe.dataProcessing,
+      consentDocumentVersion: kConsentDocumentVersion,
     );
 
     setState(() => _isLoading = false);
@@ -200,7 +218,28 @@ class _AddChildScreenState extends State<AddChildScreen> {
                         ),
                       ],
                     ),
-                    const SizedBox(height: 24),
+                    const SizedBox(height: 12),
+                    CheckboxListTile(
+                      value: _setuju,
+                      onChanged: _isLoading
+                          ? null
+                          : (value) => setState(() => _setuju = value ?? false),
+                      controlAffinity: ListTileControlAffinity.leading,
+                      contentPadding: EdgeInsets.zero,
+                      title: const Text(
+                        'Persetujuan ibu/wali sudah diperoleh',
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      subtitle: const Text(
+                        'Data anak diproses untuk layanan Posyandu. Persetujuan '
+                        'bisa dicabut kapan saja.',
+                        style: TextStyle(fontSize: 11),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
                     ElevatedButton(
                       onPressed: _submitForm,
                       style: ElevatedButton.styleFrom(

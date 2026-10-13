@@ -57,6 +57,7 @@ class AuthController extends Controller
 
             $user = User::create([
                 'nik' => $request->nik,
+                'nik_hash' => hash('sha256', $request->nik),
                 'name' => $request->name,
                 'password' => Hash::make($request->password),
                 'role' => $role,
@@ -159,7 +160,7 @@ class AuthController extends Controller
         }
 
         try {
-            $user = User::where('nik', $request->nik)->first();
+            $user = User::where('nik_hash', hash('sha256', $request->nik))->first();
 
             if (! $user || ! Hash::check($request->password, $user->password)) {
                 // Satu pesan untuk "tidak ada" dan "salah password" supaya

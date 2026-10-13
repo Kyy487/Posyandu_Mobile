@@ -3,6 +3,7 @@
 use App\Http\Controllers\Api\AuditLogController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\ChildController;
+use App\Http\Controllers\Api\ConsentController;
 use App\Http\Controllers\Api\FhirController;
 use App\Http\Controllers\Api\ImmunizationController;
 // -- Area Controller --//
@@ -10,6 +11,7 @@ use App\Http\Controllers\Api\MeasurementController;
 use App\Http\Controllers\Api\MedicalNoteController;
 use App\Http\Controllers\Api\PetugasController;
 use App\Http\Controllers\Api\PosyanduScheduleController;
+use App\Http\Controllers\Api\ReferralController;
 use App\Http\Controllers\Api\ReminderController;
 use App\Http\Controllers\Api\VisitController;
 use App\Http\Middleware\RoleCheck;
@@ -98,9 +100,24 @@ Route::middleware('auth:sanctum')->group(function () {
         // `/growth` di atas. Lihat docs/RANCANGAN_VISIT.md.
         Route::get('/children/{id}/visits', [ChildController::class, 'visits']);
 
+        // Consent management (UU PDP) — Ibu memberikan/mencabut persetujuan
+        // pemrosesan data anaknya. Kader boleh membaca consent anak mana pun.
+        Route::get('/children/{id}/consents', [ConsentController::class, 'show']);
+        Route::post('/children/{id}/consents', [ConsentController::class, 'store']);
+        Route::delete('/children/{id}/consents', [ConsentController::class, 'destroy']);
+
+        // Daftar rujukan satu anak (pemilik anak / Kader). Didaftarkan di group
+        // ini, bukan di prefix `/kader/`, supaya aturan aksesnya sama dengan
+        // `GET /children/{id}/visits`. Lihat docs/RANCANGAN_RUJUKAN.md.
+        Route::get('/children/{id}/referrals', [ChildController::class, 'referrals']);
+
         // Detail satu kunjungan (pemilik anak / Kader). Otorisasi per-kunjungan
         // di VisitController; hanya membaca, jadi taruh di group Ibu+Kader.
         Route::get('/visits/{id}', [VisitController::class, 'show']);
+
+        // Detail satu rujukan (pemilik anak / Kader). Otorisasi per-rujukan di
+        // ReferralController, sama seperti detail kunjungan di atas.
+        Route::get('/referrals/{id}', [ReferralController::class, 'show']);
 
         // -----------------------------------------------------------------
         // AREA IMUNISASI - dapat diakses Ibu maupun Kader (Ibu read-only)
@@ -165,6 +182,17 @@ Route::middleware('auth:sanctum')->group(function () {
         // -----------------------------------------------------------------
         Route::post('/visits', [VisitController::class, 'store']);
         Route::patch('/visits/{id}', [VisitController::class, 'update']);
+
+        // -----------------------------------------------------------------
+        // AREA RUJUKAN - Kader membuat, mengoreksi, membatalkan
+        //
+        // Rujukan selalu terhubung ke satu kunjungan (`visit_id` wajib). Daftar
+        // per-anak dan detail dikunci di group Ibu+Kader di atas; tulis hanya
+        // lewat prefix `/referrals` di sini. Lihat docs/RANCANGAN_RUJUKAN.md.
+        // -----------------------------------------------------------------
+        Route::post('/referrals', [ReferralController::class, 'store']);
+        Route::patch('/referrals/{id}', [ReferralController::class, 'update']);
+        Route::delete('/referrals/{id}', [ReferralController::class, 'destroy']);
 
         Route::get('/kader/measurements', [MeasurementController::class, 'index']);
         Route::post('/kader/measurements', [MeasurementController::class, 'store']);

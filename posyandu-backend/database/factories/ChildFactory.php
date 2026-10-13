@@ -23,6 +23,7 @@ class ChildFactory extends Factory
             // karena ada `children_nik_unique`; tanpa itu pembuatan factory
             // kedua dalam satu proses bisa menghasilkan NIK yang sama dan gagal.
             'nik' => (string) fake()->unique()->numerify('3273############'),
+            'nik_hash' => fn (array $attributes) => hash('sha256', $attributes['nik']),
             'name' => fake()->name(),
             'date_of_birth' => fake()->dateTimeBetween('-5 years', '-1 month')->format('Y-m-d'),
             'gender' => fake()->randomElement(['L', 'P']),

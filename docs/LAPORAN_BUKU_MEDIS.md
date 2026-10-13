@@ -11,10 +11,10 @@
 | File | Isi |
 | :--- | :--- |
 | `database/migrations/2026_09_29_010000_add_medical_flags_to_children_table.php` | Kolom `children.medical_flags` (`text`, nullable) |
-| `app/Services/ChildTimelineService.php` | Penyusun timeline: 4 query, pengelompokan per tanggal |
+| `app/Services/ChildTimelineService.php` | Penyusun timeline: 5 query, pengelompokan per tanggal |
 | `app/Http/Controllers/Api/ChildController.php` | Method `timeline()` + validasi tulis `medical_flags` |
 | `routes/api.php` | `GET /children/{id}/timeline` |
-| `tests/Feature/ChildTimelineTest.php` | 21 test, memetakan seluruh aturan di bagian 7.3 |
+| `tests/Feature/ChildTimelineTest.php` | 25 test, memetakan seluruh aturan di bagian 7.3 |
 
 Perubahan pada file yang sudah ada: `Child::$fillable` tambah `medical_flags`,
 dan `ChildController@update` menambah validasi plus penolakan bagi Ibu. Tidak ada
@@ -37,6 +37,12 @@ Seluruh riwayat satu anak dalam satu layar, dikelompokkan per tanggal kunjungan.
 `data` berisi tepat tiga kunci: `child`, `entries`, `meta`. Halaman berikutnya
 diambil dengan mengirim `before` = `meta.next_before`; di halaman terakhir
 `next_before` bernilai `null`.
+
+Sejak 13 Oktober 2026 setiap entri juga memuat `referrals` (array, aditif) —
+rujukan yang tercatat pada tanggal itu. Kunci lama (`measurement`,
+`immunizations`, `medical_note`) tidak berubah. Rujukan dikelompokkan pada
+`referral_date`-nya, dan tanggal yang hanya punya rujukan tetap muncul sebagai
+entri.
 
 ### `PATCH /children/{id}` dengan `medical_flags`
 
@@ -66,9 +72,9 @@ Dijaga oleh `limit_menghitung_tanggal_bukan_baris`.
 
 ### Baris yang dibatalkan tidak boleh muncul lagi
 
-Ketiga tabel punya `deleted_at`. Dua query timeline memakai Eloquent, jadi
-soft delete terfilter otomatis. Satu query tanggal memakai query builder mentah
-karena tiga kolom dengan nama berbeda harus disatukan — dan di situ
+Keempat tabel punya `deleted_at`. Tiga query isi memakai Eloquent, jadi soft
+delete terfilter otomatis. Query tanggal dan query rujukan memakai query builder
+mentah karena empat kolom dengan nama berbeda harus disatukan — dan di situ
 `deleted_at IS NULL` ditulis eksplisit di tiap cabang. Kalau lupa di satu saja,
 baris yang sudah dibatalkan kader muncul lagi sebagai tanggal kunjungan.
 
@@ -97,11 +103,15 @@ server yang diam-diam menghitung ulang dengan rumus sendiri akan gagal di sana.
 
 ## 5. Jumlah Query
 
-Service memakai **empat query**: satu `UNION` untuk daftar tanggal, tiga untuk
+Service memakai **lima query**: satu `UNION` untuk daftar tanggal, empat untuk
 isi jendela. Jumlahnya tidak bergantung pada jumlah tanggal kunjungan — anak
 dengan 10 kunjungan dan anak dengan 1 membutuhkan query yang sama. Diuji dengan
 menghitung query langsung, bukan menghitung query seluruh request (autentikasi
 memiliki query sendiri yang tidak berkaitan dengan timeline).
+
+> Jumlahnya naik dari empat ke lima pada 13 Oktober 2026 saat rujukan
+> (`referrals`) masuk ke timeline. Angka ini dikunci oleh test
+> `jumlah_query_tetap_walaupun_tanggal_banyak`.
 
 ---
 

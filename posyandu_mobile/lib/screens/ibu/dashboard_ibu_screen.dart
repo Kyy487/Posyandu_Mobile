@@ -4,6 +4,7 @@ import '../../models/child.dart';
 import '../../services/auth_service.dart';
 import '../../services/child_service.dart';
 import '../../utils/status_gizi.dart';
+import '../consent_screen.dart';
 import '../login_screen.dart';
 import 'catatan_keluhan_screen.dart';
 import 'grafik_tumbuh_screen.dart';
@@ -169,6 +170,8 @@ class _DashboardIbuScreenState extends State<DashboardIbuScreen> {
                   _buildImunisasiMenu(),
                   const SizedBox(height: 16),
                   _buildKeluhanMenu(),
+                  const SizedBox(height: 16),
+                  _buildPersetujuanMenu(),
                   const SizedBox(height: 24),
                   _buildStatusGizi(),
                   const SizedBox(height: 20),
@@ -415,6 +418,89 @@ class _DashboardIbuScreenState extends State<DashboardIbuScreen> {
       MaterialPageRoute(
         builder: (context) =>
             CatatanKeluhanScreen(childId: anak.id, childName: anak.name),
+      ),
+    );
+  }
+
+  /// Membuka layar persetujuan pemrosesan data untuk anak yang dipilih.
+  ///
+  /// Beda dari entri lain di dashboard, layar ini menandai [bisaMengelola]
+  /// `true` karena ibu/wali memang boleh memberi dan mencabut persetujuan.
+  void _bukaPersetujuan() {
+    final anak = _anakAktif;
+    if (anak == null) return;
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => ConsentScreen(
+          childId: anak.id,
+          childName: anak.name,
+          bisaMengelola: true,
+        ),
+      ),
+    );
+  }
+
+  /// Entri persetujuan sengaja kartu penuh: ini soal izin pemrosesan data
+  /// (UU PDP), bukan sekadar pintasan, dan ibu perlu bisa menemukannya.
+  Widget _buildPersetujuanMenu() {
+    final nama = _anakAktif?.name ?? 'anak';
+
+    return InkWell(
+      onTap: _bukaPersetujuan,
+      borderRadius: BorderRadius.circular(20),
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(20),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.pink.withValues(alpha: 0.05),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.blue.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: const Icon(
+                Icons.privacy_tip_outlined,
+                color: Colors.blue,
+                size: 26,
+              ),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Persetujuan Data $nama',
+                    style: const TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.black87,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  const Text(
+                    'Lihat, beri, atau cabut izin pemrosesan data anak.',
+                    style: TextStyle(fontSize: 12, color: Colors.grey),
+                  ),
+                ],
+              ),
+            ),
+            const Icon(Icons.chevron_right, color: Colors.grey),
+          ],
+        ),
       ),
     );
   }

@@ -15,6 +15,7 @@ class User extends Authenticatable
 
     protected $fillable = [
         'nik',
+        'nik_hash',
         'name',
         // 'email',
         'password',
@@ -26,7 +27,16 @@ class User extends Authenticatable
     protected $hidden = [
         'password',
         'remember_token',
+        'nik',
+        'nik_hash',
     ];
+
+    protected function casts(): array
+    {
+        return [
+            'nik' => 'encrypted',
+        ];
+    }
 
     // Relasi: Satu Ibu memiliki banyak Anak
     public function children()
@@ -73,5 +83,11 @@ class User extends Authenticatable
             'petugas_id',
             'schedule_id'
         )->withTimestamps();
+    }
+
+    // Relasi: Satu Ibu bisa memberikan banyak consent
+    public function consents(): HasMany
+    {
+        return $this->hasMany(Consent::class, 'granted_by');
     }
 }

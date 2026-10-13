@@ -144,6 +144,10 @@ class MedicalNoteService {
   /// Server membalas 422 dengan `errors.note_date` bila anak itu sudah punya
   /// catatan pada tanggal tersebut. Kader harus mengoreksi catatan yang lama
   /// lewat [updateNote], bukan mencatat ulang.
+  ///
+  /// [visitId] opsional: bila dikirim, catatan ini menempel pada satu kunjungan
+  /// (`docs/RANCANGAN_VISIT.md`). Server menolak `visit_id` yang bukan milik
+  /// anak ini dengan 422.
   Future<Map<String, dynamic>> addNote({
     required String childId,
     required String noteDate,
@@ -153,6 +157,7 @@ class MedicalNoteService {
     String? catatan,
     String? tindakLanjut,
     String? measurementId,
+    String? visitId,
   }) async {
     final headers = await _authHeaders(json: true);
 
@@ -175,6 +180,7 @@ class MedicalNoteService {
           'catatan': ?catatan,
           'tindak_lanjut': ?tindakLanjut,
           'measurement_id': ?measurementId,
+          'visit_id': ?visitId,
         }),
       );
 

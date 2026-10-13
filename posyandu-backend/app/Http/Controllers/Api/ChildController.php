@@ -4,10 +4,12 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Child;
+use App\Models\Consent;
 use App\Models\Measurement;
 use App\Models\User;
 use App\Services\ChildTimelineService;
 use App\Services\GrowthChartService;
+use App\Services\ReferralService;
 use App\Services\VisitService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
@@ -81,6 +83,8 @@ class ChildController extends Controller
                     'string',
                     'size:16',
                 ],
+                'consent_type' => 'required|in:data_processing,data_sharing,research',
+                'consent_document_version' => 'required|string|max:20',
             ]);
 
             // --- Tentukan ibu pemilik anak -------------------------------
@@ -90,14 +94,25 @@ class ChildController extends Controller
             }
 
             // --- Simpan (UUID dibuat otomatis oleh trait HasUuids) -------
+            $nik = $validated['nik'] ?? null;
+
             $child = Child::create([
                 'user_id' => $mother->id,
-                'nik' => $validated['nik'] ?? null,
+                'nik' => $nik,
+                'nik_hash' => $nik ? hash('sha256', $nik) : null,
                 'name' => $validated['name'],
                 'date_of_birth' => $validated['date_of_birth'],
                 'gender' => $validated['gender'],
                 'birth_weight' => $validated['birth_weight'] ?? null,
                 'birth_height' => $validated['birth_height'] ?? null,
+            ]);
+
+            Consent::create([
+                'child_id' => $child->id,
+                'granted_by' => $user->id,
+                'consent_type' => $validated['consent_type'],
+                'granted_at' => now(),
+                'document_version' => $validated['consent_document_version'],
             ]);
 
             return response()->json([
@@ -620,6 +635,55 @@ class ChildController extends Controller
 
         } catch (\Throwable $e) {
             Log::error('Gagal mengambil daftar kunjungan anak: '.$e->getMessage(), [
+                'user_id' => $user->id,
+                'child_id' => $id,
+                'exception' => $e,
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Terjadi kesalahan server. Silakan coba lagi.',
+                'errors' => null,
+            ], 500);
+        }
+    }
+
+    /**
+     * Daftar rujukan satu anak, terbaru lebih dulu.
+     *
+     * Didaftarkan di group `RoleCheck:ibu,kader` yang sama dengan `timeline`,
+     * `growth`, dan `visits`, supaya aturan aksesnya persis sama: Ibu hanya
+     * anaknya sendiri, Kader semua. Otorisasi memakai `findChildForUser()` yang
+     * sudah ada, bukan salinan baru.
+     *
+     * Bentuk keluaran ada di `ReferralService::listForChild()`; controller hanya
+     * memasang envelope baku.
+     */
+    public function referrals(Request $request, $id, ReferralService $referrals)
+    {
+        $user = $request->user();
+
+        try {
+            $child = $this->findChildForUser($id, $user, 'melihat');
+
+            if (! $child instanceof Child) {
+                return $child;
+            }
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Daftar rujukan anak berhasil diambil.',
+                'data' => [
+                    'child' => [
+                        'id' => $child->id,
+                        'name' => $child->name,
+                    ],
+                    'referrals' => $referrals->listForChild($child),
+                ],
+            ], 200);
+
+        } catch (\Throwable $e) {
+            Log::error('Gagal mengambil daftar rujukan anak: '.$e->getMessage(), [
                 'user_id' => $user->id,
                 'child_id' => $id,
                 'exception' => $e,

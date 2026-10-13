@@ -8,11 +8,14 @@ import '../../services/child_timeline_service.dart';
 import '../../services/kader_service.dart';
 import '../../utils/month_label.dart';
 import '../../utils/status_gizi.dart';
+import '../consent_screen.dart';
 import 'catatan_keluhan_screen.dart';
 import 'edit_child_screen.dart';
 import 'grafik_tumbuh_screen.dart';
 import 'imunisasi_screen.dart';
 import 'input_penimbangan_screen.dart';
+import 'kunjungan_screen.dart';
+import 'rujukan_screen.dart';
 
 class DetailAnakScreen extends StatefulWidget {
   final Child childData; // Menerima data anak dari Dashboard
@@ -571,6 +574,116 @@ class _DetailAnakScreenState extends State<DetailAnakScreen> {
             ),
             const SizedBox(height: 24),
 
+            // 3b. KUNJUNGAN (dari API, lihat docs/RANCANGAN_VISIT.md)
+            //
+            // Kunjungan adalah wadah satu sesi layanan. Rujukan menempel pada
+            // kunjungan, jadi layar ini juga yang membuat rujukan mungkin walau
+            // anak belum punya kunjungan sama sekali.
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text(
+                  '\u{1F4CB} Kunjungan',
+                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+                ),
+                TextButton.icon(
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => KunjunganScreen(
+                          childId: _anak.id,
+                          childName: _anak.name,
+                        ),
+                      ),
+                    );
+                  },
+                  icon: const Icon(Icons.arrow_forward, size: 16),
+                  label: const Text('Buka', style: TextStyle(fontSize: 12)),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              'Catat kunjungan layanan: kunjungan posyandu, kunjungan rumah, '
+              'atau tindak lanjut rujukan.',
+              style: TextStyle(fontSize: 12, color: Colors.grey, height: 1.4),
+            ),
+            const SizedBox(height: 24),
+
+            // 3c. RUJUKAN (dari API, lihat docs/RANCANGAN_RUJUKAN.md)
+            //
+            // Rujukan selalu menempel pada satu kunjungan; formnya meminta kader
+            // memilih kunjungan anak lebih dulu.
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text(
+                  '\u{1F691} Rujukan',
+                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+                ),
+                TextButton.icon(
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => RujukanScreen(
+                          childId: _anak.id,
+                          childName: _anak.name,
+                        ),
+                      ),
+                    );
+                  },
+                  icon: const Icon(Icons.arrow_forward, size: 16),
+                  label: const Text('Buka', style: TextStyle(fontSize: 12)),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              'Rujukan anak ke Puskesmas, Rumah Sakit, atau fasilitas lain '
+              'beserta status penanganannya.',
+              style: TextStyle(fontSize: 12, color: Colors.grey, height: 1.4),
+            ),
+            const SizedBox(height: 24),
+
+            // 3d. PERSETUJUAN (dari API, lihat docs/PERANCANGAN_PERKUATAN.md)
+            //
+            // Kader hanya boleh MELIHAT status persetujuan; memberi/mencabut
+            // khusus Ibu/wali. Karena itu layar dibuka dengan bisaMengelola
+            // false dan tanpa tombol apa pun.
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text(
+                  '\u{1F512} Persetujuan',
+                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+                ),
+                TextButton.icon(
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => ConsentScreen(
+                          childId: _anak.id,
+                          childName: _anak.name,
+                        ),
+                      ),
+                    );
+                  },
+                  icon: const Icon(Icons.arrow_forward, size: 16),
+                  label: const Text('Lihat', style: TextStyle(fontSize: 12)),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              'Persetujuan pemrosesan data anak (UU PDP). Diberikan dan '
+              'dicabut oleh ibu/wali; kader hanya melihat.',
+              style: TextStyle(fontSize: 12, color: Colors.grey, height: 1.4),
+            ),
+            const SizedBox(height: 24),
+
             // 4. RIWAYAT PEMERIKSAAN BERKESINAMBUNGAN (dari API)
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -699,7 +812,8 @@ class _DetailAnakScreenState extends State<DetailAnakScreen> {
         ),
         const SizedBox(height: 4),
         const Text(
-          'Riwayat lengkap per tanggal kunjungan: penimbangan, suntikan, dan keluhan.',
+          'Riwayat lengkap per tanggal kunjungan: penimbangan, suntikan, '
+          'keluhan, dan rujukan.',
           style: TextStyle(fontSize: 11, color: Colors.grey, height: 1.3),
         ),
         const SizedBox(height: 12),
@@ -869,8 +983,109 @@ class _DetailAnakScreenState extends State<DetailAnakScreen> {
               const SizedBox(height: 8),
               _buildBagianKeluhan(entry.medicalNote!),
             ],
+
+            // 4. Rujukan
+            if (entry.adaRujukan) ...[
+              const SizedBox(height: 8),
+              _buildBagianRujukan(entry.referrals),
+            ],
           ],
         ),
+      ),
+    );
+  }
+
+  /// Baris rujukan pada satu tanggal kunjungan.
+  ///
+  /// Satu tanggal boleh punya lebih dari satu rujukan, jadi tiap rujukan
+  /// ditampilkan sebagai baris tersendiri. Rujukan yang belum selesai diberi
+  /// warna merah supaya menonjol di buku medis, sementara yang sudah selesai
+  /// hijau.
+  Widget _buildBagianRujukan(List<TimelineReferral> rujukan) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.red[50],
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: Colors.red[200]!),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.local_hospital_outlined, size: 16, color: Colors.red[700]),
+              const SizedBox(width: 6),
+              const Text(
+                'Rujukan',
+                style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+              ),
+            ],
+          ),
+          for (final r in rujukan) ...[
+            const SizedBox(height: 8),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        r.facilityName?.isNotEmpty == true
+                            ? r.facilityName!
+                            : r.tipeLabel,
+                        style: const TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        r.tipeLabel,
+                        style: TextStyle(fontSize: 10, color: Colors.grey[600]),
+                      ),
+                      if (r.reason != null && r.reason!.isNotEmpty) ...[
+                        const SizedBox(height: 4),
+                        Text(
+                          r.reason!,
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: Colors.grey[700],
+                            height: 1.3,
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 2,
+                  ),
+                  decoration: BoxDecoration(
+                    color: (r.selesai ? Colors.green[700] : Colors.red[700])!
+                        .withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Text(
+                    r.statusLabel,
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w600,
+                      color: r.selesai
+                          ? Colors.green[700]
+                          : Colors.red[700],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ],
       ),
     );
   }

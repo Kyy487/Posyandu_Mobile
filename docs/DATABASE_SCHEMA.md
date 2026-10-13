@@ -5,14 +5,16 @@ Proyek ini menggunakan UUID untuk seluruh Primary Key dan relasi tabel.
 ## 1. `users` (Master Data)
 Menyimpan autentikasi Ibu dan Kader.
 * `id` (UUID, PK)
-* `nik` (String 16, Unique)
+* `nik` (Text, Unique, terenkripsi AES-256-GCM via `$casts`)
+* `nik_hash` (String 64, Index, SHA-256 — untuk lookup login)
 * `name`, `email`, `password`, `phone_number`
 * `role` (Enum: 'ibu', 'kader')
 
 ## 2. `children` (Data Anak)
 * `id` (UUID, PK)
 * `user_id` (UUID, FK -> users.id) — acuan resmi relasi ibu
-* `nik` (String 16, Unique, Nullable)
+* `nik` (Text, Unique, Nullable, terenkripsi AES-256-GCM via `$casts`)
+* `nik_hash` (String 64, Index, Nullable, SHA-256 — untuk lookup)
 * `name`, `gender` ('L', 'P'), `date_of_birth`
 * `birth_weight` (Float), `birth_height` (Float)
 * `medical_flags` (Text, Nullable) — kondisi khusus anak (alergi, penyakit
@@ -258,6 +260,59 @@ perubahan yang dilakukan aplikasi pada entitas audited (`Child`, `Visit`,
 
 > **Tidak ada penghapusan riwayat.** Baris audit tidak bisa dihapus lewat API.
 > Riwayat hanya bertambah.
+
+## 5.4 `consents` (Persetujuan UU PDP)
+
+Migration `2026_10_13_000003_create_consents_table.php`. Satu baris = satu
+persetujuan (consent) untuk satu anak dan satu `consent_type`. Wajib diisi saat
+pendaftaran anak (`ChildController@store`).
+
+* `id` (UUID, PK)
+* `child_id` (UUID, FK -> children.id, **cascade**)
+* `granted_by` (UUID, FK -> users.id, **cascade**) — Ibu/wali yang memberi persetujuan
+* `consent_type` (String 20) — `data_processing` / `data_sharing` / `research`
+* `granted_at` (Timestamp) — kapan persetujuan diberikan
+* `revoked_at` (Timestamp, nullable) — diisi saat consent dicabut; `null` = aktif
+* `document_version` (String 20) — versi formulir consent yang disetujui
+* `notes` (Text, nullable)
+* `timestamps`
+
+**Index dan constraint:**
+
+* Unique `(child_id, consent_type)` — satu baris per tipe consent per anak;
+  memberi ulang consent yang sudah dicabut memakai ulang baris yang sama
+  (reset `revoked_at`), bukan membuat baris baru.
+
+> **Pencabutan tidak menghapus baris.** `DELETE` mengisi `revoked_at`, sehingga
+> jejak persetujuan tetap tersimpan untuk audit (audit trail menyusul lewat
+> `audit_logs`).
+
+## 5.5 `referrals` (Rujukan ke Fasilitas Kesehatan)
+
+Migration `2026_10_13_152047_create_referrals_table.php`. Satu baris = satu
+rujukan anak ke fasilitas kesehatan, selalu terhubung ke satu kunjungan
+(`visit_id`) dan satu anak (`child_id`). Lihat `docs/RANCANGAN_RUJUKAN.md`.
+
+* `id` (UUID, PK)
+* `visit_id` (UUID, FK -> visits.id, **cascade**) — rujukan adalah bagian satu kunjungan
+* `child_id` (UUID, FK -> children.id, **cascade**)
+* `referral_date` (Date) — boleh berbeda dari `visits.visit_date`
+* `referral_type` (String 20) — `puskesmas` / `rs` / `faskes_lain`
+* `reason` (Text) — alasan rujukan
+* `facility_name` (String 255) — nama fasilitas tujuan
+* `status` (String 20) — `dibuat` / `dilaporkan` / `selesai`
+* `kader_id` (UUID, FK -> users.id, nullable, **set null**) — pencatat; null bila akun dihapus
+* `created_at`, `updated_at`
+* `deleted_at` (Timestamp, nullable) — soft delete
+
+**Index dan constraint:**
+
+* Index `(child_id, referral_date)` (`referrals_child_date_index`) — daftar rujukan satu anak per periode
+* CHECK `referral_type IN ('puskesmas','rs','faskes_lain')` (`referrals_referral_type_check`)
+* CHECK `status IN ('dibuat','dilaporkan','selesai')` (`referrals_status_check`)
+
+> **Pembatalan tidak menghapus baris.** `DELETE /referrals/{id}` mengisi
+> `deleted_at`, sehingga tindak lanjut tetap tersimpan untuk audit.
 
 ## 6. `spatial_zones` (Pemetaan - PostGIS) *Coming Soon*
 * `id` (UUID, PK), `child_id` (UUID, FK)

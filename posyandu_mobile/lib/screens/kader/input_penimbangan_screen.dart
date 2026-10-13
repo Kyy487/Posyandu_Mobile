@@ -5,7 +5,22 @@ import '../../services/kader_service.dart';
 class InputPenimbanganScreen extends StatefulWidget {
   final String childId; // Menerima UUID Anak
 
-  const InputPenimbanganScreen({super.key, required this.childId});
+  /// Kunjungan tempat penimbangan ini menempel (opsional).
+  ///
+  /// Bila diisi, penimbangan ikut terhubung ke kunjungan itu. Dipakai alur
+  /// "buat kunjungan → input data" dari `KunjunganScreen`.
+  final String? visitId;
+
+  /// Label kunjungan untuk ditampilkan di banner, mis. "24 September 2026 ·
+  /// Posyandu". Boleh null bila [visitId] null.
+  final String? visitLabel;
+
+  const InputPenimbanganScreen({
+    super.key,
+    required this.childId,
+    this.visitId,
+    this.visitLabel,
+  });
 
   @override
   State<InputPenimbanganScreen> createState() => _InputPenimbanganScreenState();
@@ -52,6 +67,7 @@ class _InputPenimbanganScreenState extends State<InputPenimbanganScreen> {
       measurementDate: formattedDate,
       weight: double.parse(safeWeight),
       height: double.parse(safeHeight),
+      visitId: widget.visitId,
     );
 
     setState(() => _isLoading = false);
@@ -186,6 +202,49 @@ class _InputPenimbanganScreenState extends State<InputPenimbanganScreen> {
     );
   }
 
+  /// Penanda bahwa data ini menempel pada satu kunjungan.
+  ///
+  /// Tanpa ini, kader bisa lupa sedang mengisi untuk kunjungan mana dan
+  /// mengira datanya berdiri sendiri.
+  Widget _buildBannerKunjungan() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.blue[50],
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: Colors.blue[200]!),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(Icons.event_available, size: 18, color: Colors.blue[700]),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Menempel pada kunjungan',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.blue[800],
+                  ),
+                ),
+                if (widget.visitLabel != null)
+                  Text(
+                    widget.visitLabel!,
+                    style: TextStyle(fontSize: 11, color: Colors.blue[700]),
+                  ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _barisHasil(String label, String nilai, {bool bold = false}) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 3),
@@ -246,6 +305,10 @@ class _InputPenimbanganScreenState extends State<InputPenimbanganScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
+                    if (widget.visitId != null) ...[
+                      _buildBannerKunjungan(),
+                      const SizedBox(height: 16),
+                    ],
                     Card(
                       elevation: 2,
                       child: ListTile(

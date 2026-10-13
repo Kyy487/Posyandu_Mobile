@@ -24,6 +24,7 @@ library;
 
 import '../utils/month_label.dart';
 import 'medical_note.dart';
+import 'referral.dart';
 
 /// Penanda kondisi khusus anak, dibaca apa adanya dari `children.medical_flags`.
 ///
@@ -317,10 +318,66 @@ class TimelineNote {
   }
 }
 
-/// Satu tanggal kunjungan: penimbangan, suntikan, dan keluhan di tanggal itu.
+/// Rujukan pada satu tanggal kunjungan.
 ///
-/// Tiga kunci boleh `null` atau kosong di server. Kunjungan dengan keluhan tapi
-/// tanpa penimbangan tetap entri yang sah, jadi kelas ini sengaja tidak
+/// Bentuknya lebih tipis daripada [Referral]: tanpa `child_id`, `visit_id`,
+/// dan `created_at`. Labelnya tetap disusun dari nilai server lewat
+/// `ReferralTipe`/`ReferralStatus`, jadi tidak ada daftar nilai yang disalin
+/// ulang di sini.
+///
+/// Isinya boleh berisi lebih dari satu baris: satu kunjungan bisa merujuk ke
+/// Puskesmas dan Rumah Sakit sekaligus.
+class TimelineReferral {
+  final String id;
+  final String referralDate;
+  final String? referralType;
+  final String? reason;
+  final String? facilityName;
+  final String? status;
+  final String? kaderName;
+
+  const TimelineReferral({
+    this.id = '',
+    this.referralDate = '',
+    this.referralType,
+    this.reason,
+    this.facilityName,
+    this.status,
+    this.kaderName,
+  });
+
+  String get tipeLabel => ReferralTipe.label(referralType);
+  String get statusLabel => ReferralStatus.label(status);
+  String get tanggalLabel => labelTanggal(referralDate);
+
+  /// Rujukan sudah selesai ditangani.
+  bool get selesai => status == ReferralStatus.selesai;
+
+  factory TimelineReferral.fromJson(Map<String, dynamic> json) {
+    final kader = json['kader'];
+
+    return TimelineReferral(
+      id: json['id']?.toString() ?? '',
+      referralDate: json['referral_date']?.toString() ?? '',
+      referralType: _teks(json['referral_type']),
+      reason: _teks(json['reason']),
+      facilityName: _teks(json['facility_name']),
+      status: _teks(json['status']),
+      kaderName: kader is Map ? _teks(kader['name']) : null,
+    );
+  }
+
+  static String? _teks(dynamic value) {
+    if (value == null) return null;
+    final text = value.toString().trim();
+    return text.isEmpty ? null : text;
+  }
+}
+
+/// Satu tanggal kunjungan: penimbangan, suntikan, keluhan, dan rujukan.
+///
+/// Empat kunci boleh `null` atau kosong di server. Kunjungan dengan keluhan
+/// tapi tanpa penimbangan tetap entri yang sah, jadi kelas ini sengaja tidak
 /// menyembunyikannya (aturan 3 di bagian 7.3).
 class TimelineEntry {
   /// Tanggal kunjungan `Y-m-d`, sama persis dengan kunci pengelompokan yang
@@ -331,16 +388,22 @@ class TimelineEntry {
   final List<TimelineImmunization> immunizations;
   final TimelineNote? medicalNote;
 
+  /// Rujukan pada tanggal ini. Kosong berarti tidak ada rujukan, bukan tidak
+  /// diketahui - server selalu mengirim array, tidak pernah `null`.
+  final List<TimelineReferral> referrals;
+
   const TimelineEntry({
     required this.date,
     this.measurement,
     this.immunizations = const <TimelineImmunization>[],
     this.medicalNote,
+    this.referrals = const <TimelineReferral>[],
   });
 
   bool get adaPenimbangan => measurement != null;
   bool get adaSuntikan => immunizations.isNotEmpty;
   bool get adaKeluhan => medicalNote != null;
+  bool get adaRujukan => referrals.isNotEmpty;
 
   /// Kunci bulan `YYYY-MM` untuk pengelompokan tampilan.
   ///
@@ -355,12 +418,14 @@ class TimelineEntry {
 
   /// Entri yang benar-benar kosong tidak pernah dikirim server, tapi kalau
   /// terjadi layar harus tetap bisa menampilkannya tanpa crash.
-  bool get kosong => !adaPenimbangan && !adaSuntikan && !adaKeluhan;
+  bool get kosong =>
+      !adaPenimbangan && !adaSuntikan && !adaKeluhan && !adaRujukan;
 
   factory TimelineEntry.fromJson(Map<String, dynamic> json) {
     final penimbangan = json['measurement'];
     final catatan = json['medical_note'];
     final suntikan = json['immunizations'];
+    final rujukan = json['referrals'];
 
     return TimelineEntry(
       date: json['date']?.toString() ?? '',
@@ -380,6 +445,16 @@ class TimelineEntry {
       medicalNote: catatan is Map
           ? TimelineNote.fromJson(Map<String, dynamic>.from(catatan))
           : null,
+      referrals: rujukan is List
+          ? rujukan
+                .whereType<Map>()
+                .map(
+                  (e) => TimelineReferral.fromJson(
+                    Map<String, dynamic>.from(e),
+                  ),
+                )
+                .toList()
+          : const <TimelineReferral>[],
     );
   }
 }

@@ -19,6 +19,7 @@ class Child extends Model
     protected $fillable = [
         'user_id',
         'nik',
+        'nik_hash',
         'name',
         'date_of_birth',
         'gender',
@@ -44,7 +45,16 @@ class Child extends Model
     protected $hidden = [
         'latestMeasurement',
         'deleted_at',
+        'nik',
+        'nik_hash',
     ];
+
+    protected function casts(): array
+    {
+        return [
+            'nik' => 'encrypted',
+        ];
+    }
 
     /**
      * Relasi yang SELALU dimuat bersama model ini.
@@ -133,6 +143,18 @@ class Child extends Model
     public function medicalNotes(): HasMany
     {
         return $this->hasMany(MedicalNote::class);
+    }
+
+    /** Satu Anak memiliki banyak consent (persetujuan UU PDP). */
+    public function consents(): HasMany
+    {
+        return $this->hasMany(Consent::class);
+    }
+
+    /** Satu Anak memiliki banyak rujukan ke fasilitas kesehatan. */
+    public function referrals(): HasMany
+    {
+        return $this->hasMany(Referral::class);
     }
 
     // -----------------------------------------------------------------

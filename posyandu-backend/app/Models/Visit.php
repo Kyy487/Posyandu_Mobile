@@ -107,6 +107,12 @@ class Visit extends Model
         return $this->hasMany(MedicalNote::class);
     }
 
+    /** Rujukan yang dicatat dalam kunjungan ini. */
+    public function referrals(): HasMany
+    {
+        return $this->hasMany(Referral::class);
+    }
+
     // -----------------------------------------------------------------
     // Scope
     // -----------------------------------------------------------------

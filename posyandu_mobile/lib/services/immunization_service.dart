@@ -119,12 +119,17 @@ class ImmunizationService {
   ///
   /// [dateGiven] harus format `YYYY-MM-DD`; server menolak format lain dengan
   /// 422 (bukan 500) karena rules `date_format:Y-m-d`.
+  ///
+  /// [visitId] opsional: bila dikirim, suntikan ini menempel pada satu
+  /// kunjungan (`docs/RANCANGAN_VISIT.md`). Server menolak `visit_id` yang
+  /// bukan milik anak ini dengan 422.
   Future<Map<String, dynamic>> addRecord({
     required String childId,
     required String immunizationTypeId,
     required String dateGiven,
     String? batchNumber,
     String? notes,
+    String? visitId,
   }) async {
     final headers = await _authHeaders(json: true);
     if (headers == null) return _sessionEnded();
@@ -141,6 +146,7 @@ class ImmunizationService {
           'date_given': dateGiven,
           'batch_number': ?batchNumber,
           'notes': ?notes,
+          'visit_id': ?visitId,
         }),
       );
 

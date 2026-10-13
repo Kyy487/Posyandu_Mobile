@@ -76,6 +76,42 @@ class ApiConstants {
   // yang sedikit padat.
   static const String childGrowthEndpoint = '/growth';
 
+  // Rujukan anak (lihat docs/RANCANGAN_RUJUKAN.md).
+  //
+  // Rujukan adalah catatan tindak lanjut per kunjungan, jadi daftarnya
+  // menempel pada anak seperti timeline: Ibu berhak melihat rujukan anaknya
+  // sendiri, karena itu tidak ada prefix `/kader/`.
+  //   baca : {childrenEndpoint}/{id}{childReferralsEndpoint}
+  static const String childReferralsEndpoint = '/referrals';
+
+  // Tulis rujukan (hanya Kader). Endpoint-nya di akar `/referrals`, bukan di
+  // bawah `/children/{id}`, karena `child_id` dikirim di body - sama polanya
+  // dengan `kaderMedicalNotesEndpoint`.
+  //   buat  : POST   {kaderReferralsEndpoint}
+  //   koreksi: PATCH {kaderReferralsEndpoint}/{id}
+  //   batal : DELETE {kaderReferralsEndpoint}/{id}
+  static const String kaderReferralsEndpoint = '/referrals';
+
+  // Daftar kunjungan satu anak (P0-1). Sama seperti timeline/rujukan, dibaca
+  // Ibu maupun Kader, jadi tidak ada prefix `/kader/`.
+  //   baca : {childrenEndpoint}/{id}{childVisitsEndpoint}
+  static const String childVisitsEndpoint = '/visits';
+
+  // Tulis kunjungan (hanya Kader). Di akar `/visits`, bukan di bawah
+  // `/children/{id}`, karena `child_id` dikirim di body - sama seperti rujukan.
+  //   buat  : POST  {kaderVisitsEndpoint}
+  //   koreksi: PATCH {kaderVisitsEndpoint}/{id}
+  static const String kaderVisitsEndpoint = '/visits';
+
+  // Persetujuan (consent) pemrosesan data anak (UU PDP No. 27/2022).
+  //
+  // Dibaca Ibu maupun Kader (Ibu hanya anaknya sendiri), tapi yang boleh
+  // memberi/mencabut hanya Ibu/wali. Ketiganya memakai path yang sama:
+  //   baca   : GET    {childrenEndpoint}/{id}{childConsentsEndpoint}
+  //   beri   : POST   {childrenEndpoint}/{id}{childConsentsEndpoint}
+  //   cabut  : DELETE {childrenEndpoint}/{id}{childConsentsEndpoint}
+  static const String childConsentsEndpoint = '/consents';
+
   // Daftar petugas. NIK tidak pernah ikut respons.
   static const String petugasEndpoint = '/petugas';
 }

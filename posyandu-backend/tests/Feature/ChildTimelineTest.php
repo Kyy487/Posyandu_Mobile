@@ -7,6 +7,7 @@ use App\Models\ImmunizationRecord;
 use App\Models\ImmunizationType;
 use App\Models\Measurement;
 use App\Models\MedicalNote;
+use App\Models\Referral;
 use App\Models\User;
 use App\Services\ChildTimelineService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -202,6 +203,60 @@ class ChildTimelineTest extends TestCase
         $kode = array_column($entri[0]['immunizations'], 'type');
         sort($kode);
         $this->assertSame(['BCG', 'HB-0'], $kode);
+    }
+
+    /**
+     * Aturan tambahan 13 Okt 2026: rujukan tampil di tanggalnya.
+     *
+     * Rujukan masuk ke `entries[].referrals` pada `referral_date`-nya, boleh
+     * lebih dari satu per tanggal, dan tanggal yang HANYA punya rujukan tetap
+     * muncul sebagai entri. Rujukan yang dibatalkan disembunyikan, termasuk
+     * menghilangkan tanggalnya bila tidak ada isi lain.
+     */
+    #[Test]
+    public function rujukan_muncul_pada_tanggal_nya(): void
+    {
+        $anak = $this->anak();
+        $kader = User::factory()->kader()->create();
+
+        // Tanggal ini tidak punya penimbangan, suntikan, atau keluhan.
+        Referral::factory()
+            ->untukAnak($anak)
+            ->olehKader($kader)
+            ->padaTanggal('2026-08-12')
+            ->create(['referral_type' => Referral::TYPE_PUSKESMAS]);
+
+        Referral::factory()
+            ->untukAnak($anak)
+            ->padaTanggal('2026-08-12')
+            ->create(['referral_type' => Referral::TYPE_RS]);
+
+        // Rujukan yang dibatalkan tidak boleh muncul, dan tanggalnya tidak
+        // boleh ikut menjadi entri kosong.
+        Referral::factory()
+            ->untukAnak($anak)
+            ->padaTanggal('2026-08-13')
+            ->dibatalkan()
+            ->create();
+
+        $respons = $this->kader($kader)->getJson("/api/children/{$anak->id}/timeline");
+        $respons->assertOk();
+
+        $this->assertSame(['2026-08-12'], array_column($respons->json('data.entries'), 'date'));
+
+        $entri = $respons->json('data.entries.0');
+        $this->assertNull($entri['measurement']);
+        $this->assertSame([], $entri['immunizations']);
+        $this->assertNull($entri['medical_note']);
+        $this->assertCount(2, $entri['referrals']);
+
+        $tipe = array_column($entri['referrals'], 'referral_type');
+        sort($tipe);
+        $this->assertSame([Referral::TYPE_PUSKESMAS, Referral::TYPE_RS], $tipe);
+
+        $puskesmas = collect($entri['referrals'])->firstWhere('referral_type', Referral::TYPE_PUSKESMAS);
+        $this->assertSame($kader->id, $puskesmas['kader']['id']);
+        $this->assertSame('2026-08-12', $puskesmas['referral_date']);
     }
 
     /** Aturan 6: anak tanpa data tetap 200 dengan `entries` kosong. */
@@ -561,11 +616,12 @@ class ChildTimelineTest extends TestCase
     // =================================================================
 
     /**
-     * Kunci `data` tepat tiga, dan `entries` punya empat kunci per entri.
+     * Kunci `data` tepat tiga, dan `entries` punya lima kunci per entri.
      *
      * Ini contractual: klien Flutter mengambil `data.entries` dan
      * `data.child` berdasarkan nama, dan menambah/menghapus kunci di sini akan
-     * merusak layar yang sudah jadi.
+     * merusak layar yang sudah jadi. `referrals` ditambahkan 13 Okt 2026 sebagai
+     * kunci aditif.
      */
     #[Test]
     public function data_tepat_berisi_tiga_kunci(): void
@@ -579,13 +635,16 @@ class ChildTimelineTest extends TestCase
         $this->assertSame(['child', 'entries', 'meta'], array_keys($data));
 
         $entri = $data['entries'][0];
-        $this->assertSame(['date', 'measurement', 'immunizations', 'medical_note'], array_keys($entri));
+        $this->assertSame(
+            ['date', 'measurement', 'immunizations', 'medical_note', 'referrals'],
+            array_keys($entri)
+        );
 
         $this->assertSame(['has_more', 'next_before'], array_keys($data['meta']));
     }
 
     /**
-     * Jumlah query tetap: satu untuk daftar tanggal, tiga untuk isi jendela.
+     * Jumlah query tetap: satu untuk daftar tanggal, empat untuk isi jendela.
      *
      * Yang diperiksa BUKAN jumlah query seluruh request, tapi query yang
      * dijalankan service-nya. Alasannya, komponen lain (autentikasi, pengambilan
@@ -616,7 +675,7 @@ class ChildTimelineTest extends TestCase
         $jumlahSatu = $this->hitungQuery(fn () => $service->timelineFor($anakSatu, 50));
         $jumlahBanyak = $this->hitungQuery(fn () => $service->timelineFor($anakBanyak, 50));
 
-        $this->assertSame(4, $jumlahSatu, 'Service harus memakai empat query: daftar tanggal, lalu tiga isi.');
+        $this->assertSame(5, $jumlahSatu, 'Service harus memakai lima query: daftar tanggal, lalu empat isi.');
         $this->assertSame(
             $jumlahSatu,
             $jumlahBanyak,

@@ -14,9 +14,10 @@ use Illuminate\Support\Facades\DB;
 /**
  * Riwayat medis satu anak dalam satu layar, dikelompokkan per tanggal kunjungan.
  *
- * Ini gabungan tiga tabel yang sudah ada - `measurements`,
- * `immunization_records`, `medical_notes` - bukan tabel baru. Tidak ada data yang
- * diduplikasi, jadi timeline tidak mungkin menyimpang dari catatan aslinya.
+ * Ini gabungan empat tabel yang sudah ada - `measurements`,
+ * `immunization_records`, `medical_notes`, `referrals` - bukan tabel baru. Tidak
+ * ada data yang diduplikasi, jadi timeline tidak mungkin menyimpang dari catatan
+ * aslinya.
  *
  * Bentuk keluaran dan batasannya dikunci di `docs/RANCANGAN_BUKU_MEDIS.md` bagian
  * 7.2 dan 7.3 (aturan agent: `posyandu-backend/.ai/rules/kontrak-timeline.md`).
@@ -24,8 +25,8 @@ use Illuminate\Support\Facades\DB;
  *
  * Tiga keputusan yang tidak boleh dibalik tanpa alasan tertulis:
  *
- *  1. **Empat query, tidak bertambah.** Satu query mengambil daftar tanggal lewat
- *     `UNION` atas tiga kolom tanggal, lalu tiga query mengisi isi rentang
+ *  1. **Lima query, tidak bertambah.** Satu query mengambil daftar tanggal lewat
+ *     `UNION` atas empat kolom tanggal, lalu empat query mengisi isi rentang
  *     tanggal itu. Alternatifnya - mengambil `limit` baris per tabel lalu
  *     digabung - menghasilkan timeline yang terpotong di tengah satu
  *     kunjungan, dan jumlah query-nya ikut tumbuh.
@@ -33,10 +34,11 @@ use Illuminate\Support\Facades\DB;
  *     dibaca apa adanya dari database, yang menghitungkannya sudah trigger
  *     PostgreSQL. Server dan mobile sama-sama tidak menghitung; kalau angka di
  *     sini terasa salah, perbaikannya di trigger atau di data, bukan di sini.
- *  3. **Baris yang dibatalkan tidak tampil.** Ketiga tabel punya `deleted_at`.
- *     Dua query di bawah memakai Eloquent (soft delete terfilter otomatis), satu
- *     query tanggal memakai query builder mentah - di situ `deleted_at IS NULL`
- *     ditulis sendiri, karena global scope tidak berlaku untuk query mentah.
+ *  3. **Baris yang dibatalkan tidak tampil.** Keempat tabel punya `deleted_at`.
+ *     Tiga query isi di bawah memakai Eloquent (soft delete terfilter otomatis),
+ *     query `referrals` dan query tanggal memakai query builder mentah - di situ
+ *     `deleted_at IS NULL` ditulis sendiri, karena global scope tidak berlaku
+ *     untuk query mentah.
  */
 class ChildTimelineService
 {
@@ -70,7 +72,7 @@ class ChildTimelineService
             ];
         }
 
-        // Isi ketiga tabel diambil untuk rentang tanggal halaman ini saja.
+        // Isi keempat tabel diambil untuk rentang tanggal halaman ini saja.
         // `min` dan `max` hampir selalu sama kalau satu tanggal per kunjungan,
         // tapi `before` dan `limit` membuat keduanya tidak selalu begitu.
         $dari = (string) $tanggal->last();
@@ -79,16 +81,19 @@ class ChildTimelineService
         $measurements = $this->measurementsIn($child, $dari, $sampai);
         $immunizations = $this->immunizationsIn($child, $dari, $sampai);
         $notes = $this->notesIn($child, $dari, $sampai);
+        $referrals = $this->referralsIn($child, $dari, $sampai);
 
-        $entries = $tanggal->map(function (string $tgl) use ($measurements, $immunizations, $notes): array {
+        $entries = $tanggal->map(function (string $tgl) use ($measurements, $immunizations, $notes, $referrals): array {
             return [
                 'date' => $tgl,
-                // Tiga kunci ini boleh `null`. Tanggal yang punya keluhan tapi
-                // tanpa penimbangan tetap muncul sebagai entri - itu kunjungan
-                // yang sah, bukan data yang tidak lengkap.
+                // `measurement` dan `medical_note` boleh `null`; `immunizations`
+                // dan `referrals` selalu array. Tanggal yang punya keluhan atau
+                // rujukan tapi tanpa penimbangan tetap muncul sebagai entri -
+                // itu kunjungan yang sah, bukan data yang tidak lengkap.
                 'measurement' => $measurements->get($tgl),
                 'immunizations' => $immunizations->get($tgl, []),
                 'medical_note' => $notes->get($tgl),
+                'referrals' => $referrals->get($tgl, []),
             ];
         })->all();
 
@@ -124,9 +129,9 @@ class ChildTimelineService
     }
 
     /**
-     * Gabungan tiga kolom tanggal untuk satu anak.
+     * Gabungan empat kolom tanggal untuk satu anak.
      *
-     * Ditulis dengan query builder mentah, bukan Eloquent, supaya tiga kolom
+     * Ditulis dengan query builder mentah, bukan Eloquent, supaya empat kolom
      * dengan nama berbeda bisa disatukan. Konsekuensinya, filter soft delete
      * TIDAK otomatis: `deleted_at IS NULL` ditulis eksplisit di tiap cabang.
      * Kalau salah satu lupa, baris yang sudah dibatalkan kader akan muncul
@@ -152,9 +157,16 @@ class ChildTimelineService
             ->where('child_id', $child->id)
             ->whereNull('deleted_at');
 
+        $tanggalRujukan = DB::query()
+            ->select('referral_date as tanggal')
+            ->from('referrals')
+            ->where('child_id', $child->id)
+            ->whereNull('deleted_at');
+
         return $tanggalPenimbangan
             ->union($tanggalSuntikan)
-            ->union($tanggalKeluhan);
+            ->union($tanggalKeluhan)
+            ->union($tanggalRujukan);
     }
 
     /**
@@ -265,6 +277,57 @@ class ChildTimelineService
                     'tindak_lanjut' => $n->tindak_lanjut,
                 ],
             ]);
+    }
+
+    /**
+     * Rujukan dalam rentang tanggal, dikelompokkan per tanggal.
+     *
+     * Satu tanggal boleh punya lebih dari satu rujukan (mis. ke Puskesmas dan
+     * RS sekaligus), jadi isinya array seperti `immunizations`. `leftJoin` ke
+     * `users` dipakai agar rujukan tanpa kader tetap terbaca: `kader_id` bisa
+     * `null` karena `ON DELETE SET NULL`.
+     *
+     * @return Collection<string, list<array<string, mixed>>>
+     */
+    private function referralsIn(Child $child, string $dari, string $sampai): Collection
+    {
+        return DB::query()
+            ->select([
+                'referrals.id',
+                'referrals.referral_date',
+                'referrals.referral_type',
+                'referrals.reason',
+                'referrals.facility_name',
+                'referrals.status',
+                'kader.id as kader_id',
+                'kader.name as kader_name',
+            ])
+            ->from('referrals')
+            ->leftJoin('users as kader', 'kader.id', '=', 'referrals.kader_id')
+            ->where('referrals.child_id', $child->id)
+            ->whereNull('referrals.deleted_at')
+            ->whereBetween('referrals.referral_date', [$dari, $sampai])
+            // Urutan deterministik: satu tanggal bisa punya beberapa rujukan,
+            // dan tanpa `id` posisinya bisa tertukar antar request.
+            ->orderBy('referrals.referral_date')
+            ->orderBy('referrals.id')
+            ->get()
+            ->groupBy(fn (object $r): string => $this->tanggal($r->referral_date))
+            ->map(fn ($rows): array => $rows
+                ->map(fn (object $r): array => [
+                    'id' => $r->id,
+                    'referral_date' => $this->tanggal($r->referral_date),
+                    'referral_type' => $r->referral_type,
+                    'reason' => $r->reason,
+                    'facility_name' => $r->facility_name,
+                    'status' => $r->status,
+                    'kader' => $r->kader_id === null ? null : [
+                        'id' => $r->kader_id,
+                        'name' => $r->kader_name,
+                    ],
+                ])
+                ->values()
+                ->all());
     }
 
     /**

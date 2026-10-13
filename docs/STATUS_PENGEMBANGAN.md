@@ -1,6 +1,6 @@
 # Status Pengembangan Smart Posyandu
 
-> **Terakhir diperbarui:** 12 Oktober 2026
+> **Terakhir diperbarui:** 13 Oktober 2026
 > **Dokumen acuan utama:** `PERANCANGAN_PERKUATAN.md`
 > **Aturan agent:** `AI_AGENT_RULES.md` dan `posyandu-backend/AGENTS.md`
 
@@ -131,6 +131,93 @@ Yang **selesai**:
 
 ---
 
+### 2.5 P1 — Tata Kelola Data (Audit, Consent, Enkripsi NIK) — 13 Okt 2026
+
+Yang **selesai**:
+
+- **Audit trail** — tabel `audit_logs` + trait `Concerns\Auditable` (dipasang di
+  `Child`, `Visit`, `Measurement`, `ImmunizationRecord`, `MedicalNote`).
+  Endpoint baca: `GET /kader/audit-logs` (Kader).
+- **Consent management (UU PDP)** — tabel `consents` + `ConsentController`.
+  `POST /children` kini **wajib** mengirim `consent_type` dan
+  `consent_document_version`; satu baris `consents` dibuat otomatis. Endpoint
+  `GET|POST|DELETE /children/{id}/consents`. Lihat `docs/PERANCANGAN_PERKUATAN.md`
+  §5.1.
+  - **Mobile**: `models/consent.dart` (`Consent`, `ConsentTipe`,
+    `kConsentDocumentVersion`), `services/consent_service.dart` (`getByChild`,
+    `grant`, `revoke`), `screens/consent_screen.dart` (satu layar:
+    `bisaMengelola` `true` untuk Ibu beri/cabut, `false` untuk Kader baca saja).
+    Checkbox persetujuan ditambahkan di pendaftaran anak
+    (`screens/ibu/tambah_anak_dialog.dart` dan
+    `screens/kader/add_child_screen.dart`); `child_service.addChild` dan
+    `kader_service.addChild` kini mengirim `consent_type` +
+    `consent_document_version` (sebelumnya 422). Jalan masuk: seksi
+    "🔒 Persetujuan" di `screens/kader/detail_anak_screen.dart` dan menu
+    "Persetujuan Data" di `screens/ibu/dashboard_ibu_screen.dart`.
+- **Enkripsi NIK** — kolom `users.nik` dan `children.nik` dienkripsi
+  (cast `encrypted`) dengan `nik_hash` (SHA-256) terindeks untuk pencarian.
+  Lihat `docs/RANCANGAN_ENKRIPSI_NIK.md`.
+
+**Migrasi terkait:** `2026_10_12_013352_create_audit_logs_table`,
+`2026_10_13_000003_create_consents_table`, `2026_10_13_000001_encrypt_nik_on_users_table`,
+`2026_10_13_000002_encrypt_nik_on_children_table`.
+
+---
+
+### 2.6 Rujukan (Referral) — 13 Okt 2026
+
+Rancangan lengkap: `docs/RANCANGAN_RUJUKAN.md`.
+
+Yang **selesai**:
+
+- **Tabel `referrals`** (UUID, soft delete), selalu tertaut ke satu `visit`
+  (`visit_id`, wajib) dan satu `child` (`child_id`). `referral_type` =
+  `puskesmas`/`rs`/`faskes_lain`, `status` = `dibuat`/`dilaporkan`/`selesai`,
+  keduanya string + CHECK constraint.
+- **Model & relasi**: `Visit::referrals()`, `Child::referrals()`,
+  `Referral::visit/child/kader()`. Model memakai `Auditable`.
+- **API**: `POST /referrals`, `GET /children/{id}/referrals` (di `ChildController`,
+  seperti `visits`), `GET /referrals/{id}`, `PATCH /referrals/{id}`,
+  `DELETE /referrals/{id}` (soft delete). `GET /visits/{id}` menambah kunci
+  `rujukan` (aditif).
+- **Timeline (aditif)**: `GET /children/{id}/timeline` menambah kunci
+  `referrals` pada tiap `entries[]` (dikelompokkan pada `referral_date`). Perubahan
+  kontrak ditulis di `docs/RANCANGAN_BUKU_MEDIS.md` dan
+  `.ai/rules/kontrak-timeline.md` lebih dulu. `ChildTimelineService` kini lima query.
+- **Test**: `tests/Feature/ReferralTest.php` (21 test) + satu aturan baru di
+  `tests/Feature/ChildTimelineTest.php` (`rujukan_muncul_pada_tanggal_nya`).
+- **Mobile**: `models/referral.dart` (`Referral`, `ReferralTipe`,
+  `ReferralStatus`, `ReferralList`), `models/visit.dart` (`Visit`, `VisitTipe`,
+  `VisitList`), `services/referral_service.dart` (`getByChild`, `create`,
+  `update`, `cancel`), `services/visit_service.dart` (`getByChild`, `create`,
+  `update`), `screens/kader/rujukan_screen.dart` (daftar + detail + form
+  **buat/koreksi rujukan** dengan pemilihan kunjungan, plus **batalkan** dengan
+  konfirmasi), `screens/kader/kunjungan_screen.dart` (daftar + detail + form
+  **buat/koreksi kunjungan**), endpoint
+  `childReferralsEndpoint`/`kaderReferralsEndpoint`/`childVisitsEndpoint`/
+  `kaderVisitsEndpoint` di `utils/constants.dart`. Saat koreksi, kunjungan/rujukan
+  yang salah anak dibatalkan lalu dibuat ulang (server mengunci `child_id`/
+  `visit_id` pada PATCH). Timeline mobile (`models/child_timeline.dart`
+  `TimelineReferral`) menampilkan rujukan di `detail_anak_screen.dart`, dengan
+  jalan masuk ke `KunjunganScreen` dan `RujukanScreen`.
+- **Mobile — flow "buat kunjungan → input data → selesai"**: setelah kunjungan
+  baru tersimpan, `KunjunganScreen` menawarkan lembar pilihan (Penimbangan /
+  Imunisasi / Catatan Keluhan / Rujukan / Selesai). Tiap pilihan membuka layar
+  input dengan membawa `visitId` kunjungan itu, lalu kembali ke lembar yang sama
+  sampai kader memilih Selesai. `services/kader_service.dart`,
+  `immunization_service.dart`, dan `medical_note_service.dart` mengirim
+  `visit_id` opsional; `InputPenimbanganScreen`, `ImunisasiScreen`, dan
+  `CatatanKeluhanScreen` menampilkan banner "menempel pada kunjungan", dan
+  `RujukanScreen` menerima `initialVisitId` untuk pra-pilih kunjungan.
+
+**Migrasi terkait:**
+
+| Migration | Fungsi |
+|---|---|
+| `2026_10_13_152047_create_referrals_table` | Tabel `referrals` |
+
+---
+
 ## 3. Yang Harus Dikerjakan (Roadmap)
 
 ### 3.1 Prioritas P0
@@ -143,7 +230,17 @@ Yang **selesai**:
 
 ### 3.2 Prioritas selanjutnya (ringkas, lihat `PERANCANGAN_PERKUATAN.md`)
 
-- P1: Audit trail, Consent, WFH (jika belum P0), perbaikan kualitas data.
+**Selesai (P1):** Audit trail, Consent management + integrasi mobile (checkbox
+persetujuan saat daftar anak, layar kelola Ibu/Kader), Enkripsi NIK, Rujukan
+(`referrals`) + integrasi mobile (baca, buat, koreksi, batalkan), Kunjungan
+(`visits`) + screen mobile, serta flow **"buat kunjungan → input data →
+selesai"** (penimbangan/imunisasi/keluhan/rujukan menempel pada kunjungan) —
+lihat §2.5 dan §2.6.
+
+**Berikutnya:**
+
+- P2: **Backup & retensi** (`PERANCANGAN_PERKUATAN.md` §5.5–5.6), Evaluasi klinis
+  (validasi Z-score vs WHO Anthro).
 - P2: KMS Digital interaktif, AI Food Scanner, Pemetaan Spasial (PostGIS), IoT Smart Triage.
 
 ---

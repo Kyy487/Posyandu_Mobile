@@ -19,11 +19,21 @@ class CatatanKeluhanScreen extends StatefulWidget {
   /// anak bisa mengeluh tanpa ditimbang hari itu juga.
   final String? measurementId;
 
+  /// Kunjungan tempat catatan baru menempel (opsional). Dipakai alur "buat
+  /// kunjungan → input data" dari `KunjunganScreen`.
+  final String? visitId;
+
+  /// Label kunjungan untuk ditampilkan di banner. Boleh null bila [visitId]
+  /// null.
+  final String? visitLabel;
+
   const CatatanKeluhanScreen({
     super.key,
     required this.childId,
     required this.childName,
     this.measurementId,
+    this.visitId,
+    this.visitLabel,
   });
 
   @override
@@ -86,6 +96,7 @@ class _CatatanKeluhanScreenState extends State<CatatanKeluhanScreen> {
         service: _service,
         note: note,
         measurementId: widget.measurementId,
+        visitId: widget.visitId,
       ),
     );
 
@@ -139,6 +150,7 @@ class _CatatanKeluhanScreenState extends State<CatatanKeluhanScreen> {
       child: Column(
         children: [
           _buildFilterBar(data),
+          if (widget.visitId != null) _buildBannerKunjungan(),
           Expanded(
             child: data.notes.isEmpty
                 ? ListView(
@@ -154,6 +166,47 @@ class _CatatanKeluhanScreenState extends State<CatatanKeluhanScreen> {
                       onTap: () => _bukaForm(note: data.notes[index]),
                     ),
                   ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Penanda bahwa catatan baru menempel pada satu kunjungan.
+  Widget _buildBannerKunjungan() {
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.blue[50],
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: Colors.blue[200]!),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(Icons.event_available, size: 18, color: Colors.blue[700]),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Catatan baru menempel pada kunjungan',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.blue[800],
+                  ),
+                ),
+                if (widget.visitLabel != null)
+                  Text(
+                    widget.visitLabel!,
+                    style: TextStyle(fontSize: 11, color: Colors.blue[700]),
+                  ),
+              ],
+            ),
           ),
         ],
       ),
@@ -233,11 +286,16 @@ class _FormCatatanKeluhan extends StatefulWidget {
   final MedicalNote? note;
   final String? measurementId;
 
+  /// Kunjungan tempat catatan baru menempel (opsional). Diabaikan saat koreksi
+  /// catatan lama.
+  final String? visitId;
+
   const _FormCatatanKeluhan({
     required this.childId,
     required this.service,
     this.note,
     this.measurementId,
+    this.visitId,
   });
 
   @override
@@ -342,6 +400,7 @@ class _FormCatatanKeluhanState extends State<_FormCatatanKeluhan> {
             catatan: catatan,
             tindakLanjut: _tindakLanjut,
             measurementId: widget.measurementId,
+            visitId: widget.visitId,
           );
 
     if (!mounted) return;

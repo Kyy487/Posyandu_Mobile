@@ -85,6 +85,8 @@ class KaderService {
     required double birthWeight,
     required double birthHeight,
     required String ibuNik,
+    required String consentType,
+    required String consentDocumentVersion,
   }) async {
     final headers = await _authHeaders(json: true);
     if (headers == null) return _offlineError();
@@ -101,6 +103,11 @@ class KaderService {
           'birth_weight': birthWeight,
           'birth_height': birthHeight,
           'ibu_nik': ibuNik,
+          // Persetujuan tetap wajib walau yang mendaftarkan kader: server
+          // membuat baris `consents` untuk anak ini, dan tanpa field ini
+          // permintaan ditolak 422.
+          'consent_type': consentType,
+          'consent_document_version': consentDocumentVersion,
         }),
       );
 
@@ -111,11 +118,16 @@ class KaderService {
   }
 
   // --- Mencatat penimbangan (e-KMS) ---
+  //
+  // [visitId] opsional: bila dikirim, penimbangan ini menempel pada satu
+  // kunjungan (`docs/RANCANGAN_VISIT.md`). Server menolak `visit_id` yang bukan
+  // milik anak ini dengan 422, jadi nilainya tidak pernah dikarang di sini.
   Future<Map<String, dynamic>> addMeasurement({
     required String childId,
     required String measurementDate,
     required double weight,
     required double height,
+    String? visitId,
   }) async {
     final headers = await _authHeaders(json: true);
     if (headers == null) return _offlineError();
@@ -129,6 +141,7 @@ class KaderService {
           'measurement_date': measurementDate,
           'weight_kg': weight,
           'height_cm': height,
+          if (visitId != null && visitId.isNotEmpty) 'visit_id': visitId,
         }),
       );
 
