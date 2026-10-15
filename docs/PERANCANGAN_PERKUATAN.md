@@ -460,30 +460,30 @@ Saat ini `assertDoseOrder()` hanya membandingkan dengan dosis tetangga. Perlu di
 ## 8. Roadmap Implementasi
 
 ### Fase 1: Fondasi (Minggu 1-2)
-- [ ] Migrasi tabel WHO (HFA, WFH, BFA)
-- [ ] Migrasi tabel visits, referrals, consents, audit_logs
-- [ ] Update trigger Z-score
-- [ ] Update model & migration existing tables
+- [x] Migrasi tabel WHO (HFA, WFH, BFA)
+- [x] Migrasi tabel visits, referrals, consents, audit_logs
+- [x] Update trigger Z-score
+- [x] Update model & migration existing tables
 
 ### Fase 2: Logika Bisnis (Minggu 3-4)
-- [ ] Service VisitService (CRUD kunjungan)
-- [ ] Service ReferralService
-- [ ] Service ConsentService
-- [ ] Service AuditService
-- [ ] Update ImmunizationChecklistService (validasi jadwal Kemenkes)
-- [ ] Update MeasurementController (kaitkan visit_id)
+- [x] Service VisitService (CRUD kunjungan)
+- [x] Service ReferralService
+- [x] Service ConsentService
+- [x] Service AuditService
+- [x] Update ImmunizationChecklistService (validasi jadwal Kemenkes)
+- [x] Update MeasurementController (kaitkan visit_id)
 
 ### Fase 3: API & Integrasi (Minggu 5-6)
-- [ ] Endpoint baru: /visits, /referrals, /consents
-- [ ] Update endpoint existing (kaitkan visit_id)
-- [ ] Audit trail middleware
-- [ ] Enkripsi NIK
+- [x] Endpoint baru: /visits, /referrals, /consents
+- [x] Update endpoint existing (kaitkan visit_id)
+- [x] Audit trail middleware
+- [x] Enkripsi NIK
 
 ### Fase 4: Mobile (Minggu 7-8)
-- [ ] Screen kunjungan baru
-- [ ] Flow: buat kunjungan → input data → selesai
-- [ ] Screen rujukan
-- [ ] Screen consent
+- [x] Screen kunjungan baru
+- [x] Flow: buat kunjungan → input data → selesai
+- [x] Screen rujukan
+- [x] Screen consent
 
 ### Fase 5: Evaluasi (Minggu 9-10)
 - [ ] Unit & feature test
