@@ -5,6 +5,17 @@
 **Status:** Backend dan mobile selesai 1 Oktober 2026. Layar Kader selesai
 2 Oktober 2026.
 
+> **Amendemen 15 Oktober 2026.** Laporan ini menggambarkan keadaan 1–2 Oktober
+> 2026: grafik BB/U + TB dengan dua sumbu y dan satu pita WHO (BB/U). Sejak
+> perluasan indikator WHO multidimensi, `GrowthLineChart` menjadi pemilih satu
+> metrik (BB/U, TB/U, IMT/U), `who_references` mengirim tiga pita, dan `data`
+> berisi empat kunci. Ringkasan perubahan mobile: `growth_chart.dart`,
+> `growth_line_chart.dart`, `growth_chart_view.dart`, `kontrak_api_test.dart`,
+> dan `grafik_tumbuh_widget_test.dart`. Rincian dan alasan desain ada di
+> `docs/RANCANGAN_WHO_MULTIDIM.md` §4.7 dan §7.3. Angka test di laporan ini
+> (20 feature, 9 widget) sudah bertambah menjadi 33 feature dan suite mobile
+> 214 test.
+
 ---
 
 ## 1. Apa yang Dibuat

@@ -2247,10 +2247,11 @@ void main() {
   });
 
   group('Kontrak API - GET /api/children/{id}/growth', () {
-    // Respons asli dari GrowthChartService (Opsi D). Bentuk `child`, `series`,
-    // dan `who_reference` ini yang dibaca GrowthChart.fromJson, jadi JSON di
-    // bawah disalin dari `docs/RANCANGAN_GRAFIK_TUMBUH_KEMBANG.md` bagian 7.2
-    // - bukan dikarang di sini.
+    // Respons asli dari GrowthChartService (Opsi D), diperluas amendemen
+    // multidimensi 15 Oktober 2026. Bentuk `child`, `series`, `who_reference`,
+    // dan `who_references` ini yang dibaca GrowthChart.fromJson, jadi JSON di
+    // bawah disalin dari `docs/RANCANGAN_WHO_MULTIDIM.md` bagian 6.2 - bukan
+    // dikarang di sini.
     const rawGrowth = '''
     {
       "success": true,
@@ -2266,7 +2267,7 @@ void main() {
           "medical_flags": null
         },
         "series": {
-          "unit": { "weight": "kg", "height": "cm" },
+          "unit": { "weight": "kg", "height": "cm", "bmi": "kg/m2" },
           "order": "asc",
           "points": [
             {
@@ -2275,8 +2276,15 @@ void main() {
               "weight_kg": 11.2,
               "height_cm": 85.0,
               "head_circumference_cm": 46.5,
+              "bmi": 15.5,
               "z_score_wfa": -0.32,
-              "status_gizi": "Normal"
+              "status_gizi": "Normal",
+              "z_score_hfa": -0.7,
+              "status_stunting": "Normal",
+              "z_score_bfa": 0.1,
+              "status_gizi_imt": "Normal",
+              "z_score_wfh": 0.3,
+              "status_wfh": "Normal"
             },
             {
               "date": "2026-09-24",
@@ -2284,8 +2292,15 @@ void main() {
               "weight_kg": 12.4,
               "height_cm": 88.0,
               "head_circumference_cm": 47.5,
+              "bmi": 16.01,
               "z_score_wfa": 0.21,
-              "status_gizi": "Normal"
+              "status_gizi": "Normal",
+              "z_score_hfa": -0.8,
+              "status_stunting": "Normal",
+              "z_score_bfa": 0.4,
+              "status_gizi_imt": "Normal",
+              "z_score_wfh": null,
+              "status_wfh": null
             }
           ]
         },
@@ -2298,7 +2313,48 @@ void main() {
             { "age_in_months": 24, "median_kg": 12.2, "lower_kg": 10.1, "upper_kg": 14.5 },
             { "age_in_months": 30, "median_kg": 13.3, "lower_kg": 11.2, "upper_kg": 15.7 }
           ]
-        }
+        },
+        "who_references": [
+          {
+            "metric": "weight_for_age",
+            "label": "BB/U",
+            "unit": "kg",
+            "x_axis": "age_in_months",
+            "source": "WHO Child Growth Standards 2006",
+            "gender": "P",
+            "age_range": { "from": 0, "to": 60 },
+            "points": [
+              { "age_in_months": 24, "median": 12.2, "lower": 10.1, "upper": 14.5 },
+              { "age_in_months": 30, "median": 13.3, "lower": 11.2, "upper": 15.7 }
+            ]
+          },
+          {
+            "metric": "height_for_age",
+            "label": "TB/U",
+            "unit": "cm",
+            "x_axis": "age_in_months",
+            "source": "WHO Child Growth Standards 2006",
+            "gender": "P",
+            "age_range": { "from": 0, "to": 60 },
+            "points": [
+              { "age_in_months": 24, "median": 87.1, "lower": 81.0, "upper": 93.2 },
+              { "age_in_months": 30, "median": 90.5, "lower": 84.0, "upper": 97.0 }
+            ]
+          },
+          {
+            "metric": "bmi_for_age",
+            "label": "IMT/U",
+            "unit": "kg/m2",
+            "x_axis": "age_in_months",
+            "source": "WHO Child Growth Standards 2006",
+            "gender": "P",
+            "age_range": { "from": 0, "to": 60 },
+            "points": [
+              { "age_in_months": 24, "median": 16.0, "lower": 13.8, "upper": 18.9 },
+              { "age_in_months": 30, "median": 16.2, "lower": 13.6, "upper": 19.4 }
+            ]
+          }
+        ]
       }
     }
     ''';
@@ -2335,7 +2391,91 @@ void main() {
     test('unit dan order dibaca apa adanya dari server', () {
       expect(chart.series.weightUnit, 'kg');
       expect(chart.series.heightUnit, 'cm');
+      expect(chart.series.bmiUnit, 'kg/m2');
       expect(chart.series.order, 'asc');
+    });
+
+    test('angka multidimensi dibaca apa adanya dari trigger', () {
+      final titik = chart.series.points.first;
+
+      expect(titik.bmi, 15.5);
+      expect(titik.zScoreHfa, -0.7);
+      expect(titik.statusStunting, 'Normal');
+      expect(titik.zScoreBfa, 0.1);
+      expect(titik.statusGiziImt, 'Normal');
+      expect(titik.zScoreWfh, 0.3);
+      expect(titik.statusWfh, 'Normal');
+    });
+
+    test('BB/TB null di atas 24 bulan tetap null, bukan nol', () {
+      final titik = chart.series.points.last;
+
+      expect(titik.ageInMonths, 30);
+      expect(titik.zScoreWfh, isNull);
+      expect(titik.statusWfh, isNull);
+    });
+
+    test('who_references berisi tiga metrik berurut BB/U, TB/U, IMT/U', () {
+      expect(chart.whoBands.length, 3);
+      expect(
+        chart.whoBands.map((b) => b.metric).toList(),
+        ['weight_for_age', 'height_for_age', 'bmi_for_age'],
+      );
+      expect(chart.whoBands[1].label, 'TB/U');
+      expect(chart.whoBands[1].unit, 'cm');
+      expect(chart.whoBands[2].label, 'IMT/U');
+      expect(chart.whoBands[2].unit, 'kg/m2');
+    });
+
+    test('bandUntuk memilih pita lewat metric, bukan label', () {
+      final tbu = chart.bandUntuk('height_for_age');
+      final imtu = chart.bandUntuk('bmi_for_age');
+
+      expect(tbu, isNotNull);
+      expect(tbu!.points.first.median, 87.1);
+      expect(tbu.points.first.lower, 81.0);
+      expect(tbu.points.first.upper, 93.2);
+      expect(imtu!.points.last.upper, 19.4);
+
+      // Metrik yang tidak dikirim server (mis. BB/TB) tidak boleh mencocokkan
+      // entri apa pun - itu yang membuat BB/TB digambar tanpa pita.
+      expect(chart.bandUntuk('weight_for_height'), isNull);
+    });
+
+    test('bmi bisa digambar hanya saat umur dan BMI keduanya ada', () {
+      expect(chart.series.points.first.bisaDigambarBmi, isTrue);
+      expect(chart.series.jumlahTitikBmi, 2);
+    });
+
+    test('who_references yang hilang tidak membuat parser crash', () {
+      final growth = GrowthChart.fromJson({
+        'series': {
+          'unit': {'weight': 'kg', 'height': 'cm'},
+          'order': 'asc',
+          'points': <dynamic>[],
+        },
+      });
+
+      expect(growth.whoBands, isEmpty);
+      expect(growth.bandUntuk('weight_for_age'), isNull);
+      // Tanpa kunci `unit.bmi`, satuan jatuh ke default, bukan string kosong.
+      expect(growth.series.bmiUnit, 'kg/m2');
+    });
+
+    test('titikMultidimTerakhir melewati titik yang semua angkanya null', () {
+      const series = GrowthSeries(
+        points: [
+          GrowthPoint(
+            date: '2026-06-12',
+            ageInMonths: 27,
+            statusStunting: 'Normal',
+          ),
+          GrowthPoint(date: '2026-09-24', ageInMonths: 72),
+        ],
+      );
+
+      expect(series.titikMultidimTerakhir?.date, '2026-06-12');
+      expect(series.titikMultidimTerakhir?.statusStunting, 'Normal');
     });
 
     test('points tidak diurutkan ulang oleh klien', () {

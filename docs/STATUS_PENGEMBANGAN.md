@@ -1,6 +1,6 @@
 # Status Pengembangan Smart Posyandu
 
-> **Terakhir diperbarui:** 14 Oktober 2026
+> **Terakhir diperbarui:** 15 Oktober 2026
 > **Dokumen acuan utama:** `PERANCANGAN_PERKUATAN.md`
 > **Aturan agent:** `AI_AGENT_RULES.md` dan `posyandu-backend/AGENTS.md`
 
@@ -215,6 +215,30 @@ Yang **selesai**:
 | Migration | Fungsi |
 |---|---|
 | `2026_10_13_152047_create_referrals_table` | Tabel `referrals` |
+
+---
+
+### 2.7 Grafik Tumbuh Multidimensi — 15 Okt 2026
+
+Rancangan lengkap: `docs/RANCANGAN_WHO_MULTIDIM.md` (mengamendemen
+`docs/RANCANGAN_GRAFIK_TUMBUH_KEMBANG.md`).
+
+Perluasan `GET /children/{id}/growth` agar indikator WHO multidimensi (TB/U,
+IMT/U, BB/TB) terbaca di grafik, bukan hanya BB/U:
+
+- **Kontrak aditif**: `data` kini **empat kunci** (`child`, `series`,
+  `who_reference`, `who_references`); `points[]` menambah `bmi` + kolom
+  multidimensi; `series.unit` menambah `bmi`; `who_references` membawa **tiga
+  pita** urut normatif (BB/U, TB/U, IMT/U).
+- **Pita HFA/BFA di SQL** (inverse-LMS) lewat satu `UNION ALL`; BMI anak dihitung
+  SQL. BB/TB tanpa pita (sumbunya panjang badan, bukan umur).
+- **Skema**: kolom `measurements.status_wfh` (BB/TB) — migration aditif
+  `2026_10_15_052851_add_status_wfh_to_measurements_and_trigger.php` (Opsi A) +
+  `CREATE OR REPLACE FUNCTION` trigger; `status_gizi` tetap **BB/U saja**.
+- **Mobile**: `GrowthLineChart` jadi pemilih **satu metrik** (dual-axis dihapus);
+  `GrowthChartView` menampilkan tiga tombol metrik + kartu ringkas multidimensi.
+- **Test**: `GrowthChartTest` 33, `WhoZScoreTriggerTest` 4, suite backend 224
+  test / 1995 assertion; mobile `flutter test` 214 test.
 
 ---
 

@@ -456,9 +456,17 @@ class GrowthChartTest extends TestCase
     // Bentuk respons
     // =================================================================
 
-    /** `data` berisi tepat tiga kunci. */
+    /**
+     * Aturan 13: `data` berisi tepat empat kunci.
+     *
+     * Sebelumnya tiga (`child`, `series`, `who_reference`). Fitur
+     * multidimensi menambah `who_references` - dan itu amendemen sadar, bukan
+     * kebocoran: `who_reference` (tunggal, BB/U) sengaja dipertahankan supaya
+     * klien lama tetap jalan. Test ini yang mengunci jumlah kunci, jadi
+     * penambahan berikutnya harus lewat amendemen dokumen lagi.
+     */
     #[Test]
-    public function data_tepat_berisi_tiga_kunci(): void
+    public function data_tepat_berisi_empat_kunci(): void
     {
         $anak = $this->anak();
         $kader = User::factory()->kader()->create();
@@ -468,7 +476,10 @@ class GrowthChartTest extends TestCase
         $respons = $this->kader($kader)->getJson("/api/children/{$anak->id}/growth");
         $respons->assertOk();
 
-        $this->assertSame(['child', 'series', 'who_reference'], array_keys($respons->json('data')));
+        $this->assertSame(
+            ['child', 'series', 'who_reference', 'who_references'],
+            array_keys($respons->json('data'))
+        );
 
         // Envelope error juga tidak boleh bocor ke `data`.
         $this->assertSame(['success', 'message', 'data'], array_keys($respons->json()));
@@ -477,8 +488,9 @@ class GrowthChartTest extends TestCase
             ['unit', 'order', 'points'],
             array_keys($respons->json('data.series'))
         );
+        // `bmi` ditambahkan aditif; `weight`/`height` tidak berubah.
         $this->assertSame(
-            ['weight' => 'kg', 'height' => 'cm'],
+            ['weight' => 'kg', 'height' => 'cm', 'bmi' => 'kg/m2'],
             $respons->json('data.series.unit')
         );
         $this->assertSame(
@@ -489,6 +501,384 @@ class GrowthChartTest extends TestCase
             ['metric', 'source', 'gender', 'age_range', 'points'],
             array_keys($respons->json('data.who_reference'))
         );
+        $this->assertSame(
+            ['metric', 'label', 'unit', 'x_axis', 'source', 'gender', 'age_range', 'points'],
+            array_keys($respons->json('data.who_references.0'))
+        );
+
+        // Setiap titik penimbangan mendapat field multidimensi yang tetap
+        // berbentuk sama, walau nilainya `null`.
+        $this->assertSame(
+            [
+                'date', 'age_in_months', 'weight_kg', 'height_cm', 'head_circumference_cm',
+                'bmi', 'z_score_wfa', 'status_gizi', 'z_score_hfa', 'status_stunting',
+                'z_score_bfa', 'status_gizi_imt', 'z_score_wfh', 'status_wfh',
+            ],
+            array_keys($respons->json('data.series.points.0'))
+        );
+    }
+
+    /**
+     * Aturan 14: angka multidimensi dibaca apa adanya dari database.
+     *
+     * Sama seperti aturan 2 untuk BB/U: `z_score_hfa`/`status_stunting`,
+     * `z_score_bfa`/`status_gizi_imt`, `z_score_wfh`/`status_wfh`, dan `bmi`
+     * diisi trigger PostgreSQL saat baris dicatat. Test ini membandingkan
+     * respons dengan baris yang benar-benar tersimpan, bukan hitungan ulang.
+     * Anak sengaja berumur 17 bulan supaya BB/TB (< 24 bulan) ikut terisi.
+     */
+    #[Test]
+    public function angka_multidimensi_dibaca_dari_database(): void
+    {
+        $anak = $this->anak(['gender' => 'P']);
+        $kader = User::factory()->kader()->create();
+
+        Measurement::factory()
+            ->untukAnak($anak)
+            ->padaTanggal('2025-06-01')
+            ->create(['weight_kg' => 10.5, 'height_cm' => 79.0]);
+
+        $tersimpan = Measurement::where('child_id', $anak->id)->firstOrFail();
+
+        $respons = $this->kader($kader)->getJson("/api/children/{$anak->id}/growth");
+        $respons->assertOk();
+
+        $titik = $respons->json('data.series.points.0');
+
+        $this->assertSame(17, $titik['age_in_months']);
+
+        foreach (['z_score_hfa', 'z_score_bfa', 'z_score_wfh'] as $kolom) {
+            $this->assertNotNull($tersimpan->{$kolom}, "Kolom $kolom seharusnya terisi.");
+            $this->assertEqualsWithDelta(
+                (float) $tersimpan->{$kolom},
+                (float) $titik[$kolom],
+                0.001,
+                "Nilai $kolom tidak sama dengan baris database."
+            );
+        }
+
+        $this->assertSame($tersimpan->status_stunting, $titik['status_stunting']);
+        $this->assertSame($tersimpan->status_gizi_imt, $titik['status_gizi_imt']);
+        $this->assertSame($tersimpan->status_wfh, $titik['status_wfh']);
+    }
+
+    /**
+     * Aturan 15: `who_references` berisi tiga metrik dengan urutan normatif.
+     *
+     * BB/U, TB/U, IMT/U - bukan urutan alfabet dan bukan urutan tabel. Urutan
+     * ini menentukan tombol mana yang muncul lebih dulu di layar, jadi ia
+     * adalah kontrak, bukan detail penyajian.
+     */
+    #[Test]
+    public function who_references_berisi_tiga_metrik_berurut(): void
+    {
+        $anak = $this->anak();
+        $kader = User::factory()->kader()->create();
+
+        $respons = $this->kader($kader)->getJson("/api/children/{$anak->id}/growth");
+        $respons->assertOk();
+
+        $metrik = array_column($respons->json('data.who_references'), 'metric');
+        $label = array_column($respons->json('data.who_references'), 'label');
+        $unit = array_column($respons->json('data.who_references'), 'unit');
+
+        $this->assertSame(['weight_for_age', 'height_for_age', 'bmi_for_age'], $metrik);
+        $this->assertSame(['BB/U', 'TB/U', 'IMT/U'], $label);
+        $this->assertSame(['kg', 'cm', 'kg/m2'], $unit);
+    }
+
+    /**
+     * Aturan 16: pita TB/U dan IMT/U ikut gender anak dan cocok dengan tabel
+     * acuan HFA/BFA untuk gender itu.
+     *
+     * Aturan 8 hanya membuktikan BB/U ikut gender. Test ini memperluasnya ke
+     * dua pita baru, membandingkan tiap titik dengan hasil inverse LMS dari
+     * `who_hfa_standards`/`who_bfa_standards` - konstanta yang sama yang dipakai
+     * trigger, sehingga pita tidak mungkin memakai gender yang tertukar.
+     */
+    #[Test]
+    public function pita_tbu_dan_imtu_mengikuti_gender_anak(): void
+    {
+        $kader = User::factory()->kader()->create();
+
+        $medianPerGender = [];
+
+        foreach (['P', 'L'] as $gender) {
+            $anak = $this->anak(['gender' => $gender]);
+
+            $respons = $this->kader($kader)->getJson("/api/children/{$anak->id}/growth");
+            $respons->assertOk();
+
+            $this->assertSame($gender, $respons->json('data.who_references.1.gender'));
+            $this->assertSame($gender, $respons->json('data.who_references.2.gender'));
+
+            // TB/U (indeks 1) dan IMT/U (indeks 2) dibandingkan dengan tabel
+            // acuan untuk gender yang sama pada umur 24 bulan.
+            foreach ([['who_hfa_standards', 1], ['who_bfa_standards', 2]] as [$tabel, $indeks]) {
+                $acuan = DB::table($tabel)->where('gender', $gender)->where('age_in_months', 24)->first();
+                $titik = collect($respons->json("data.who_references.$indeks.points"))->keyBy('age_in_months')->get(24);
+
+                $this->assertEqualsWithDelta(
+                    (float) $acuan->m,
+                    (float) $titik['median'],
+                    0.001,
+                    "Median $tabel gender $gender umur 24 salah."
+                );
+
+                $bawah = (float) $acuan->m * (((float) $acuan->l) === 0.0
+                    ? exp((float) $acuan->s * -2)
+                    : ((1 + ((float) $acuan->l) * ((float) $acuan->s) * -2) ** (1.0 / ((float) $acuan->l))));
+
+                $this->assertEqualsWithDelta(
+                    $bawah,
+                    (float) $titik['lower'],
+                    0.001,
+                    "Batas bawah $tabel gender $gender umur 24 salah."
+                );
+            }
+
+            $medianPerGender[$gender] = $respons->json('data.who_references.1.points.24.median');
+        }
+
+        // Pita kedua gender harus benar-benar berbeda, bukan label gender saja.
+        $this->assertNotSame($medianPerGender['P'], $medianPerGender['L']);
+    }
+
+    /**
+     * Aturan 17: pita TB/U dan IMT/U dikirim walau `points` kosong dan menutup
+     * 0-60 bulan (61 titik).
+     *
+     * Sama seperti aturan 9/10 untuk BB/U. Kalau pita baru hanya muncul
+     * bersama data penimbangan, Ibu baru melihat kanvas kosong sebelum
+     * kunjungan pertama - padahal pita WHO adalah acuan, bukan data anak.
+     */
+    #[Test]
+    public function pita_tbu_dan_imtu_menutup_0_sampai_60_bulan(): void
+    {
+        $anak = $this->anak();
+        $kader = User::factory()->kader()->create();
+
+        $respons = $this->kader($kader)->getJson("/api/children/{$anak->id}/growth");
+        $respons->assertOk();
+
+        $this->assertSame([], $respons->json('data.series.points'));
+
+        foreach ([1 => 'height_for_age', 2 => 'bmi_for_age'] as $indeks => $metric) {
+            $this->assertSame($metric, $respons->json("data.who_references.$indeks.metric"));
+
+            $umur = array_column($respons->json("data.who_references.$indeks.points"), 'age_in_months');
+            $this->assertCount(61, $umur, "Pita $metric harus punya 61 titik.");
+            $this->assertSame(range(0, 60), $umur);
+            $this->assertSame(0, $respons->json("data.who_references.$indeks.age_range.from"));
+            $this->assertSame(60, $respons->json("data.who_references.$indeks.age_range.to"));
+
+            foreach ($respons->json("data.who_references.$indeks.points") as $titik) {
+                $this->assertLessThan($titik['median'], $titik['lower'], "Batas bawah $metric harus di bawah median.");
+                $this->assertLessThan($titik['upper'], $titik['median'], "Batas atas $metric harus di atas median.");
+            }
+        }
+    }
+
+    /**
+     * Aturan 18: `who_reference` (tunggal) konsisten dengan `who_references[0]`.
+     *
+     * WFA muncul di dua tempat dengan sengaja: yang tunggal mempertahankan
+     * nama field lama (`median_kg` dst.) untuk kompatibilitas, yang jamak
+     * memakai nama seragam (`median` dst.). Yang wajib sama adalah
+     * `metric`/`source`/`gender`/`age_range` dan **nilai** tiap titiknya; kalau
+     * keduanya pernah berasal dari angka berbeda, klien lama dan klien baru
+     * akan menggambar pita yang berbeda dari tabel yang sama.
+     */
+    #[Test]
+    public function who_reference_konsisten_dengan_who_references(): void
+    {
+        $anak = $this->anak();
+        $kader = User::factory()->kader()->create();
+
+        $respons = $this->kader($kader)->getJson("/api/children/{$anak->id}/growth");
+        $respons->assertOk();
+
+        $tunggal = $respons->json('data.who_reference');
+        $pertama = $respons->json('data.who_references.0');
+
+        $this->assertSame($pertama['metric'], $tunggal['metric']);
+        $this->assertSame($pertama['source'], $tunggal['source']);
+        $this->assertSame($pertama['gender'], $tunggal['gender']);
+        $this->assertSame($pertama['age_range'], $tunggal['age_range']);
+
+        $this->assertCount(61, $tunggal['points']);
+
+        foreach ($tunggal['points'] as $i => $titik) {
+            $pasangan = $pertama['points'][$i];
+
+            $this->assertSame($titik['age_in_months'], $pasangan['age_in_months']);
+            $this->assertEqualsWithDelta((float) $titik['median_kg'], (float) $pasangan['median'], 0.0001);
+            $this->assertEqualsWithDelta((float) $titik['lower_kg'], (float) $pasangan['lower'], 0.0001);
+            $this->assertEqualsWithDelta((float) $titik['upper_kg'], (float) $pasangan['upper'], 0.0001);
+        }
+    }
+
+    /**
+     * Aturan 19: pita TB/U dan IMT/U konsisten dengan z-score yang dibaca
+     * trigger.
+     *
+     * Pemeriksaan silang paling penting untuk dua indikator baru. Pita
+     * dievaluasi service dari `(l, m, s)` di SQL; z-score dihitung trigger dari
+     * `(l, m, s)` yang sama. Test ini mengevaluasi ulang **dari baris acuan
+     * yang sama** lalu membandingkan keduanya: kalau service dan trigger pernah
+     * memakai tabel atau rumus yang berbeda, kader akan melihat anak
+     * berstatus "Stunting" dengan titik di dalam pita.
+     */
+    #[Test]
+    public function pita_tbu_dan_imtu_konsisten_dengan_z_score_trigger(): void
+    {
+        $anak = $this->anak(['gender' => 'L']);
+        $kader = User::factory()->kader()->create();
+
+        // 2024-01-01 + 18 bulan -> 2025-07-01, tinggi 82 cm: di dalam rentang
+        // HFA, dan masih < 24 bulan sehingga BB/TB juga terisi.
+        Measurement::factory()
+            ->untukAnak($anak)
+            ->padaTanggal('2025-07-01')
+            ->create(['weight_kg' => 11.0, 'height_cm' => 82.0]);
+
+        $respons = $this->kader($kader)->getJson("/api/children/{$anak->id}/growth");
+        $respons->assertOk();
+
+        $titik = $respons->json('data.series.points.0');
+        $this->assertSame(18, $titik['age_in_months']);
+
+        $kasus = [
+            ['who_hfa_standards', 'height_cm', 1, 'z_score_hfa'],
+            ['who_bfa_standards', 'bmi', 2, 'z_score_bfa'],
+        ];
+
+        foreach ($kasus as [$tabel, $fieldNilai, $indeks, $fieldZ]) {
+            $acuan = DB::table($tabel)->where('gender', 'L')->where('age_in_months', 18)->first();
+            $l = (float) $acuan->l;
+            $m = (float) $acuan->m;
+            $s = (float) $acuan->s;
+            $nilai = (float) $titik[$fieldNilai];
+
+            $z = $l === 0.0
+                ? log($nilai / $m) / $s
+                : ((($nilai / $m) ** $l) - 1) / ($l * $s);
+
+            $this->assertEqualsWithDelta(
+                $z,
+                (float) $titik[$fieldZ],
+                0.01,
+                "z-score $tabel tidak cocok dengan nilai yang digambar."
+            );
+
+            $bawah = $l === 0.0 ? $m * exp($s * -2) : $m * ((1 + $l * $s * -2) ** (1.0 / $l));
+            $atas = $l === 0.0 ? $m * exp($s * 2) : $m * ((1 + $l * $s * 2) ** (1.0 / $l));
+
+            $pita = collect($respons->json("data.who_references.$indeks.points"))->keyBy('age_in_months')->get(18);
+
+            $this->assertEqualsWithDelta($bawah, (float) $pita['lower'], 0.001, "Batas bawah $tabel salah.");
+            $this->assertEqualsWithDelta($atas, (float) $pita['upper'], 0.001, "Batas atas $tabel salah.");
+        }
+    }
+
+    /**
+     * Aturan 20: `bmi` = berat / (tinggi/100)² dibulatkan dua desimal.
+     *
+     * IMT/U bersatuan kg/m², jadi titik anak harus sejajar dengan pita BFA.
+     * BMI dihitung di SQL, bukan di Dart, supaya satu rumus hanya hidup di satu
+     * tempat. Schema mewajibkan `weight_kg`/`height_cm`, jadi cabang `null`
+     * hanya bisa terjadi saat tinggi nol - itu yang diuji di sini, bukan baris
+     * tanpa tinggi yang memang tidak mungkin ada.
+     */
+    #[Test]
+    public function bmi_dihitung_dari_berat_dan_tinggi(): void
+    {
+        $anak = $this->anak();
+        $kader = User::factory()->kader()->create();
+
+        // 2024-01-01 + 27 bulan -> 2026-04-01.
+        Measurement::factory()
+            ->untukAnak($anak)
+            ->padaTanggal('2026-04-01')
+            ->create(['weight_kg' => 12.4, 'height_cm' => 88.0]);
+
+        $respons = $this->kader($kader)->getJson("/api/children/{$anak->id}/growth");
+        $respons->assertOk();
+
+        // 12.4 / 0.88^2 = 16.0124... -> 16.01
+        $this->assertEqualsWithDelta(16.01, (float) $respons->json('data.series.points.0.bmi'), 0.001);
+
+        // Tinggi 0: guard `height_cm > 0` membuat `bmi` null, bukan error
+        // pembagian dan bukan angka tak hingga.
+        $anakNol = $this->anak(['date_of_birth' => '2024-01-01']);
+        Measurement::factory()
+            ->untukAnak($anakNol)
+            ->padaTanggal('2026-04-01')
+            ->create(['weight_kg' => 12.4, 'height_cm' => 0]);
+
+        $responsNol = $this->kader($kader)->getJson("/api/children/{$anakNol->id}/growth");
+        $responsNol->assertOk();
+
+        $this->assertNull($responsNol->json('data.series.points.0.bmi'));
+    }
+
+    /**
+     * Aturan 21: BB/TB tanpa pita.
+     *
+     * `z_score_wfh` dan `status_wfh` hanya bermakna untuk anak < 24 bulan
+     * (acuan BB/TB diindeks panjang badan, bukan umur). Tidak ada entri
+     * `who_references` bermetrik `weight_for_height`: menyatukannya dengan tiga
+     * grafik bersumbu umur akan membuat satu kanvas punya dua arti sumbu x.
+     */
+    #[Test]
+    public function bb_tb_tanpa_pita(): void
+    {
+        $kader = User::factory()->kader()->create();
+
+        // < 24 bulan: 2024-06-01 + 12 bulan -> 2025-06-01.
+        $bayi = $this->anak(['date_of_birth' => '2024-06-01']);
+        Measurement::factory()
+            ->untukAnak($bayi)
+            ->padaTanggal('2025-06-01')
+            ->create(['weight_kg' => 9.6, 'height_cm' => 75.0]);
+
+        // >= 24 bulan: 2024-01-01 + 30 bulan -> 2026-07-01.
+        $besar = $this->anak(['date_of_birth' => '2024-01-01']);
+        Measurement::factory()
+            ->untukAnak($besar)
+            ->padaTanggal('2026-07-01')
+            ->create(['weight_kg' => 13.0, 'height_cm' => 90.0]);
+
+        $responsBayi = $this->kader($kader)->getJson("/api/children/{$bayi->id}/growth");
+        $responsBesar = $this->kader($kader)->getJson("/api/children/{$besar->id}/growth");
+
+        $responsBayi->assertOk();
+        $responsBesar->assertOk();
+
+        $titikBayi = $responsBayi->json('data.series.points.0');
+        $this->assertNotNull($titikBayi['z_score_wfh'], 'BB/TB harus terisi untuk umur < 24 bulan.');
+        $this->assertNotNull($titikBayi['status_wfh']);
+
+        // Status BB/TB diklasifikasi trigger dengan ambang yang sama seperti
+        // indicator lain; diuji di sini supaya kolom baru bukan sekadar terisi.
+        $z = (float) $titikBayi['z_score_wfh'];
+        $harapanStatus = match (true) {
+            $z < -3 => 'Gizi Buruk',
+            $z < -2 => 'Gizi Kurang',
+            $z > 2 => 'Risiko Gizi Lebih',
+            default => 'Normal',
+        };
+        $this->assertSame($harapanStatus, $titikBayi['status_wfh']);
+
+        $this->assertNull(
+            $responsBesar->json('data.series.points.0.z_score_wfh'),
+            'BB/TB harus null untuk umur >= 24 bulan.'
+        );
+        $this->assertNull($responsBesar->json('data.series.points.0.status_wfh'));
+
+        $metrik = array_column($responsBayi->json('data.who_references'), 'metric');
+        $this->assertNotContains('weight_for_height', $metrik);
+        $this->assertSame(['weight_for_age', 'height_for_age', 'bmi_for_age'], $metrik);
     }
 
     /** Tidak ada dua titik pada tanggal sama, dan mengurut ulang tidak mengubah apa pun. */

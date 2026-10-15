@@ -49,7 +49,8 @@ Menyimpan autentikasi Ibu dan Kader.
 
 Migration `2026_09_27_020000_prepare_measurements_for_recap.php` menyiapkan
 tabel ini untuk rekap bulanan (Opsi E). Opsi D (grafik tumbuh kembang) hanya
-membaca tabel ini dan tidak menambah kolom.
+membaca tabel ini. Kolom indikator WHO multidimensi ditambahkan P0-2 (10 Oktober
+2026) dan perluasan grafik multidimensi (15 Oktober 2026), lihat di bawah.
 
 * `id` (UUID, PK)
 * `child_id` (UUID, FK -> children.id, **cascade delete**)
@@ -62,9 +63,25 @@ membaca tabel ini dan tidak menambah kolom.
   berarti penimbangan tidak terkait kunjungan (alur lama tetap sah).
 * `measurement_date` (Date)
 * `weight_kg`, `height_cm`, `head_circumference_cm` (Decimal)
-* `age_in_months` (Int), `z_score_wfa` (Decimal), `status_gizi` (String)
+* `age_in_months` (Int), `z_score_wfa` (Decimal), `status_gizi` (String) — BB/U.
+  `status_gizi` **khusus BB/U**, bukan status komposit terburuk (dipulihkan
+  migration `2026_10_12_000000_restore_wfa_only_status_gizi_trigger.php`).
+* `z_score_hfa` (Decimal, Nullable), `status_stunting` (String 20, Nullable) —
+  TB/U. Ditambahkan migration
+  `2026_10_10_104713_add_who_multidim_columns_to_measurements.php`
+* `z_score_bfa` (Decimal, Nullable), `status_gizi_imt` (String 30, Nullable) —
+  IMT/U. Migration yang sama
+* `z_score_wfh` (Decimal, Nullable) — BB/TB (`< 24` bulan, indeks `length_cm`).
+  Ditambahkan migration `2026_10_10_112842_create_who_wfh_standards_table.php`
+* `status_wfh` (String 20, Nullable) — status BB/TB. Ditambahkan migration
+  `2026_10_15_052851_add_status_wfh_to_measurements_and_trigger.php` (Opsi A)
 * `deleted_at` (Timestamp, nullable) — soft delete
 * `created_at`, `updated_at`
+
+Semua kolom turunan (`age_in_months`, `z_score_*`, `status_*`) diisi trigger
+`calculate_measurement_who_zscore`: dikosongkan lebih dulu, lalu hanya diisi
+bila acuan WHO yang cocok ditemukan. Di luar rentang (mis. umur > 60 bulan, atau
+BB/TB untuk umur ≥ 24 bulan), nilainya `NULL` — bukan `"Normal"`.
 
 **Index dan constraint:**
 
@@ -90,15 +107,24 @@ Tabel acuan perhitungan Z-Score berat badan menurut umur. Dihasilkan oleh migrat
 * `median_kg` (Decimal), `sd_kg` (Decimal)
 * Unique `(age_in_months, gender)` — 122 baris (61 usia × 2 jenis kelamin)
 
-Tabel ini **satu-satunya** acuan WHO di database. Belum ada acuan TB/U
-(`who_hfa_standards`), jadi `measurements.z_score_hfa` dan status stunting
-tidak ada. Lihat `RANCANGAN_GRAFIK_TUMBUH_KEMBANG.md` bagian 5.1.
+`lower_kg` dan `upper_kg` diturunkan dari `median_kg` dan `sd_kg` di SQL saat
+query, bukan disimpan sebagai kolom.
 
-Opsi D (grafik tumbuh kembang) membaca tabel ini untuk pita ±2 SD, dan **tidak
-mengubah apa pun**: tidak ada tabel baru, tidak ada kolom baru, dan trigger
-`trg_measurements_who_zscore` tetap sama. `lower_kg` dan `upper_kg` diturunkan
-dari `median_kg` dan `sd_kg` di SQL saat query, bukan disimpan sebagai kolom.
-Jadi `GET /children/{id}/growth` tidak menambah migration apa pun.
+Tabel acuan WHO lain (semua ditambahkan P0-2, 10 Oktober 2026):
+
+* `who_hfa_standards` — TB/U, kolom `age_in_months`, `gender`, `l`, `m`, `s`;
+  unique `(age_in_months, gender)`. Migration
+  `2026_10_10_104330_create_who_hfa_standards_table.php`.
+* `who_bfa_standards` — IMT/U, bentuk sama dengan HFA. Migration
+  `2026_10_10_104404_create_who_bfa_standards_table.php`.
+* `who_wfh_standards` — BB/TB, diindeks `length_cm` (bukan umur), kolom `l`,
+  `m`, `s`; unique `(length_cm, gender)`. Migration
+  `2026_10_10_112842_create_who_wfh_standards_table.php`.
+
+Pita TB/U dan IMT/U dihitung dari `(l, m, s)` dengan rumus inverse LMS WHO di
+SQL (bukan disimpan sebagai kolom), dan grafis multidimensi membacanya lewat
+satu `UNION ALL` bersama BB/U. Lihat `docs/RANCANGAN_WHO_MULTIDIM.md` bagian
+4.4–4.6.
 
 ## 4.1 `immunization_types` (Master Dosis Imunisasi)
 

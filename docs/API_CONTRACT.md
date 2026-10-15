@@ -431,8 +431,9 @@ Aturan mobile:
 `GET /children/{id}/growth` — Ibu (anaknya sendiri) + Kader.
 
 Deret waktu pertumbuhan satu anak untuk digambar sebagai grafik: seluruh riwayat
-penimbangan urut naik, ditambah pita acuan WHO BB/U. Bentuk dan batasannya
-dikunci di `docs/RANCANGAN_GRAFIK_TUMBUH_KEMBANG.md` bagian 7.2 dan 7.3.
+penimbangan urut naik, ditambah pita acuan WHO BB/U, TB/U, dan IMT/U. Bentuk dan
+batasannya dikunci di `docs/RANCANGAN_GRAFIK_TUMBUH_KEMBANG.md` bagian 7.2 dan
+7.3, diperluas di `docs/RANCANGAN_WHO_MULTIDIM.md` bagian 6 (aturan 13–22).
 
 **Tidak ada parameter apa pun.** Tidak ada `limit`, `before`, `from`, maupun `to`,
 dan tidak ada `meta`. Endpoint ini sengaja tidak dipaginasi: partial unique index
@@ -457,7 +458,7 @@ Respons `200`:
       "medical_flags": null
     },
     "series": {
-      "unit": { "weight": "kg", "height": "cm" },
+      "unit": { "weight": "kg", "height": "cm", "bmi": "kg/m2" },
       "order": "asc",
       "points": [
         {
@@ -466,8 +467,15 @@ Respons `200`:
           "weight_kg": 12.4,
           "height_cm": 88.0,
           "head_circumference_cm": 47.5,
+          "bmi": 16.01,
           "z_score_wfa": 0.21,
-          "status_gizi": "Normal"
+          "status_gizi": "Normal",
+          "z_score_hfa": -0.8,
+          "status_stunting": "Normal",
+          "z_score_bfa": 0.4,
+          "status_gizi_imt": "Normal",
+          "z_score_wfh": null,
+          "status_wfh": null
         }
       ]
     },
@@ -479,31 +487,70 @@ Respons `200`:
       "points": [
         { "age_in_months": 30, "median_kg": 13.3, "lower_kg": 11.2, "upper_kg": 15.7 }
       ]
-    }
+    },
+    "who_references": [
+      {
+        "metric": "weight_for_age",
+        "label": "BB/U",
+        "unit": "kg",
+        "x_axis": "age_in_months",
+        "source": "WHO Child Growth Standards 2006",
+        "gender": "P",
+        "age_range": { "from": 0, "to": 60 },
+        "points": [{ "age_in_months": 30, "median": 13.3, "lower": 11.2, "upper": 15.7 }]
+      },
+      {
+        "metric": "height_for_age",
+        "label": "TB/U",
+        "unit": "cm",
+        "x_axis": "age_in_months",
+        "source": "WHO Child Growth Standards 2006",
+        "gender": "P",
+        "age_range": { "from": 0, "to": 60 },
+        "points": [{ "age_in_months": 30, "median": 87.1, "lower": 80.9, "upper": 93.9 }]
+      },
+      {
+        "metric": "bmi_for_age",
+        "label": "IMT/U",
+        "unit": "kg/m2",
+        "x_axis": "age_in_months",
+        "source": "WHO Child Growth Standards 2006",
+        "gender": "P",
+        "age_range": { "from": 0, "to": 60 },
+        "points": [{ "age_in_months": 30, "median": 16.2, "lower": 13.6, "upper": 19.4 }]
+      }
+    ]
   }
 }
 ```
 
-`data` berisi tepat tiga kunci: `child`, `series`, `who_reference`.
+`data` berisi tepat empat kunci: `child`, `series`, `who_reference`,
+`who_references`.
 
-Nilai yang tidak dihitung ulang di server: `age_in_months`, `z_score_wfa`, dan
-`status_gizi` dibaca apa adanya dari database karena dihitung trigger
-PostgreSQL. `child.age_in_months` adalah umur **pada penimbangan terakhir**,
-bukan umur hari ini, dan `null` kalau anak belum pernah ditimbang — sama dengan
+Nilai yang tidak dihitung ulang di server: `age_in_months`, `z_score_wfa`,
+`status_gizi`, `z_score_hfa`, `status_stunting`, `z_score_bfa`,
+`status_gizi_imt`, `z_score_wfh`, dan `status_wfh` dibaca apa adanya dari
+database karena dihitung trigger PostgreSQL. `bmi` dihitung di SQL dari
+`weight_kg`/`height_cm` (rumus antropometri, bukan z-score).
+`child.age_in_months` adalah umur **pada penimbangan terakhir**, bukan umur hari
+ini, dan `null` kalau anak belum pernah ditimbang — sama dengan
 `TimelineChild.ageInMonths`.
 
-`z_score_wfa` dan `status_gizi` boleh `null`. Itu berbeda dari "gizi baik": anak
-di luar rentang WHO 0-60 bulan sengaja dibiarkan kosong oleh trigger, bukan
-dipaksa jadi `Normal`.
+Semua field z-score/status boleh `null`. Itu berbeda dari "gizi baik": anak di
+luar rentang WHO 0–60 bulan (atau `z_score_wfh` untuk umur ≥ 24 bulan) sengaja
+dibiarkan kosong oleh trigger, bukan dipaksa jadi `Normal`.
 
-`who_reference` **hanya untuk BB/U** (`metric: "weight_for_age"`). Tidak ada pita
-TB/U di respons ini karena database tidak punya acuan tinggi badan; `height_cm`
-tetap dikirim sebagai nilai mentah di `points[]`. `who_reference` juga selalu
-dikirim, termasuk ketika `points` kosong, karena pita tidak bergantung pada
-riwayat penimbangan.
+`who_reference` (tunggal) **hanya untuk BB/U** (`metric: "weight_for_age"`) dan
+dipertahankan apa adanya untuk kompatibilitas klien lama. Tiga pita WHO ada di
+`who_references` dengan urutan **normatif**: `weight_for_age` (BB/U),
+`height_for_age` (TB/U), `bmi_for_age` (IMT/U), masing-masing dengan bentuk
+seragam `{age_in_months, median, lower, upper}`. Pita TB/U dan IMT/U dihitung di
+SQL dengan rumus inverse LMS WHO; BB/TB **tidak punya pita** (sumbunya panjang
+badan). `who_reference` dan `who_references` selalu dikirim, termasuk ketika
+`points` kosong, karena pita tidak bergantung pada riwayat penimbangan.
 
 Jumlah query tetap dua dan tidak bergantung pada jumlah titik: satu untuk titik
-penimbangan, satu untuk pita WHO.
+penimbangan, satu untuk ketiga pita WHO (`UNION ALL`).
 
 ### Konsumsi mobile
 

@@ -20,6 +20,18 @@ kedua pembungkus layar, `grafik_tumbuh_kader_test.dart`, dan lima test
 > Kalau bentuk respons memang harus berubah, **ubah dokumen ini lebih dulu**,
 > baru kodenya. Aturan yang mengikat agent ada di
 > `posyandu-backend/.ai/rules/`: `yang-jangan-diubah.md` dan `pengujian.md`.
+>
+> **Amendemen 15 Oktober 2026.** Fitur indikator WHO multidimensi (TB/U, IMT/U,
+> BB/TB) diperluas di `docs/RANCANGAN_WHO_MULTIDIM.md`, dan dokumen itu yang
+> mengamendemen bagian 5.1, 6.2, 6.3, 7.2, 7.3, dan 7.5 di bawah. Ringkasnya:
+> P0-2 (10 Oktober 2026) **sudah** menambah tabel `who_hfa_standards`,
+> `who_bfa_standards`, `who_wfh_standards` dan kolom `z_score_hfa`,
+> `status_stunting`, `z_score_bfa`, `status_gizi_imt`, `z_score_wfh`
+> (ditambah `status_wfh` oleh amendemen ini), sehingga pernyataan lama "database
+> tidak punya acuan TB/U" sudah tidak berlaku. `who_reference` tunggal tetap
+> BB/U; pita TB/U dan IMT/U ada di kunci baru `who_references`, dan `data` kini
+> berisi empat kunci. Aturan 13-22 di bagian 6.3 dokumen amendemen itu yang
+> berlaku sebagai tambahan.
 
 ---
 
@@ -118,15 +130,26 @@ Tiga keputusan ini ditutup pada **1 Oktober 2026**. Jangan dibuka lagi tanpa
 alasan tertulis di bagian 13 - kalau nanti berubah, dokumen ini yang harus
 diperbarui lebih dulu.
 
-### 5.1 Pita WHO hanya untuk BB/U. TB digambar tanpa pita
+### 5.1 Pita WHO untuk BB/U, TB/U, dan IMT/U. BB/TB tanpa pita
+
+> **Diamendemen 15 Oktober 2026.** Keputusan awal 1 Oktober 2026 berbunyi
+> "pita WHO hanya untuk BB/U. TB digambar tanpa pita" karena saat itu database
+> belum punya acuan TB/U. P0-2 (10 Oktober 2026) menambah tabel acuan TB/U,
+> IMT/U, dan BB/TB, jadi alasan penundaan itu **usang**. Aturan yang berlaku
+> sekarang: ketiga grafik bersumbu umur (BB/U, TB/U, IMT/U) masing-masing punya
+> pitanya sendiri, dan BB/TB - yang sumbunya panjang badan, bukan umur - tampil
+> sebagai nilai + status tanpa pita. Rinciannya di
+> `docs/RANCANGAN_WHO_MULTIDIM.md` bagian 4.6 dan 4.7.
 
 | | |
 | :--- | :--- |
-| Metrik yang digambar | Berat badan (kg) dan tinggi badan (cm) |
-| Metrik yang punya pita WHO | Berat badan saja, dari `who_wfa_standards` |
-| Field kontrak | `who_reference.metric` bernilai `"weight_for_age"` |
-| Migration baru | **Tidak ada.** Fitur ini tidak menambah satu pun tabel atau kolom |
-| TB/U | Digambar sebagai garis nilai mentah, dan layar menyatakan terus terang bahwa tidak ada acuan WHO untuk TB |
+| Metrik yang digambar | BB/U, TB/U, IMT/U (satu kurva + satu pita per grafik, dipilih lewat tombol) |
+| Metrik yang punya pita WHO | BB/U (`who_wfa_standards`), TB/U (`who_hfa_standards`), IMT/U (`who_bfa_standards`) |
+| Field kontrak | `who_reference.metric` tetap `"weight_for_age"`; tiga pita ada di `who_references[]` |
+| Migration baru | **Satu**: kolom `measurements.status_wfh` + `CREATE OR REPLACE FUNCTION` trigger (Opsi A, 15 Oktober 2026) |
+| TB/U | Garis nilai + pita + `status_stunting` |
+| IMT/U | Garis nilai `bmi` + pita + `status_gizi_imt` |
+| BB/TB | Nilai `z_score_wfh` + `status_wfh`, **tanpa pita**, hanya < 24 bulan |
 
 Alasan: `RANCANGAN.md:45` minta grafik BB dan TB, dan keduanya memang
 digambar. Yang tidak bisa dipenuhi adalah **pita** untuk TB, karena tidak ada
@@ -135,12 +158,16 @@ pita dari angka yang tidak berasal dari WHO.
 
 Konsekuensi yang harus diterima:
 
-1. Layar wajib menampilkan catatan bahwa pita hanya berlaku untuk BB.
-2. Garis TB tidak boleh diberi warna "sehat" atau "berisiko" hanya karena
-   posisinya. Klasifikasi hanya boleh datang dari `status_gizi`, yang hanya
-   ada untuk BB.
-3. `who_reference` tidak boleh diperluas ke TB tanpa migration `who_hfa_standards`
-   lebih dulu.
+1. **(Diamendemen)** Layar menampilkan pita per metrik; catatan "pita hanya
+   berlaku untuk BB" diganti legenda generik "Area abu = rentang normal WHO
+   (median -/+2 SD)".
+2. Garis tidak boleh diberi warna "sehat" atau "berisiko" hanya karena
+   posisinya. Klasifikasi hanya boleh datang dari status yang dihitung trigger
+   (`status_gizi`, `status_stunting`, `status_gizi_imt`, `status_wfh`), masing-
+   masing untuk indikatornya sendiri.
+3. **(Diamendemen)** `who_reference` tunggal tetap BB/U untuk kompatibilitas;
+   perluasan TB/U dan IMT/U dikirim lewat `who_references`, yang boleh memakai
+   tabel acuan HFA/BFA karena migration P0-2 sudah menambahkannya.
 
 ### 5.2 Endpoint baru, bukan memakai timeline
 
@@ -244,39 +271,26 @@ ada migration.
 
 ### 6.2 Tabel yang TIDAK dipakai
 
-Bagian ini disimpan supaya tidak ada yang mengulang diskusi. Keputusan 1
-Oktober 2026 memilih tidak menambah tabel:
-
-```
-who_hfa_standards            # TB/U - TIDAK dibuat di Fase 1
-  id, age_in_months, gender, median_cm, sd_cm, timestamps
-  UNIQUE (age_in_months, gender)
-
-measurements.z_score_hfa     # kolom baru - TIDAK ditambahkan
-measurements.status_stunting # kolom baru - TIDAK ditambahkan
-```
-
-Kalau suatu saat tabel `who_hfa_standards` benar-benar dipakai, itu harus
-lewat perubahan dokumen di bagian 5.1 lebih dulu, bukan langsung menulis
-migration.
+> **Diamendemen 15 Oktober 2026.** P0-2 (10 Oktober 2026) **sudah membuat**
+> tabel `who_hfa_standards`, `who_bfa_standards`, `who_wfh_standards` beserta
+> kolom multidimensi di `measurements` (`z_score_hfa`, `status_stunting`,
+> `z_score_bfa`, `status_gizi_imt`, `z_score_wfh`). Amendemen ini menambah
+> `status_wfh`. Pernyataan bahwa TB/U tidak punya acuan **sudah usang**; pita
+> TB/U dan IMT/U dihitung dari tabel-tabel itu lewat rumus inverse LMS WHO di
+> SQL. See `docs/RANCANGAN_WHO_MULTIDIM.md` §2.1–2.2.
 
 ### 6.3 Sumber angka pita
 
-Pita dihitung dari konstanta referensi di database, **bukan dari data anak**:
+Pita dihitung dari konstanta referensi di database, **bukan dari data anak**.
 
-```
-median_kg  = who_wfa_standards.median_kg
-lower_kg   = median_kg - 2 * sd_kg
-upper_kg   = median_kg + 2 * sd_kg
-```
+- BB/U: `lower_kg = median_kg - 2*sd_kg`, `upper_kg = median_kg + 2*sd_kg` (dihitung di SQL pada `who_wfa_standards`).
+- TB/U dan IMT/U: dihitung dengan rumus inverse LMS WHO di SQL dari `(l, m, s)` pada `who_hfa_standards` dan `who_bfa_standards`, untuk `z = -2, 0, +2`.
+- BMI anak dihitung di SQL: `weight_kg/power(height_cm/100,2)` dibulatkan dua desimal.
 
-Hitungan ini dilakukan di SQL pada `who_wfa_standards`, bukan di PHP dan
-bukan di Dart. Alasannya: `z_score_wfa` anak sendiri **tidak pernah**
-diturunkan dari pita. Nilai itu tetap dibaca apa adanya dari kolom yang
-diisi trigger.
-
-Garis `lower_kg` dan `upper_kg` tepat sama dengan tempat trigger menaruh
-`z = -2` dan `z = 2`, jadi pita dan status gizi tidak pernah bertentangan.
+Hitungan ini dilakukan di SQL, bukan di PHP dan bukan di Dart. `z_score_*` anak
+tetap dibaca apa adanya dari kolom yang diisi trigger. Pita dan status untuk
+masing-masing indikator mengacu pada konstanta yang sama, jadi keduanya tidak
+pernah bertentangan.
 
 ---
 
@@ -327,8 +341,15 @@ masalah grafik. Pagination ditambahkan saat itu terjadi, bukan sekarang.
           "weight_kg": 12.4,
           "height_cm": 88.0,
           "head_circumference_cm": 47.5,
+          "bmi": 16.01,
           "z_score_wfa": 0.21,
-          "status_gizi": "Normal"
+          "status_gizi": "Normal",
+          "z_score_hfa": -0.8,
+          "status_stunting": "Normal",
+          "z_score_bfa": 0.4,
+          "status_gizi_imt": "Normal",
+          "z_score_wfh": null,
+          "status_wfh": null
         }
       ]
     },
@@ -340,7 +361,39 @@ masalah grafik. Pagination ditambahkan saat itu terjadi, bukan sekarang.
       "points": [
         { "age_in_months": 30, "median_kg": 13.3, "lower_kg": 11.2, "upper_kg": 15.7 }
       ]
-    }
+    },
+    "who_references": [
+      {
+        "metric": "weight_for_age",
+        "label": "BB/U",
+        "unit": "kg",
+        "x_axis": "age_in_months",
+        "source": "WHO Child Growth Standards 2006",
+        "gender": "P",
+        "age_range": { "from": 0, "to": 60 },
+        "points": [{ "age_in_months": 30, "median": 13.3, "lower": 11.2, "upper": 15.7 }]
+      },
+      {
+        "metric": "height_for_age",
+        "label": "TB/U",
+        "unit": "cm",
+        "x_axis": "age_in_months",
+        "source": "WHO Child Growth Standards 2006",
+        "gender": "P",
+        "age_range": { "from": 0, "to": 60 },
+        "points": [{ "age_in_months": 30, "median": 87.1, "lower": 80.9, "upper": 93.9 }]
+      },
+      {
+        "metric": "bmi_for_age",
+        "label": "IMT/U",
+        "unit": "kg/m2",
+        "x_axis": "age_in_months",
+        "source": "WHO Child Growth Standards 2006",
+        "gender": "P",
+        "age_range": { "from": 0, "to": 60 },
+        "points": [{ "age_in_months": 30, "median": 16.2, "lower": 13.6, "upper": 19.4 }]
+      }
+    ]
   }
 }
 ```
@@ -413,7 +466,7 @@ dipakai agent ada di `posyandu-backend/.ai/rules/yang-jangan-diubah.md`.
 | Bentuk `success` / `message` / `data` dan `errors` | Parser Flutter bergantung pada itu | `docs/AI_AGENT_RULES.md` bagian 8 |
 | Field lama di respons `GET /children/{id}` dan `/timeline` | Ibu dan mobile sudah membacanya | `docs/API_CONTRACT.md` |
 | Trigger `trg_measurements_who_zscore` dan tabel `who_wfa_standards` | Z-score hanya boleh dihitung PostgreSQL; menyentuh trigger berarti menggeser angka status gizi semua data lama | `yang-jangan-diubah.md` bagian z-score |
-| Tabel `measurements` tidak menambah kolom | Menambah `z_score_hfa` berarti mengklaim stunting tanpa acuan | Bagian 5.1 dokumen ini |
+| Tabel `measurements` | Amendemen 15 Oktober 2026: **menambah kolom `status_wfh`** (migrasi aditif). Kolom `z_score_hfa`, `status_stunting`, `z_score_bfa`, `status_gizi_imt`, `z_score_wfh` sudah ada sejak P0-2 | `docs/RANCANGAN_WHO_MULTIDIM.md` §4.6 |
 | Partial unique `measurements_child_date_unique` | Yang menjamin aturan "satu titik per tanggal" | `2026_09_27_020000` |
 | `kader_id` nullable dengan `ON DELETE SET NULL` | Menghapus akun kader tidak boleh menghapus riwayat | `2026_09_27_020000` |
 | NIK tidak pernah ikut di `GET /petugas` | Privasi petugas | `PetugasController` |
@@ -435,6 +488,16 @@ di sini.
 ---
 
 ## 8. Rancangan Layar Mobile
+
+> **Amendemen 15 Oktober 2026.** §8.1 dan §8.2 di bawah ini menguraikan desain
+> lama: dua tombol toggle (Berat/Tinggi) di satu kanvas dengan **dua sumbu y**.
+> Desain itu **diganti** oleh pemilih **tiga metrik** (BB/U, TB/U, IMT/U) dengan
+> **satu sumbu y per grafik**; lihat `docs/RANCANGAN_WHO_MULTIDIM.md` §4.7 dan
+> §7.3. Alasan: IMT/U bersatuan kg/m² dan tidak bisa berbagi sumbu dengan kg atau
+> cm, sehingga dual-axis menjadi ambigu. Butir-butir lain di §8 (struktur kartu
+> header, sumbu x = `age_in_months`, angka nol, state kosong/gagal, layar Kader)
+> tetap berlaku. `who_reference.points` pada §8.3 kini dibaca dari
+> `who_references[]` per metrik.
 
 Layar baru: `lib/screens/ibu/grafik_tumbuh_screen.dart`. Bukan tab, bukan
 dialog, dan bukan layar yang menimpa dashboard.
@@ -685,3 +748,5 @@ bagian ini, bukan disimpan di commit atau komentar kode.
 | 1 Okt 2026 | Rancangan awal ditulis. Tiga keputusan ditutup: pita WHO hanya untuk BB/U, endpoint baru `GET /children/{id}/growth`, layar untuk Ibu dulu. Sembilan belas aturan di 7.3 dipetakan ke nama test. Belum ada kode fitur yang ditulis. |
 | 1 Okt 2026 | Implementasi selesai: `GrowthChartService`, `ChildController@growth`, route, 20 feature test, 24 test Flutter, layar Ibu, dan `uji-api.ps1` grup 8b. Tidak ada migration, tidak ada dependency baru, tidak ada endpoint lama yang berubah. |
 | 1 Okt 2026 | Dua penyimpangan dari rancangan ditemukan saat test dan diperbaiki: (1) sumbu y harus ikut menghitung pita WHO, kalau tidak pita meluber keluar area gambar dan terlihat terpotong; (2) rentang cm butuh nilai cadangan, karena `reduce` atas daftar kosong melempar `StateError` pada anak yang hanya ditimbang tinggi badannya. |
+| 15 Okt 2026 | Amendemen multidimensi: `who_references` tiga pita (UNION ALL), `points[]` + `bmi` + multidim, `series.unit` + `bmi`, `data` empat kunci. Tambah `status_wfh` (migrasi aditif + CREATE OR REPLACE trigger, Opsi A). Test bertambah (aturan 13–21), tambah `WhoZScoreTriggerTest`. `uji-api.ps1` grup 8b diperbarui. Lihat `docs/RANCANGAN_WHO_MULTIDIM.md`. |
+| 15 Okt 2026 | Mobile menyusul amendemen: `growth_line_chart.dart` ditulis ulang dari dual-axis menjadi pemilih satu metrik (BB/U, TB/U, IMT/U), `growth_chart_view.dart` menampilkan tiga tombol metrik + kartu ringkas multidimensi, `growth_chart.dart` membaca `who_references`/`bmi`/field multidimensi. `kontrak_api_test.dart` dan `grafik_tumbuh_widget_test.dart` diperbarui. §8.1/§8.2 di atas ditandai usang. Lihat `docs/RANCANGAN_WHO_MULTIDIM.md` §4.7. |
