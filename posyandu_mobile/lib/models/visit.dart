@@ -1,4 +1,4 @@
-/// Model kunjungan layanan anak (P0-1, lihat `docs/RANCANGAN_VISIT.md`).
+/// Model kunjungan layanan anak (P0-1, lihat `docs/arsip/RANCANGAN_VISIT.md`).
 ///
 /// Kunjungan adalah "wadah" satu sesi layanan: penimbangan, imunisasi, keluhan,
 /// dan rujukan menempel padanya. Rujukan tidak bisa dibuat tanpa memilih

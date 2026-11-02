@@ -121,7 +121,7 @@ class ImmunizationService {
   /// 422 (bukan 500) karena rules `date_format:Y-m-d`.
   ///
   /// [visitId] opsional: bila dikirim, suntikan ini menempel pada satu
-  /// kunjungan (`docs/RANCANGAN_VISIT.md`). Server menolak `visit_id` yang
+  /// kunjungan (`docs/arsip/RANCANGAN_VISIT.md`). Server menolak `visit_id` yang
   /// bukan milik anak ini dengan 422.
   Future<Map<String, dynamic>> addRecord({
     required String childId,

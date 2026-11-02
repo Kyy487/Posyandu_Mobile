@@ -7,7 +7,7 @@ use Illuminate\Support\Facades\DB;
  * Backfill kunjungan "legacy" untuk penimbangan lama (P0-1).
  *
  * Penimbangan yang dibuat sebelum entitas `visits` ada tidak punya
- * `visit_id`. Keputusan (docs/RANCANGAN_VISIT.md bagian 7.3): dibuatkan satu
+ * `visit_id`. Keputusan (docs/arsip/RANCANGAN_VISIT.md bagian 7.3): dibuatkan satu
  * kunjungan sintetis per (anak, tanggal) supaya seluruh riwayat terhubung,
  * bukan dibiarkan `NULL`.
  *

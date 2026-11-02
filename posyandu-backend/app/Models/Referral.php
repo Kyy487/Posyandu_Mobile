@@ -14,7 +14,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * Satu rujukan anak ke fasilitas kesehatan.
  *
  * Rujukan adalah bagian dari satu kunjungan dan selalu terhubung ke satu anak
- * (lihat docs/RANCANGAN_RUJUKAN.md). Tabelnya dibuat oleh migration
+ * (lihat docs/arsip/RANCANGAN_RUJUKAN.md). Tabelnya dibuat oleh migration
  * `2026_10_13_152047_create_referrals_table`.
  *
  * Rujukan dicatat soft delete: rujukan yang salah input dibatalkan, bukan

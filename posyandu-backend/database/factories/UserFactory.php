@@ -44,6 +44,11 @@ class UserFactory extends Factory
             'role' => 'ibu',
             'phone_number' => fake()->numerify('08##########'),
             'jabatan' => null,
+            'status' => 'active',
+            'place_of_birth' => 'Bandung',
+            'date_of_birth' => '1990-01-01',
+            'gender' => 'P',
+            'address' => 'Jl. Test',
             'remember_token' => Str::random(10),
         ];
     }
@@ -60,6 +65,7 @@ class UserFactory extends Factory
         return $this->state(fn (array $attributes) => [
             'role' => 'kader',
             'jabatan' => 'Kader Posyandu',
+            'status' => 'active',
         ]);
     }
 

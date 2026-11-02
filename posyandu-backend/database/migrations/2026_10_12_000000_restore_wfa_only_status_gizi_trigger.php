@@ -13,8 +13,8 @@ use Illuminate\Support\Facades\DB;
  *
  *   1. Hasil komposit selalu di-`COALESCE(..., 'Normal')`, sehingga anak di
  *      luar rentang WHO (di atas 60 bulan) dan anak tanpa acuan justru
- *      dilabeli "Normal" - padahal `docs/RANCANGAN_GRAFIK_TUMBUH_KEMBANG.md`
- *      bagian 5 dan `docs/LAPORAN_ZSCORE_TRIGGER.md` sudah memutuskan bahwa
+ *      dilabeli "Normal" - padahal `docs/arsip/RANCANGAN_GRAFIK_TUMBUH_KEMBANG.md`
+ *      bagian 5 dan `docs/arsip/LAPORAN_ZSCORE_TRIGGER.md` sudah memutuskan bahwa
  *      di luar rentang `z_score_wfa` dan `status_gizi` harus `NULL`, bukan
  *      "Normal".
  *   2. `v_wfa_status` dihitung tetapi tidak pernah dipakai; akibatnya berat
@@ -23,7 +23,7 @@ use Illuminate\Support\Facades\DB;
  *      walaupun titiknya berada di dalam pita BB/U. Kader melihat "Gizi Buruk"
  *      dengan titik di area normal.
  *
- * Kontrak yang berlaku (dikunci di `docs/RANCANGAN_GRAFIK_TUMBUH_KEMBANG.md`,
+ * Kontrak yang berlaku (dikunci di `docs/arsip/RANCANGAN_GRAFIK_TUMBUH_KEMBANG.md`,
  * `docs/DATABASE_SCHEMA.md`, dan `docs/API_CONTRACT.md`): `status_gizi` adalah
  * status BB/U. Indikator multidimensi tetap tersedia, tetapi di kolomnya
  * sendiri (`z_score_hfa`/`status_stunting`, `z_score_bfa`/`status_gizi_imt`,

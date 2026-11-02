@@ -21,7 +21,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:posyandu_mobile/screens/ibu/grafik_tumbuh_screen.dart' as ibu;
-import 'package:posyandu_mobile/screens/kader/grafik_tumbuh_screen.dart'
+import 'package:posyandu_mobile/screens/kader/data_anak/grafik_tumbuh_screen.dart'
     as kader;
 import 'package:posyandu_mobile/widgets/growth_chart_view.dart';
 

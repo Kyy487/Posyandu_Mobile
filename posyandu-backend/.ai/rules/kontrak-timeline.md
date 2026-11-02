@@ -9,7 +9,7 @@ paths:
 # Kontrak endpoint timeline (Opsi B - Buku Medis Digital)
 
 ## Sumber kebenaran ada di dokumen, bukan di kode
-Spesifikasi lengkap ada di `docs/RANCANGAN_BUKU_MEDIS.md`. Baca bagian 5
+Spesifikasi lengkap ada di `docs/arsip/RANCANGAN_BUKU_MEDIS.md`. Baca bagian 5
 (keputusan yang sudah ditutup), 7.1 sampai 7.5 (rute, bentuk respons, aturan,
 inventaris kompatibilitas), dan 9 (rencana pengujian) sebelum menulis kode
 apapun di jalur yang tercantum di `paths` file ini.

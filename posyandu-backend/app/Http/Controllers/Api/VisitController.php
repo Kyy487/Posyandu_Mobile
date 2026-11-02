@@ -30,7 +30,7 @@ use Illuminate\Validation\ValidationException;
  * (lihat `.ai/rules/kontrak-timeline.md`).
  *
  * Kunjungan dibuat EKSPLISIT lewat `POST`, bukan otomatis saat data pertama
- * dicatat. `GET` tetap idempoten (docs/RANCANGAN_VISIT.md bagian 5).
+ * dicatat. `GET` tetap idempoten (docs/arsip/RANCANGAN_VISIT.md bagian 5).
  */
 class VisitController extends Controller
 {

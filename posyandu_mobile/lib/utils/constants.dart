@@ -10,9 +10,16 @@
 /// aplikasi langsung nyambung ke `php artisan serve` di komputer sendiri.
 /// Untuk device fisik, ganti dengan IP komputer di jaringan Wi-Fi.
 class ApiConstants {
+  // IP untuk HP Fisik (Wireless / USB)
+  static const String _physicalDeviceUrl = 'http://192.168.1.4:8000/api';
+  
+  // IP Alias standar Emulator Android
+  static const String _emulatorUrl = 'http://10.0.2.2:8000/api';
+
+  // Pilih URL aktif lewat defaultValue di sini:
   static const String baseUrl = String.fromEnvironment(
     'API_BASE_URL',
-    defaultValue: 'http://10.0.2.2:8000/api',
+    defaultValue: _emulatorUrl, // Ganti ke _emulatorUrl kalau lagi pakai emulator
   );
 
   static const String loginEndpoint = '/login';
@@ -76,7 +83,7 @@ class ApiConstants {
   // yang sedikit padat.
   static const String childGrowthEndpoint = '/growth';
 
-  // Rujukan anak (lihat docs/RANCANGAN_RUJUKAN.md).
+  // Rujukan anak (lihat docs/arsip/RANCANGAN_RUJUKAN.md).
   //
   // Rujukan adalah catatan tindak lanjut per kunjungan, jadi daftarnya
   // menempel pada anak seperti timeline: Ibu berhak melihat rujukan anaknya

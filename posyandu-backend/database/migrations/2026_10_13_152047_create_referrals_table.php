@@ -6,14 +6,14 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
 /**
- * Entitas rujukan (lihat docs/RANCANGAN_RUJUKAN.md).
+ * Entitas rujukan (lihat docs/arsip/RANCANGAN_RUJUKAN.md).
  *
  * Rujukan mencatat tindak lanjut anak dari Posyandu ke fasilitas kesehatan,
  * selalu terhubung ke satu kunjungan (`visit_id`) dan satu anak (`child_id`).
  * Keputusan desain yang penting:
  *
  *  1. `visit_id` wajib dengan `cascadeOnDelete`: rujukan adalah bagian dari
- *     satu kunjungan (PERANCANGAN_PERKUATAN.md bagian 1.3 langkah 3). Menghapus
+ *     satu kunjungan (docs/arsip/PERANCANGAN_PERKUATAN.md bagian 1.3 langkah 3). Menghapus
  *     kunjungan secara fisik ikut menghapus rujukannya; penghapusan normal
  *     lewat aplikasi memakai soft delete, bukan hapus fisik.
  *

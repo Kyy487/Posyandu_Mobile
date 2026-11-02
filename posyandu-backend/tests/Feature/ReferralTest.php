@@ -11,7 +11,7 @@ use PHPUnit\Framework\Attributes\Test;
 use Tests\TestCase;
 
 /**
- * Menguji entitas rujukan, lihat docs/RANCANGAN_RUJUKAN.md.
+ * Menguji entitas rujukan, lihat docs/arsip/RANCANGAN_RUJUKAN.md.
  *
  * Endpoint:
  *  - `POST   /referrals`                 (Kader)

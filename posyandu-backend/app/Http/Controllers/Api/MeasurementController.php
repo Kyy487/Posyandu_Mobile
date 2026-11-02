@@ -193,6 +193,132 @@ class MeasurementController extends Controller
         }
     }
 
+    // Fungsi untuk Kader mengoreksi data penimbangan yang sudah tercatat.
+    //
+    // Koreksi bersifat parsial (PATCH): hanya field yang dikirim yang berubah,
+    // jadi mengoreksi berat badan tidak ikut mengosongkan lingkar kepala.
+    // `child_id` dan `visit_id` sengaja TIDAK ikut diubah - penimbangan tetap
+    // menempel pada anak dan kunjungan yang sama; memindahkannya akan membuat
+    // riwayat buku medis berpindah anak. Nilai age_in_months, z-score, dan
+    // status gizi dihitung ulang otomatis oleh trigger PostgreSQL (BEFORE
+    // INSERT OR UPDATE) setelah UPDATE.
+    public function update(Request $request, $id)
+    {
+        try {
+            // id kolomnya bertipe UUID; validasi dulu agar URL rusak membalas 404.
+            if (! is_string($id) || ! Str::isUuid($id)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Data penimbangan tidak ditemukan.',
+                    'errors' => null,
+                ], 404);
+            }
+
+            $measurement = Measurement::find($id);
+
+            if (! $measurement) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Data penimbangan tidak ditemukan.',
+                    'errors' => null,
+                ], 404);
+            }
+
+            // `sometimes` membuat koreksi boleh mengirim sebagian field saja.
+            $validated = $request->validate([
+                'measurement_date' => 'sometimes|required|date_format:Y-m-d|before_or_equal:today',
+                'weight_kg' => 'sometimes|required|numeric|min:0.5|max:50',
+                'height_cm' => 'sometimes|required|numeric|min:20|max:150',
+                'head_circumference_cm' => 'sometimes|nullable|numeric|min:20|max:60',
+            ]);
+
+            // Cek bentrok tanggal sebelum menyentuh database. Partial unique
+            // `measurements_child_date_unique` akan menolaknya juga, tapi
+            // membiarkan INSERT gagal di dalam transaksi request membuat
+            // transaksi PostgreSQL ter-abort - pesan error jadi kabur dan di
+            // test (yang dibungkus transaksi) meracuni query berikutnya.
+            if (array_key_exists('measurement_date', $validated)) {
+                $bentrok = Measurement::where('child_id', $measurement->child_id)
+                    ->where('measurement_date', $validated['measurement_date'])
+                    ->whereKeyNot($measurement->id)
+                    ->exists();
+
+                if ($bentrok) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Anak ini sudah punya penimbangan pada tanggal tersebut.',
+                        'errors' => ['measurement_date' => ['Tanggal itu sudah dipakai penimbangan lain.']],
+                    ], 422);
+                }
+            }
+
+            $measurement->fill($validated);
+            $measurement->save();
+
+            // Muat ulang agar age_in_months, z-score, dan status gizi hasil
+            // hitung ulang trigger ikut terbawa pada response API.
+            $measurement->refresh();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Data penimbangan berhasil diperbarui.',
+                'data' => $measurement,
+            ], 200);
+
+        } catch (ValidationException $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Validasi gagal. Periksa kembali angka yang diinputkan.',
+                'errors' => $e->errors(),
+            ], 422);
+        } catch (\Throwable $e) {
+            // Aturan bisnis dari trigger (mis. tanggal ukur sebelum tanggal lahir)
+            // adalah kesalahan input, bukan kegagalan server.
+            if ($this->isTriggerRuleViolation($e)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => $this->cleanTriggerMessage($e->getMessage()),
+                    'errors' => ['measurement_date' => [$this->cleanTriggerMessage($e->getMessage())]],
+                ], 422);
+            }
+
+            // Partial unique `measurements_child_date_unique`: memindahkan tanggal
+            // ke tanggal yang sudah punya penimbangan aktif harus dibalas 422
+            // dengan pesan yang jelas, bukan 500.
+            if ($this->isDuplicateDateViolation($e)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Anak ini sudah punya penimbangan pada tanggal tersebut.',
+                    'errors' => ['measurement_date' => ['Tanggal itu sudah dipakai penimbangan lain.']],
+                ], 422);
+            }
+
+            Log::error('Gagal memperbarui penimbangan: '.$e->getMessage(), [
+                'measurement_id' => $id,
+                'user_id' => $request->user()?->id,
+                'exception' => $e,
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Terjadi kesalahan server. Silakan coba lagi.',
+                'errors' => null,
+            ], 500);
+        }
+    }
+
+    /**
+     * True bila exception berasal dari partial unique `(child_id, measurement_date)`.
+     *
+     * SQLSTATE 23505 adalah `unique_violation` PostgreSQL.
+     */
+    private function isDuplicateDateViolation(\Throwable $e): bool
+    {
+        return $e instanceof QueryException
+            && isset($e->errorInfo[0])
+            && $e->errorInfo[0] === '23505';
+    }
+
     // Fungsi untuk menghapus riwayat penimbangan
     public function destroy($id)
     {

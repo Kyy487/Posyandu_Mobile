@@ -65,11 +65,9 @@ class ChildController extends Controller
             $validated = $request->validate([
                 'nik' => 'nullable|string|size:16|unique:children,nik',
                 'name' => 'required|string|max:255',
+                'place_of_birth' => 'required_without:birth_place|string|max:100',
+                'birth_place' => 'required_without:place_of_birth|string|max:100',
                 // `date_format:Y-m-d` WAJIB dipakai, bukan `date` saja.
-                // Rule `date` hanya mengandalkan strtotime() sehingga "26-09-2026" lolos
-                // validasi, lalu PostgreSQL menolaknya saat insert
-                // (SQLSTATE 22008) dan itu jadi 500. Dengan date_format,
-                // format salah ditolak sebagai 422 sebelum menyentuh DB.
                 'date_of_birth' => 'required|date_format:Y-m-d|before_or_equal:today',
                 'gender' => 'required|in:L,P',
                 'birth_weight' => 'nullable|numeric|min:0',
@@ -93,10 +91,18 @@ class ChildController extends Controller
                 return $error;
             }
 
+            if ($mother && $mother->role === 'ibu' && isset($mother->status) && $mother->status !== 'active') {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Akun Ibu belum disetujui oleh Kader Posyandu. Tidak dapat menambahkan data anak.',
+                    'errors' => null,
+                ], 403);
+            }
+
             // --- Simpan (UUID dibuat otomatis oleh trait HasUuids) -------
             $nik = $validated['nik'] ?? null;
 
-            $child = Child::create([
+            $childData = [
                 'user_id' => $mother->id,
                 'nik' => $nik,
                 'nik_hash' => $nik ? hash('sha256', $nik) : null,
@@ -105,7 +111,19 @@ class ChildController extends Controller
                 'gender' => $validated['gender'],
                 'birth_weight' => $validated['birth_weight'] ?? null,
                 'birth_height' => $validated['birth_height'] ?? null,
-            ]);
+            ];
+
+            if (array_key_exists('place_of_birth', $validated)) {
+                $childData['place_of_birth'] = $validated['place_of_birth'];
+            }
+            if (array_key_exists('birth_place', $validated)) {
+                $childData['birth_place'] = $validated['birth_place'];
+                if (! array_key_exists('place_of_birth', $childData)) {
+                    $childData['place_of_birth'] = $validated['birth_place'];
+                }
+            }
+
+            $child = Child::create($childData);
 
             Consent::create([
                 'child_id' => $child->id,
@@ -272,6 +290,8 @@ class ChildController extends Controller
                     Rule::unique('children', 'nik')->ignore($child->id),
                 ],
                 'name' => ['sometimes', 'required', 'string', 'max:255'],
+                'place_of_birth' => ['sometimes', 'string', 'max:100'],
+                'birth_place' => ['sometimes', 'string', 'max:100'],
                 // Sama seperti `store`: date_format mencegah 500 dari
                 // PostgreSQL, before_or_equal mencegah tanggal lahir di masa depan.
                 'date_of_birth' => [
@@ -284,14 +304,14 @@ class ChildController extends Controller
                 // Batas 500 karakter divalidasi di sini, bukan lewat CHECK
                 // constraint, supaya kesalahan ketik jadi 422 yang bisa dibaca
                 // kader. Isinya teks bebas satu penanda per baris dan sengaja
-                // TIDAK diparsing - lihat `RANCANGAN_BUKU_MEDIS.md` bagian 5.1.
+                // TIDAK diparsing - lihat `docs/arsip/RANCANGAN_BUKU_MEDIS.md` bagian 5.1.
                 'medical_flags' => ['sometimes', 'nullable', 'string', 'max:500'],
                 'user_id' => ['sometimes', 'exists:users,id'],
                 'ibu_nik' => ['sometimes', 'string', 'size:16'],
             ]);
 
             // Hanya Kader yang boleh menulis kondisi khusus. Ibu tetap boleh
-            // MEMBACA penanda anaknya sendiri (`RANCANGAN_BUKU_MEDIS.md` 12).
+            // MEMBACA penanda anaknya sendiri (`docs/arsip/RANCANGAN_BUKU_MEDIS.md` 12).
             //
             // Penolakan di sini, bukan diam-diam diabaikan: `validate()` di atas
             // sudah menerima `medical_flags` untuk semua role, jadi tanpa
@@ -304,6 +324,10 @@ class ChildController extends Controller
                     'message' => 'Akses ditolak. Hanya Kader yang dapat menulis kondisi khusus anak.',
                     'errors' => ['medical_flags' => ['Hanya Kader yang dapat mengubah kondisi khusus anak.']],
                 ], 403);
+            }
+
+            if (array_key_exists('birth_place', $validated) && ! array_key_exists('place_of_birth', $validated)) {
+                $validated['place_of_birth'] = $validated['birth_place'];
             }
 
             // Buang key yang tidak berubah agar tidak menimpa nilai lama.

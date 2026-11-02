@@ -14,7 +14,7 @@ use PHPUnit\Framework\Attributes\Test;
 use Tests\TestCase;
 
 /**
- * Menguji entitas kunjungan (P0-1), lihat docs/RANCANGAN_VISIT.md.
+ * Menguji entitas kunjungan (P0-1), lihat docs/arsip/RANCANGAN_VISIT.md.
  *
  * Endpoint:
  *  - `POST   /visits`                 (Kader)

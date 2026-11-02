@@ -7,7 +7,7 @@ import '../models/visit.dart';
 import '../utils/constants.dart';
 import 'auth_service.dart';
 
-/// Akses endpoint kunjungan anak (P0-1, lihat `docs/RANCANGAN_VISIT.md`).
+/// Akses endpoint kunjungan anak (P0-1, lihat `docs/arsip/RANCANGAN_VISIT.md`).
 ///
 /// Ruang lingkup service ini:
 ///  - BACA daftar kunjungan satu anak (`getByChild`).

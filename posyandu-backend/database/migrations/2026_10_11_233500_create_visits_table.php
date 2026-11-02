@@ -6,7 +6,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
 /**
- * Entitas kunjungan (P0-1, lihat docs/RANCANGAN_VISIT.md).
+ * Entitas kunjungan (P0-1, lihat docs/arsip/RANCANGAN_VISIT.md).
  *
  * Kunjungan menjadi penghubung pengukuran, imunisasi, dan keluhan yang terjadi
  * pada satu sesi layanan, supaya rekam medis bisa dibaca per-kunjungan, bukan
@@ -15,7 +15,7 @@ use Illuminate\Support\Facades\Schema;
  *  1. TIDAK ada unique index `(child_id, visit_date)`. Satu anak boleh punya
  *     lebih dari satu kunjungan di tanggal yang sama (mis. posyandu pagi lalu
  *     kunjungan rumah sore). Ini keputusan yang sudah ditutup di
- *     docs/RANCANGAN_VISIT.md bagian 7.1.
+ *     docs/arsip/RANCANGAN_VISIT.md bagian 7.1.
  *
  *  2. `visit_type` memakai string + CHECK constraint, konsisten dengan
  *     `medical_notes.tindak_lanjut` dan `posyandu_schedules.status`, bukan enum

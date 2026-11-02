@@ -1,6 +1,6 @@
 /// Model persetujuan (consent) pemrosesan data anak.
 ///
-/// Ini bagian kepatuhan UU PDP No. 27/2022 (lihat `docs/PERANCANGAN_PERKUATAN.md`
+/// Ini bagian kepatuhan UU PDP No. 27/2022 (lihat `docs/arsip/PERANCANGAN_PERKUATAN.md`
 /// §5.1). Ibu/wali memberi izin memproses data anaknya, dan izin itu bisa
 /// dicabut kapan saja tanpa menghapus riwayat medis yang sudah tercatat.
 ///

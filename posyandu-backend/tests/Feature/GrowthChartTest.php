@@ -15,7 +15,7 @@ use Tests\TestCase;
  * Menguji `GET /children/{id}/growth` (Opsi D - Grafik Tumbuh Kembang).
  *
  * Nama test di sini bukan pilihan gaya: setiap aturan normatif di
- * `docs/RANCANGAN_GRAFIK_TUMBUH_KEMBANG.md` bagian 7.3 dipetakan ke satu nama
+ * `docs/arsip/RANCANGAN_GRAFIK_TUMBUH_KEMBANG.md` bagian 7.3 dipetakan ke satu nama
  * test, dan pemetaan itu tidak boleh berubah diam-diam. Kalau nama di sini
  * diubah, tabel 7.3 yang harus ikut diperbarui.
  *

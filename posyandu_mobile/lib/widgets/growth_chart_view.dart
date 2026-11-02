@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../models/growth_chart.dart';
 import '../services/growth_chart_service.dart';
-import '../screens/login_screen.dart';
+import '../screens/shared/login_screen.dart';
 import '../utils/status_gizi.dart';
 import 'growth_line_chart.dart';
 
@@ -63,7 +63,7 @@ class GrowthChartPalette {
 /// Seluruh isi layar grafik tumbuh kembang.
 ///
 /// Dipakai oleh Ibu dan Kader tanpa perbedaan apa pun selain [palette].
-/// Bentuknya dikunci di `docs/RANCANGAN_GRAFIK_TUMBUH_KEMBANG.md` bagian 8 dan
+/// Bentuknya dikunci di `docs/arsip/RANCANGAN_GRAFIK_TUMBUH_KEMBANG.md` bagian 8 dan
 /// 8.7; kalau perlu berubah, dokumennya yang diubah lebih dulu.
 ///
 /// Yang read-only untuk kedua role: layar ini hanya menampilkan. Kader mencatat

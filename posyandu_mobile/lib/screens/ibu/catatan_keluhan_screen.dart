@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import '../../models/medical_note.dart';
 import '../../services/medical_note_service.dart';
 import '../../widgets/medical_note_list_view.dart';
-import '../login_screen.dart';
+import '/../screens/shared/login_screen.dart';
 
 /// Catatan keluhan untuk orang tua. Sepenuhnya read-only.
 ///

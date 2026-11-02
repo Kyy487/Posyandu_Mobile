@@ -8,7 +8,7 @@ use App\Models\User;
 use Carbon\CarbonImmutable;
 
 /**
- * Rujukan anak ke fasilitas kesehatan (lihat docs/RANCANGAN_RUJUKAN.md).
+ * Rujukan anak ke fasilitas kesehatan (lihat docs/arsip/RANCANGAN_RUJUKAN.md).
  *
  * Controller hanya menangani validasi dan otorisasi; bentuk data ada di sini
  * supaya bentuk yang sama dipakai daftar, detail, dan detail kunjungan.

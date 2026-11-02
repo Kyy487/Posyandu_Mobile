@@ -1,5 +1,5 @@
 /// Model rujukan anak ke fasilitas kesehatan (lihat
-/// `docs/RANCANGAN_RUJUKAN.md`).
+/// `docs/arsip/RANCANGAN_RUJUKAN.md`).
 ///
 /// Rujukan adalah catatan tindak lanjut: kader memutuskan anak perlu ditangani
 /// di Puskesmas, Rumah Sakit, atau fasilitas lain, lalu mencatat statusnya

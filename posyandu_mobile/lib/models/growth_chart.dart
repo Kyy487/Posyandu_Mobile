@@ -1,7 +1,7 @@
 /// Model grafik tumbuh kembang satu anak (Opsi D).
 ///
 /// Sumber datanya `GET /api/children/{id}/growth`, yang bentuknya dikunci di
-/// `docs/RANCANGAN_GRAFIK_TUMBUH_KEMBANG.md` bagian 7.2 dan di aturan agent
+/// `docs/arsip/RANCANGAN_GRAFIK_TUMBUH_KEMBANG.md` bagian 7.2 dan di aturan agent
 /// `posyandu-backend/.ai/rules/kontrak-growth.md`. Kalau bentuk di sini terasa
 /// perlu berubah, dokumennya yang diubah lebih dulu.
 ///

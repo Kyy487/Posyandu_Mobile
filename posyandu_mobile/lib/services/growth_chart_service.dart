@@ -11,7 +11,7 @@ import 'auth_service.dart';
 ///
 /// Endpoint ini mengembalikan seluruh riwayat penimbangan satu anak urut naik,
 /// ditambah pita acuan WHO BB/U. Bentuk responsnya dikunci di
-/// `docs/RANCANGAN_GRAFIK_TUMBUH_KEMBANG.md` bagian 7.2; service ini tidak
+/// `docs/arsip/RANCANGAN_GRAFIK_TUMBUH_KEMBANG.md` bagian 7.2; service ini tidak
 /// mengubah apa pun di dalamnya.
 ///
 /// Tiga keputusan yang tidak boleh dibalik di sini:

@@ -7,7 +7,7 @@ import '../models/referral.dart';
 import '../utils/constants.dart';
 import 'auth_service.dart';
 
-/// Akses endpoint rujukan anak (lihat `docs/RANCANGAN_RUJUKAN.md`).
+/// Akses endpoint rujukan anak (lihat `docs/arsip/RANCANGAN_RUJUKAN.md`).
 ///
 /// Ruang lingkup service ini BACA saja. Membuat dan mengubah rujukan belum
 /// dipakai di aplikasi karena rujukan selalu menempel pada satu kunjungan

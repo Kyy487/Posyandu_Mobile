@@ -15,7 +15,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * Satu kunjungan layanan untuk satu anak.
  *
  * Kunjungan menjadi penghubung pengukuran, imunisasi, dan keluhan yang terjadi
- * pada satu sesi layanan (lihat docs/RANCANGAN_VISIT.md). Tabelnya dibuat oleh
+ * pada satu sesi layanan (lihat docs/arsip/RANCANGAN_VISIT.md). Tabelnya dibuat oleh
  * migration `2026_10_11_233500_create_visits_table`.
  *
  * Kunjungan dicatat soft delete: data yang sudah terhubung (mis. penimbangan)

@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
@@ -22,6 +23,18 @@ class User extends Authenticatable
         'role',
         'phone_number',
         'jabatan',
+        'status',
+        'place_of_birth',
+        'date_of_birth',
+        'gender',
+        'address',
+        'whatsapp',
+        'instagram',
+        'facebook',
+        'approved_by',
+        'approved_at',
+        'rejection_reason',
+        'verified_at',
     ];
 
     protected $hidden = [
@@ -35,6 +48,9 @@ class User extends Authenticatable
     {
         return [
             'nik' => 'encrypted',
+            'date_of_birth' => 'date',
+            'approved_at' => 'datetime',
+            'verified_at' => 'datetime',
         ];
     }
 
@@ -90,4 +106,35 @@ class User extends Authenticatable
     {
         return $this->hasMany(Consent::class, 'granted_by');
     }
+
+    public function verifications(): HasMany
+    {
+        return $this->hasMany(UserVerification::class, 'user_id');
+    }
+
+    public function userVerifications(): HasMany
+    {
+        return $this->hasMany(UserVerification::class, 'user_id');
+    }
+
+    public function approver(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'approved_by');
+    }
+
+    public function isPending(): bool
+    {
+        return $this->status === 'pending';
+    }
+
+    public function isActive(): bool
+    {
+        return $this->status === 'active';
+    }
+
+    public function isRejected(): bool
+    {
+        return $this->status === 'rejected';
+    }
 }
+

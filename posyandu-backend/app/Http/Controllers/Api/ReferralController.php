@@ -16,7 +16,7 @@ use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 
 /**
- * Rujukan anak ke fasilitas kesehatan (lihat docs/RANCANGAN_RUJUKAN.md).
+ * Rujukan anak ke fasilitas kesehatan (lihat docs/arsip/RANCANGAN_RUJUKAN.md).
  *
  * Endpoint yang tersedia di sini:
  *  - `POST   /referrals`        buat rujukan (Kader)
@@ -31,7 +31,7 @@ use Illuminate\Validation\ValidationException;
  * menghasilkan dua versi aturan yang pasti kelak berbeda.
  *
  * `visit_id` WAJIB dan harus milik anak yang sama dengan `child_id`; rujukan
- * selalu bagian dari satu kunjungan (PERANCANGAN_PERKUATAN.md bagian 1.3).
+ * selalu bagian dari satu kunjungan (docs/arsip/PERANCANGAN_PERKUATAN.md bagian 1.3).
  */
 class ReferralController extends Controller
 {

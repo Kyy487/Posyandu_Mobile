@@ -1,7 +1,7 @@
 /// Model riwayat medis gabungan satu anak (Opsi B - Buku Medis Digital).
 ///
 /// Sumber datanya `GET /api/children/{id}/timeline`, yang bentuknya dikunci di
-/// `docs/RANCANGAN_BUKU_MEDIS.md` bagian 7.2 dan di aturan agent
+/// `docs/arsip/RANCANGAN_BUKU_MEDIS.md` bagian 7.2 dan di aturan agent
 /// `posyandu-backend/.ai/rules/kontrak-timeline.md`. Kalau bentuk di sini
 /// terasa perlu berubah, dokumennya yang diubah lebih dulu.
 ///

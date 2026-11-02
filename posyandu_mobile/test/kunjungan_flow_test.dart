@@ -24,11 +24,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:posyandu_mobile/screens/kader/catatan_keluhan_screen.dart';
-import 'package:posyandu_mobile/screens/kader/imunisasi_screen.dart';
-import 'package:posyandu_mobile/screens/kader/input_penimbangan_screen.dart';
-import 'package:posyandu_mobile/screens/kader/kunjungan_screen.dart';
-import 'package:posyandu_mobile/screens/kader/rujukan_screen.dart';
+import 'package:posyandu_mobile/screens/kader/data_anak/catatan_keluhan_screen.dart';
+import 'package:posyandu_mobile/screens/kader/imunisasi/imunisasi_screen.dart';
+import 'package:posyandu_mobile/screens/kader/kunjungan/input_penimbangan_screen.dart';
+import 'package:posyandu_mobile/screens/kader/kunjungan/kunjungan_screen.dart';
+import 'package:posyandu_mobile/screens/kader/kunjungan/rujukan_screen.dart';
 
 void main() {
   group('Layar input menerima id kunjungan', () {

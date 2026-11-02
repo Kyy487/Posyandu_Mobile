@@ -19,7 +19,7 @@ use Illuminate\Support\Facades\DB;
  * ada data yang diduplikasi, jadi timeline tidak mungkin menyimpang dari catatan
  * aslinya.
  *
- * Bentuk keluaran dan batasannya dikunci di `docs/RANCANGAN_BUKU_MEDIS.md` bagian
+ * Bentuk keluaran dan batasannya dikunci di `docs/arsip/RANCANGAN_BUKU_MEDIS.md` bagian
  * 7.2 dan 7.3 (aturan agent: `posyandu-backend/.ai/rules/kontrak-timeline.md`).
  * Kalau bentuk di sini terasa perlu diubah, dokumennya yang diubah lebih dulu.
  *

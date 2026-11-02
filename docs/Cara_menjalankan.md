@@ -103,7 +103,7 @@ Akun demo, **7 orang** (2 Ibu + 5 Kader), password semuanya `password123`:
 | `5555666677778892` | Bidan Yuni | `kader` |
 
 Sisipannya: 6 anak, 21 dosis imunisasi aktif (jadwal Program Imunisasi Rutin;
-lihat `RANCANGAN_IMUNISASI_JADWAL.md`), dan 3 agenda kegiatan
+lihat `arsip/RANCANGAN_IMUNISASI_JADWAL.md`), dan 3 agenda kegiatan
 (9 penugasan kader di pivot).
 
 > Jangan menaruh data produksi pada NIK yang sama dengan NIK contoh di atas:

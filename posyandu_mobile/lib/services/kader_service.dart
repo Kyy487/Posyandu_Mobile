@@ -120,7 +120,7 @@ class KaderService {
   // --- Mencatat penimbangan (e-KMS) ---
   //
   // [visitId] opsional: bila dikirim, penimbangan ini menempel pada satu
-  // kunjungan (`docs/RANCANGAN_VISIT.md`). Server menolak `visit_id` yang bukan
+  // kunjungan (`docs/arsip/RANCANGAN_VISIT.md`). Server menolak `visit_id` yang bukan
   // milik anak ini dengan 422, jadi nilainya tidak pernah dikarang di sini.
   Future<Map<String, dynamic>> addMeasurement({
     required String childId,
@@ -146,6 +146,37 @@ class KaderService {
       );
 
       return _authAwareResult(response, 'Gagal menyimpan penimbangan.');
+    } on SocketException {
+      return _offlineError();
+    }
+  }
+
+  // --- Mengoreksi penimbangan (PATCH /kader/measurements/{id}) ---
+  //
+  // Koreksi bersifat parsial di server: hanya field yang dikirim yang berubah,
+  // `child_id`/`visit_id` tidak pernah ikut. Z-score & status gizi dihitung
+  // ulang oleh trigger PostgreSQL setelah UPDATE, sama seperti saat input.
+  Future<Map<String, dynamic>> updateMeasurement({
+    required String measurementId,
+    required String measurementDate,
+    required double weight,
+    required double height,
+  }) async {
+    final headers = await _authHeaders(json: true);
+    if (headers == null) return _offlineError();
+
+    try {
+      final response = await http.patch(
+        Uri.parse('$baseUrl${ApiConstants.kaderMeasurementsEndpoint}/$measurementId'),
+        headers: headers,
+        body: json.encode({
+          'measurement_date': measurementDate,
+          'weight_kg': weight,
+          'height_cm': height,
+        }),
+      );
+
+      return _authAwareResult(response, 'Gagal memperbarui penimbangan.');
     } on SocketException {
       return _offlineError();
     }

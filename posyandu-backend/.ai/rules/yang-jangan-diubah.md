@@ -12,7 +12,7 @@ paths:
 # Yang tidak boleh diubah
 
 Aturan ini berlaku untuk semua perubahan di backend. Semuanya berasal dari
-keputusan yang sudah diambil dan dari bagian 7.5 `docs/RANCANGAN_BUKU_MEDIS.md`.
+keputusan yang sudah diambil dan dari bagian 7.5 `docs/arsip/RANCANGAN_BUKU_MEDIS.md`.
 
 ## Migration yang sudah pernah jalan tidak boleh diedit
 Ubah hanya lewat migration baru. Mengedit migration lama membuat database yang

@@ -11,8 +11,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:posyandu_mobile/screens/login_screen.dart';
-import 'package:posyandu_mobile/screens/register_screen.dart';
+import 'package:posyandu_mobile/screens/shared/login_screen.dart';
+import 'package:posyandu_mobile/screens/shared/register_screen.dart';
 import 'package:posyandu_mobile/theme/app_theme.dart';
 
 Widget _bungkus(Widget layar) {

@@ -18,6 +18,7 @@ class ConsentManagementTest extends TestCase
 
         $response = $this->actingAs($ibu)->postJson('/api/children', [
             'name' => 'Anak Test',
+            'place_of_birth' => 'Bandung',
             'date_of_birth' => '2024-01-01',
             'gender' => 'L',
             'consent_type' => 'data_processing',
@@ -42,6 +43,7 @@ class ConsentManagementTest extends TestCase
 
         $response = $this->actingAs($ibu)->postJson('/api/children', [
             'name' => 'Anak Test',
+            'place_of_birth' => 'Bandung',
             'date_of_birth' => '2024-01-01',
             'gender' => 'L',
             'consent_document_version' => '1.0',
@@ -57,6 +59,7 @@ class ConsentManagementTest extends TestCase
 
         $response = $this->actingAs($ibu)->postJson('/api/children', [
             'name' => 'Anak Test',
+            'place_of_birth' => 'Bandung',
             'date_of_birth' => '2024-01-01',
             'gender' => 'L',
             'consent_type' => 'data_processing',

@@ -43,7 +43,7 @@ Menyimpan autentikasi Ibu dan Kader.
 > diparsing** (Kader dan Ibu membaca nilai yang sama apa adanya), dan **tidak ada
 > CHECK constraint** — batas 500 karakter divalidasi di `ChildController@update`
 > supaya kesalahan ketik jadi 422 yang bisa dibaca, bukan error PostgreSQL.
-> Keputusan lengkapnya ada di `docs/RANCANGAN_BUKU_MEDIS.md` bagian 5.1.
+> Keputusan lengkapnya ada di `docs/arsip/RANCANGAN_BUKU_MEDIS.md` bagian 5.1.
 
 ## 3. `measurements` (e-KMS / Riwayat Tumbuh Kembang)
 
@@ -123,7 +123,7 @@ Tabel acuan WHO lain (semua ditambahkan P0-2, 10 Oktober 2026):
 
 Pita TB/U dan IMT/U dihitung dari `(l, m, s)` dengan rumus inverse LMS WHO di
 SQL (bukan disimpan sebagai kolom), dan grafis multidimensi membacanya lewat
-satu `UNION ALL` bersama BB/U. Lihat `docs/RANCANGAN_WHO_MULTIDIM.md` bagian
+satu `UNION ALL` bersama BB/U. Lihat `docs/arsip/RANCANGAN_WHO_MULTIDIM.md` bagian
 4.4–4.6.
 
 ## 4.1 `immunization_types` (Master Dosis Imunisasi)
@@ -225,7 +225,7 @@ Migration `2026_09_27_010000_create_medical_notes_table.php`. Satu anak punya
 Migration `2026_10_11_233500_create_visits_table.php`. Satu kunjungan
 merepresentasikan **satu sesi layanan** untuk satu anak dan menjadi payung bagi
 pengukuran, imunisasi, dan keluhan yang terjadi di dalamnya. Spesifikasi penuh
-ada di `docs/RANCANGAN_VISIT.md`.
+ada di `docs/arsip/RANCANGAN_VISIT.md`.
 
 * `id` (UUID, PK)
 * `child_id` (UUID, FK -> children.id, **cascade delete**)
@@ -249,7 +249,7 @@ ada di `docs/RANCANGAN_VISIT.md`.
 
 > **Tidak ada unique `(child_id, visit_date)`.** Satu anak boleh punya lebih
 > dari satu kunjungan di tanggal yang sama (mis. posyandu pagi lalu kunjungan
-> rumah sore). Keputusan ini sudah ditutup di `docs/RANCANGAN_VISIT.md` §7.1.
+> rumah sore). Keputusan ini sudah ditutup di `docs/arsip/RANCANGAN_VISIT.md` §7.1.
 >
 > **`visit_type` memakai string + CHECK, bukan enum PostgreSQL**, konsisten
 > dengan `medical_notes.tindak_lanjut` dan `posyandu_schedules.status`. Menambah
@@ -317,7 +317,7 @@ pendaftaran anak (`ChildController@store`).
 
 Migration `2026_10_13_152047_create_referrals_table.php`. Satu baris = satu
 rujukan anak ke fasilitas kesehatan, selalu terhubung ke satu kunjungan
-(`visit_id`) dan satu anak (`child_id`). Lihat `docs/RANCANGAN_RUJUKAN.md`.
+(`visit_id`) dan satu anak (`child_id`). Lihat `docs/arsip/RANCANGAN_RUJUKAN.md`.
 
 * `id` (UUID, PK)
 * `visit_id` (UUID, FK -> visits.id, **cascade**) — rujukan adalah bagian satu kunjungan
@@ -351,4 +351,4 @@ Objek berikut dibuat oleh migration yang sama dan **tidak** diubah oleh migratio
 * Trigger `trg_measurements_who_zscore` — `BEFORE INSERT OR UPDATE` pada `measurements`, sehingga revisi data otomatis di-recalc.
 
 > Detail perhitungan, klasifikasi status, dan cara rollback ada di
-> `docs/LAPORAN_ZSCORE_TRIGGER.md`.
+> `docs/arsip/LAPORAN_ZSCORE_TRIGGER.md`.

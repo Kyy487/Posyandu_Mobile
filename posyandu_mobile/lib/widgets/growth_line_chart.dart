@@ -56,8 +56,8 @@ extension GrowthMetricInfo on GrowthMetric {
 /// Grafik tumbuh kembang: satu pita WHO + satu garis anak.
 ///
 /// Wrapper tipis di atas `fl_chart`. Semua keputusan bentuk grafik ada di
-/// `docs/RANCANGAN_GRAFIK_TUMBUH_KEMBANG.md` bagian 8 dan
-/// `docs/RANCANGAN_WHO_MULTIDIM.md` bagian 7.2; widget ini hanya
+/// `docs/arsip/RANCANGAN_GRAFIK_TUMBUH_KEMBANG.md` bagian 8 dan
+/// `docs/arsip/RANCANGAN_WHO_MULTIDIM.md` bagian 7.2; widget ini hanya
 /// menerjemahkannya jadi `LineChart`. Kalau bentuk visualnya berubah,
 /// dokumennya yang diubah lebih dulu.
 ///

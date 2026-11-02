@@ -12,7 +12,7 @@ import '../../widgets/growth_chart_view.dart';
 ///
 /// Seluruh isi layannya ada di [GrowthChartView] dan dipakai bersama dengan
 /// layar Kader; perbedaannya hanya warna. Bentuknya dikunci di
-/// `docs/RANCANGAN_GRAFIK_TUMBUH_KEMBANG.md` bagian 8. Kalau perlu berubah,
+/// `docs/arsip/RANCANGAN_GRAFIK_TUMBUH_KEMBANG.md` bagian 8. Kalau perlu berubah,
 /// dokumennya yang diubah lebih dulu.
 class GrafikTumbuhScreen extends StatelessWidget {
   final String childId;

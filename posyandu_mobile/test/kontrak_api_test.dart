@@ -277,6 +277,85 @@ void main() {
     });
   });
 
+  group('Kontrak API - PATCH /api/kader/measurements/{id}', () {
+    // Respons asli (HTTP 200) dari MeasurementController@update.
+    // Field yang tidak dikirim (mis. head_circumference_cm) ikut terbaca.
+    const rawUpdated = '''
+    {
+      "success": true,
+      "message": "Data penimbangan berhasil diperbarui.",
+      "data": {
+        "id": "01a0dc0d-67eb-71e5-81c9-edecb72edeed",
+        "child_id": "01a0d979-c11f-705b-8dd8-a245652c7aa4",
+        "kader_id": "01a0d979-c297-704b-b89a-d66ff76f2474",
+        "measurement_date": "2026-09-26",
+        "weight_kg": "7.60",
+        "height_cm": "75.00",
+        "head_circumference_cm": null,
+        "age_in_months": 16,
+        "z_score_wfa": "-2.81",
+        "status_gizi": "Gizi Kurang",
+        "created_at": "2026-09-26T04:51:01.000000Z",
+        "updated_at": "2026-10-15T08:10:00.000000Z"
+      }
+    }
+    ''';
+
+    test('membaca z-score & status gizi hasil hitung ulang trigger', () {
+      final decoded = json.decode(rawUpdated) as Map<String, dynamic>;
+      expect(decoded['success'], isTrue);
+
+      final m = MeasurementModel.fromJson(
+        decoded['data'] as Map<String, dynamic>,
+      );
+
+      expect(m.id, '01a0dc0d-67eb-71e5-81c9-edecb72edeed');
+      expect(m.weightKg, 7.60);
+      expect(m.heightCm, 75.00);
+      expect(m.headCircumferenceCm, isNull);
+      expect(m.ageInMonths, 16);
+      expect(m.zScoreWfa, -2.81);
+      expect(m.statusGizi, 'Gizi Kurang');
+    });
+
+    test('membaca envelope 422 bentrok tanggal agar bisa ditampilkan ulang', () {
+      const rawBentrok = '''
+      {
+        "success": false,
+        "message": "Anak ini sudah punya penimbangan pada tanggal tersebut.",
+        "errors": {
+          "measurement_date": ["Tanggal itu sudah dipakai penimbangan lain."]
+        }
+      }
+      ''';
+
+      final decoded = json.decode(rawBentrok) as Map<String, dynamic>;
+
+      expect(decoded['success'], isFalse);
+      final errors = decoded['errors'] as Map<String, dynamic>;
+      expect(
+        (errors['measurement_date'] as List).first,
+        'Tanggal itu sudah dipakai penimbangan lain.',
+      );
+    });
+
+    test('membaca envelope 404 ketika baris sudah dihapus', () {
+      const rawHilang = '''
+      {
+        "success": false,
+        "message": "Data penimbangan tidak ditemukan.",
+        "errors": null
+      }
+      ''';
+
+      final decoded = json.decode(rawHilang) as Map<String, dynamic>;
+
+      expect(decoded['success'], isFalse);
+      expect(decoded['message'], 'Data penimbangan tidak ditemukan.');
+      expect(decoded['errors'], isNull);
+    });
+  });
+
   group('Kontrak API - GET /api/children/{id}/immunizations', () {
     // Respons asli dari ImmunizationChecklistService (26 September 2026).
     // Dipotong: anak inidont punya suntikan, jadi semua "record" null.
@@ -1735,7 +1814,7 @@ void main() {
 
   group('Kontrak API - GET /api/children/{id}/referrals', () {
     // Respons asli dari ChildController@referrals / ReferralService::present
-    // (lihat docs/RANCANGAN_RUJUKAN.md). Bentuk `child` dan `referrals` ini yang
+    // (lihat docs/arsip/RANCANGAN_RUJUKAN.md). Bentuk `child` dan `referrals` ini yang
     // dibaca ReferralList.fromJson, jadi JSON di bawah disalin dari spesifikasi
     // - bukan dikarang di sini.
     const rawReferrals = '''
@@ -1953,7 +2032,7 @@ void main() {
 
   group('Kontrak API - GET /api/children/{id}/visits', () {
     // Respons asli dari ChildController@visits / VisitService::present
-    // (lihat docs/RANCANGAN_VISIT.md). Bentuk `child` dan `visits` ini yang
+    // (lihat docs/arsip/RANCANGAN_VISIT.md). Bentuk `child` dan `visits` ini yang
     // dibaca VisitList.fromJson, jadi JSON di bawah disalin dari spesifikasi -
     // bukan dikarang di sini.
     const rawVisits = '''
@@ -2250,7 +2329,7 @@ void main() {
     // Respons asli dari GrowthChartService (Opsi D), diperluas amendemen
     // multidimensi 15 Oktober 2026. Bentuk `child`, `series`, `who_reference`,
     // dan `who_references` ini yang dibaca GrowthChart.fromJson, jadi JSON di
-    // bawah disalin dari `docs/RANCANGAN_WHO_MULTIDIM.md` bagian 6.2 - bukan
+    // bawah disalin dari `docs/arsip/RANCANGAN_WHO_MULTIDIM.md` bagian 6.2 - bukan
     // dikarang di sini.
     const rawGrowth = '''
     {

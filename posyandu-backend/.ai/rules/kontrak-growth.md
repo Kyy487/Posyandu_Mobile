@@ -9,7 +9,7 @@ paths:
 # Kontrak endpoint grafik tumbuh kembang (Opsi D)
 
 ## Sumber kebenaran ada di dokumen, bukan di kode
-Spesifikasi lengkap ada di `docs/RANCANGAN_GRAFIK_TUMBUH_KEMBANG.md`. Baca
+Spesifikasi lengkap ada di `docs/arsip/RANCANGAN_GRAFIK_TUMBUH_KEMBANG.md`. Baca
 bagian 5 (keputusan yang sudah ditutup), 7.1 sampai 7.6 (rute, bentuk
 respons, aturan, kompatibilitas, dependency), dan 9 (rencana pengujian)
 sebelum menulis kode apapun di jalur yang tercantum di `paths` file ini.
@@ -20,7 +20,7 @@ bukan variasi yang bisa diterima.
 
 ## Aturan di 7.3 tidak boleh dilanggar
 Rancangan asli mencantumkan 19 aturan. **Amendemen 15 Oktober 2026** (lihat
-`docs/RANCANGAN_WHO_MULTIDIM.md`): tiga aturan diubah, aturan 13–22 ditambah.
+`docs/arsip/RANCANGAN_WHO_MULTIDIM.md`): tiga aturan diubah, aturan 13–22 ditambah.
 Pokok yang tetap: urut naik, tanpa penghitungan ulang (semua kolom z-score &
 status dibaca apa adanya dari trigger), sembunyikan baris soft-deleted, tanpa
 data tetap 200, z-score/status null tetap null, penimbangan tanpa kader tetap

@@ -4,10 +4,12 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\User;
+use App\Models\UserVerification;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
@@ -18,11 +20,10 @@ class AuthController extends Controller
      * Pendaftaran Akun (Register)
      *
      * Aturan #2/#3: role TIDAK PERNAH diambil dari input pengguna. Server yang
-     * memutuskan. Tanpa ini, siapa pun bisa mendaftar sebagai `kader` dan
-     * langsung mendapat akses ke seluruh data anak.
+     * memutuskan.
      *
-     * - Tanpa `kader_code`  -> akun `ibu` (kategori utama masyarakat).
-     * - Dengan `kader_code` yang cocok -> akun `kader`.
+     * - Tanpa `kader_code`  -> akun `ibu` (kategori utama masyarakat) dengan status pending (perlu persetujuan kader)
+     * - Dengan `kader_code` yang cocok -> akun `kader` (langsung aktif)
      * - `KADER_REGISTRATION_CODE` kosong di .env -> pendaftaran kader dimatikan (403).
      */
     public function register(Request $request): JsonResponse
@@ -31,13 +32,21 @@ class AuthController extends Controller
             'nik' => ['required', 'string', 'size:16', Rule::unique('users', 'nik')],
             'name' => ['required', 'string', 'max:255'],
             'password' => ['required', 'string', 'min:8', 'confirmed'],
-            'phone_number' => ['nullable', 'string', 'max:15'],
+            'phone_number' => ['required', 'string', 'max:16', 'regex:/^[0-9+\-\s]+$/'],
+
+            // Data profil untuk ibu
+            'place_of_birth' => ['required', 'string', 'max:100'],
+            'date_of_birth' => ['required', 'date'],
+            'gender' => ['required', Rule::in(['L', 'P'])],
+            'address' => ['required', 'string'],
 
             // `role` tetap diterima (opsional) sebagai PERMINTAAN, bukan perintah.
-            // Kalau ada, ia hanya boleh bernilai 'kader' — nilai tetap dihitung
-            // ulang oleh server di bawah ini.
             'role' => ['nullable', 'string', Rule::in(['kader'])],
             'kader_code' => ['nullable', 'string', 'max:100'],
+
+            // Bukti verifikasi untuk calon ibu
+            'verification_file' => ['required', 'file', 'mimes:jpg,jpeg,png,pdf', 'max:5120'],
+            'verification_type' => ['required', Rule::in(['self_photo', 'kk', 'other'])],
         ]);
 
         if ($validator->fails()) {
@@ -55,22 +64,60 @@ class AuthController extends Controller
                 ], 403);
             }
 
-            $user = User::create([
+            $userData = [
                 'nik' => $request->nik,
                 'nik_hash' => hash('sha256', $request->nik),
                 'name' => $request->name,
                 'password' => Hash::make($request->password),
                 'role' => $role,
                 'phone_number' => $request->phone_number,
-            ]);
+                'place_of_birth' => $request->place_of_birth,
+                'date_of_birth' => $request->date_of_birth,
+                'gender' => $request->gender,
+                'address' => $request->address,
+            ];
+
+            if ($role === 'ibu') {
+                $userData['status'] = 'pending';
+            } else {
+                $userData['status'] = 'active';
+                $userData['verified_at'] = now();
+            }
+
+            $user = User::create($userData);
+
+            // Upload bukti verifikasi jika ada (untuk ibu)
+            if ($role === 'ibu') {
+                if ($request->hasFile('verification_file')) {
+                    $file = $request->file('verification_file');
+                    $path = $file->store('verifications', 'public');
+                    UserVerification::create([
+                        'user_id' => $user->id,
+                        'type' => $request->input('verification_type') ?: 'other',
+                        'file_path' => $path,
+                        'file_name' => $file->getClientOriginalName(),
+                        'mime_type' => $file->getMimeType(),
+                        'uploaded_at' => now(),
+                    ]);
+                }
+            }
+
+            if ($role === 'ibu') {
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Pendaftaran berhasil. Akun Anda menunggu persetujuan dari Kader Posyandu.',
+                    'data' => [
+                        'user' => $user->makeHidden(['nik', 'nik_hash', 'password']),
+                        'status' => $user->status,
+                    ],
+                ], 201);
+            }
 
             $token = $user->createToken('posyandu-mobile-token')->plainTextToken;
 
             return response()->json([
                 'success' => true,
-                'message' => $role === 'kader'
-                    ? 'Registrasi kader berhasil.'
-                    : 'Registrasi berhasil.',
+                'message' => 'Registrasi kader berhasil.',
                 'data' => [
                     'user' => $user,
                     'token' => $token,
@@ -170,6 +217,27 @@ class AuthController extends Controller
                     'message' => 'Kredensial yang diberikan tidak cocok dengan data kami.',
                     'errors' => null,
                 ], 401);
+            }
+
+            if ($user->role === 'ibu') {
+                if ($user->status === 'rejected') {
+                    $msg = 'Pendaftaran Anda ditolak.';
+                    if ($user->rejection_reason) {
+                        $msg .= ' Alasan: '.$user->rejection_reason;
+                    }
+                    return response()->json([
+                        'success' => false,
+                        'message' => $msg,
+                        'errors' => null,
+                    ], 403);
+                }
+                if (isset($user->status) && $user->status === 'pending') {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Akun Anda masih menunggu persetujuan dari Kader Posyandu.',
+                        'errors' => null,
+                    ], 403);
+                }
             }
 
             // Hapus token lama agar tidak menumpuk.

@@ -146,7 +146,7 @@ class MedicalNoteService {
   /// lewat [updateNote], bukan mencatat ulang.
   ///
   /// [visitId] opsional: bila dikirim, catatan ini menempel pada satu kunjungan
-  /// (`docs/RANCANGAN_VISIT.md`). Server menolak `visit_id` yang bukan milik
+  /// (`docs/arsip/RANCANGAN_VISIT.md`). Server menolak `visit_id` yang bukan milik
   /// anak ini dengan 422.
   Future<Map<String, dynamic>> addNote({
     required String childId,

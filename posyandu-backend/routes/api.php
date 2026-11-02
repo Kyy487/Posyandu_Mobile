@@ -14,6 +14,9 @@ use App\Http\Controllers\Api\PosyanduScheduleController;
 use App\Http\Controllers\Api\ReferralController;
 use App\Http\Controllers\Api\ReminderController;
 use App\Http\Controllers\Api\VisitController;
+use App\Http\Controllers\Api\KaderRegistrationController;
+use App\Http\Controllers\Api\ProfileController;
+use App\Http\Controllers\Api\RegistrationCompletionController;
 use App\Http\Middleware\RoleCheck;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
@@ -51,11 +54,19 @@ Route::middleware('auth:sanctum')->group(function () {
 
     Route::post('/logout', [AuthController::class, 'logout']);
 
+    Route::get('/registration/status', [RegistrationCompletionController::class, 'show']);
+    Route::post('/registration/complete', [RegistrationCompletionController::class, 'update']);
+    Route::put('/registration/complete', [RegistrationCompletionController::class, 'update']);
+    Route::patch('/registration/complete', [RegistrationCompletionController::class, 'update']);
+
+    Route::get('/profile', [ProfileController::class, 'show']);
+    Route::match(['put', 'patch'], '/profile', [ProfileController::class, 'update']);
+
     Route::get('/user', function (Request $request) {
         return response()->json([
             'success' => true,
             'message' => 'Data user aktif',
-            'data' => $request->user(),
+            'data' => $request->user()->load('verifications')->makeHidden(['nik', 'nik_hash', 'password']),
         ]);
     });
 
@@ -68,7 +79,9 @@ Route::middleware('auth:sanctum')->group(function () {
 
         // Ibu menambah anaknya sendiri. Kader tetap boleh, dengan mengirim
         // user_id; pembagian peran ini ditangani ChildController@store.
-        Route::post('/children', [ChildController::class, 'store']);
+        Route::middleware('ibu.active')->group(function () {
+            Route::post('/children', [ChildController::class, 'store']);
+        });
 
         // Partial update: hanya field yang dikirim yang berubah, jadi aman
         // dipanggil lewat PUT maupun PATCH.
@@ -80,7 +93,7 @@ Route::middleware('auth:sanctum')->group(function () {
         // Didaftarkan di group ini, bukan di prefix `/kader/`, supaya aturan
         // aksesnya sama persis dengan `GET /children/{id}` di atas: Ibu boleh
         // membuka timeline anaknya sendiri, Kader boleh semua. Bentuk respons
-        // dikunci di docs/RANCANGAN_BUKU_MEDIS.md bagian 7.2 dan 7.3.
+        // dikunci di docs/arsip/RANCANGAN_BUKU_MEDIS.md bagian 7.2 dan 7.3.
         Route::get('/children/{id}/timeline', [ChildController::class, 'timeline']);
 
         // Deret waktu pertumbuhan untuk grafik: seluruh riwayat penimbangan
@@ -90,14 +103,14 @@ Route::middleware('auth:sanctum')->group(function () {
         // bisa menggrafik anaknya sendiri tanpa endpoint terpisah. Aksesnya
         // persis sama dengan `GET /children/{id}` dan `/timeline` di atas.
         //
-        // Bentuk respons dikunci di docs/RANCANGAN_GRAFIK_TUMBUH_KEMBANG.md
+        // Bentuk respons dikunci di docs/arsip/RANCANGAN_GRAFIK_TUMBUH_KEMBANG.md
         // bagian 7.2 dan 7.3, dan sengaja tanpa query string apa pun.
         Route::get('/children/{id}/growth', [ChildController::class, 'growth']);
 
         // Daftar kunjungan satu anak (P0-1). Didaftarkan di group ini, bukan di
         // prefix `/kader/`, supaya Ibu bisa membaca kunjungan anaknya sendiri.
         // Aksesnya sama persis dengan `GET /children/{id}`, `/timeline`, dan
-        // `/growth` di atas. Lihat docs/RANCANGAN_VISIT.md.
+        // `/growth` di atas. Lihat docs/arsip/RANCANGAN_VISIT.md.
         Route::get('/children/{id}/visits', [ChildController::class, 'visits']);
 
         // Consent management (UU PDP) — Ibu memberikan/mencabut persetujuan
@@ -108,7 +121,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
         // Daftar rujukan satu anak (pemilik anak / Kader). Didaftarkan di group
         // ini, bukan di prefix `/kader/`, supaya aturan aksesnya sama dengan
-        // `GET /children/{id}/visits`. Lihat docs/RANCANGAN_RUJUKAN.md.
+        // `GET /children/{id}/visits`. Lihat docs/arsip/RANCANGAN_RUJUKAN.md.
         Route::get('/children/{id}/referrals', [ChildController::class, 'referrals']);
 
         // Detail satu kunjungan (pemilik anak / Kader). Otorisasi per-kunjungan
@@ -158,7 +171,7 @@ Route::middleware('auth:sanctum')->group(function () {
     // `GET /kader/reminders`. Dipisah supaya Kader tidak bisa memanggil endpoint
     // Ibu (dan sebaliknya) - lihat ReminderTest.
     // -----------------------------------------------------------------
-    Route::middleware([RoleCheck::class.':ibu'])->group(function () {
+    Route::middleware([RoleCheck::class.':ibu', 'ibu.active'])->group(function () {
         Route::get('/ibu/reminders', [ReminderController::class, 'indexIbu']);
     });
 
@@ -188,7 +201,7 @@ Route::middleware('auth:sanctum')->group(function () {
         //
         // Rujukan selalu terhubung ke satu kunjungan (`visit_id` wajib). Daftar
         // per-anak dan detail dikunci di group Ibu+Kader di atas; tulis hanya
-        // lewat prefix `/referrals` di sini. Lihat docs/RANCANGAN_RUJUKAN.md.
+        // lewat prefix `/referrals` di sini. Lihat docs/arsip/RANCANGAN_RUJUKAN.md.
         // -----------------------------------------------------------------
         Route::post('/referrals', [ReferralController::class, 'store']);
         Route::patch('/referrals/{id}', [ReferralController::class, 'update']);
@@ -196,6 +209,10 @@ Route::middleware('auth:sanctum')->group(function () {
 
         Route::get('/kader/measurements', [MeasurementController::class, 'index']);
         Route::post('/kader/measurements', [MeasurementController::class, 'store']);
+        // Koreksi penimbangan memakai PATCH: hanya field yang dikirim yang
+        // berubah, dan trigger PostgreSQL menghitung ulang z-score. `child_id`
+        // dan `visit_id` tidak ikut diubah agar riwayat tidak berpindah anak.
+        Route::patch('/kader/measurements/{id}', [MeasurementController::class, 'update']);
         Route::delete('/kader/measurements/{id}', [MeasurementController::class, 'destroy']);
 
         // Pengingat untuk Kader: agenda petugas + jumlah anak terlambat.
@@ -259,6 +276,14 @@ Route::middleware('auth:sanctum')->group(function () {
         // orang lain dan data klinis anak. Ibu tidak boleh.
         // -----------------------------------------------------------------
         Route::get('/kader/audit-logs', [AuditLogController::class, 'index']);
+
+        // -----------------------------------------------------------------
+        // AREA PERSETUJUAN REGISTRASI IBU
+        // -----------------------------------------------------------------
+        Route::get('/kader/registrations', [KaderRegistrationController::class, 'index']);
+        Route::get('/kader/registrations/{user}', [KaderRegistrationController::class, 'show']);
+        Route::post('/kader/registrations/{user}/approve', [KaderRegistrationController::class, 'approve']);
+        Route::post('/kader/registrations/{user}/reject', [KaderRegistrationController::class, 'reject']);
 
         // -----------------------------------------------------------------
         // AREA FHIR R4 - Jembatan integrasi SATUSEHAT

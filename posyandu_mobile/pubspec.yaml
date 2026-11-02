@@ -38,6 +38,9 @@ dependencies:
   flutter_secure_storage: ^11.2.0
   fl_chart: ^1.2.0
   google_fonts: ^8.2.1
+  image_picker: ^1.1.2
+  url_launcher: ^6.3.3
+  flutter_native_splash: ^2.4.1
 
 dev_dependencies:
   flutter_test:
@@ -89,5 +92,12 @@ flutter:
   #       - asset: fonts/TrajanPro_Bold.ttf
   #         weight: 700
   #
-  # For details regarding fonts from package dependencies,
-  # see https://flutter.dev/to/font-from-package
+# For details regarding fonts from package dependencies,
+# see https://flutter.dev/to/font-from-package
+
+flutter_native_splash:
+  color: "#ffffff"
+  android: true
+  ios: true
+  web: false
+

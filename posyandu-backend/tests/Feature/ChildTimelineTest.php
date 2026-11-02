@@ -19,7 +19,7 @@ use Tests\TestCase;
  * Menguji `GET /children/{id}/timeline` (Opsi B - Buku Medis Digital).
  *
  * Nama test di sini bukan pilihan gaya: setiap aturan di
- * `docs/RANCANGAN_BUKU_MEDIS.md` bagian 7.3 dipetakan ke satu nama test, dan
+ * `docs/arsip/RANCANGAN_BUKU_MEDIS.md` bagian 7.3 dipetakan ke satu nama test, dan
  * pemetaan itu tidak boleh berubah diam-diam. Kalau aturan ditambah, testnya
  * ditambah dengan nama yang sama di tabel itu. Kalau nama di sini diubah,
  * tabel 7.3 yang harus ikut diperbarui.
