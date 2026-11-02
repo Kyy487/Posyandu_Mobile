@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
@@ -15,18 +16,43 @@ class User extends Authenticatable
 
     protected $fillable = [
         'nik',
+        'nik_hash',
         'name',
         // 'email',
         'password',
         'role',
         'phone_number',
         'jabatan',
+        'status',
+        'place_of_birth',
+        'date_of_birth',
+        'gender',
+        'address',
+        'whatsapp',
+        'instagram',
+        'facebook',
+        'approved_by',
+        'approved_at',
+        'rejection_reason',
+        'verified_at',
     ];
 
     protected $hidden = [
         'password',
         'remember_token',
+        'nik',
+        'nik_hash',
     ];
+
+    protected function casts(): array
+    {
+        return [
+            'nik' => 'encrypted',
+            'date_of_birth' => 'date',
+            'approved_at' => 'datetime',
+            'verified_at' => 'datetime',
+        ];
+    }
 
     // Relasi: Satu Ibu memiliki banyak Anak
     public function children()
@@ -74,4 +100,41 @@ class User extends Authenticatable
             'schedule_id'
         )->withTimestamps();
     }
+
+    // Relasi: Satu Ibu bisa memberikan banyak consent
+    public function consents(): HasMany
+    {
+        return $this->hasMany(Consent::class, 'granted_by');
+    }
+
+    public function verifications(): HasMany
+    {
+        return $this->hasMany(UserVerification::class, 'user_id');
+    }
+
+    public function userVerifications(): HasMany
+    {
+        return $this->hasMany(UserVerification::class, 'user_id');
+    }
+
+    public function approver(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'approved_by');
+    }
+
+    public function isPending(): bool
+    {
+        return $this->status === 'pending';
+    }
+
+    public function isActive(): bool
+    {
+        return $this->status === 'active';
+    }
+
+    public function isRejected(): bool
+    {
+        return $this->status === 'rejected';
+    }
 }
+

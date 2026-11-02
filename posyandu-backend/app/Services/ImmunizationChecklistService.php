@@ -61,6 +61,7 @@ class ImmunizationChecklistService
             ->keyBy('immunization_type_id');
 
         return ImmunizationType::query()
+            ->active()
             ->orderedForDosing()
             ->get()
             ->map(fn (ImmunizationType $type) => $this->buildItem(
@@ -95,7 +96,7 @@ class ImmunizationChecklistService
         array $givenTypeIds,
         ?Collection $types = null,
     ): array {
-        $types ??= ImmunizationType::query()->orderedForDosing()->get();
+        $types ??= ImmunizationType::query()->active()->orderedForDosing()->get();
 
         $sudahDisuntik = array_flip($givenTypeIds);
         $missing = [];
@@ -246,8 +247,12 @@ class ImmunizationChecklistService
      * Sama dengan definisi "bulan" yang dipakai trigger z-score PostgreSQL
      * (`age_in_months`): jumlah bulan penuh sejak tanggal lahir. Tanggal lahir
      * 15 dan hari ini 26 September -> 5 bulan (bukan 5,4).
+     *
+     * `public` karena `ReminderService` memakai definisi yang sama untuk
+     * menghitung berapa bulan sebuah dosis sudah terlambat. Menyalin rumusnya
+     * di sana akan membuat dua definisi umur yang bisa berbeda.
      */
-    private function ageInMonths(CarbonImmutable $birthDate, CarbonImmutable $asOf): int
+    public function ageInMonths(CarbonImmutable $birthDate, CarbonImmutable $asOf): int
     {
         if ($asOf->lessThan($birthDate)) {
             return 0;

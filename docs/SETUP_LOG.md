@@ -66,7 +66,7 @@ Perbaikan ini menutup lubang privilege escalation dan menhomogenkan JSON envelop
 - [x] Perbaikan relasi Eloquent: `User::children()` dan `Child::parent()` memakai `user_id`.
 - [x] `MeasurementController@store()` memakai `$measurement->refresh()` agar nilai dari trigger ikut dikembalikan pada response API.
 - [x] Respon API `POST /api/kader/measurements` mengirim `age_in_months`, `z_score_wfa`, dan `status_gizi`.
-- [x] Rincian lengkap: `docs/LAPORAN_ZSCORE_TRIGGER.md`.
+- [x] Rincian lengkap: `docs/arsip/LAPORAN_ZSCORE_TRIGGER.md`.
 
 ## Mobile / Flutter (`posyandu_mobile`, Selesai)
 - [x] `kader_service.dart` mengembalikan objek `data` pada respons penimbangan.
@@ -123,7 +123,7 @@ Perbaikan ini menutup lubang privilege escalation dan menhomogenkan JSON envelop
 - [x] `uji-api.ps1` +4 pemeriksaan tamu tanpa header JSON.
       **210/210 lulus**, DB kembali ke baseline.
 - [x] **`flutter test`: 49/49 lulus**, `flutter analyze`: No issues found.
-- [x] Rincian lengkap: `docs/LAPORAN_IMUNISASI_JADWAL.md`.
+- [x] Rincian lengkap: `docs/arsip/LAPORAN_IMUNISASI_JADWAL.md`.
 
 ## Opsi A - Rapikan Kualitas (Selesai — 27 Sep 2026)
 - [x] Migration `2026_09_26_035000`: kolom `deleted_at` pada
@@ -185,7 +185,7 @@ Perbaikan ini menutup lubang privilege escalation dan menhomogenkan JSON envelop
       (15 contract test baru).
 - [x] `vendor/bin/pint` bersih; `php -l` 63 file 0 error.
 - [x] Dokumentasi: `API_CONTRACT.md`, `DATABASE_SCHEMA.md`,
-      `LAPORAN_MEDICAL_NOTES.md`, `RENCANA_SELANJUTNYA.md`.
+      `arsip/LAPORAN_MEDICAL_NOTES.md`, `RENCANA_SELANJUTNYA.md`.
 
 ### Masih terbuka
 - Notifikasi/pengingat agenda untuk Ibu (butuh push service).
@@ -196,7 +196,7 @@ Perbaikan ini menutup lubang privilege escalation dan menhomogenkan JSON envelop
 - Riwayat perubahan catatan (siapa mengubah apa) belum ada; `updated_at` hanya
   menyimpan waktu terakhir.
 
-Rincian lengkap: `docs/LAPORAN_IMUNISASI_JADWAL.md` bagian 11.
+Rincian lengkap: `docs/arsip/LAPORAN_IMUNISASI_JADWAL.md` bagian 11.
 
 ---
 
@@ -206,7 +206,7 @@ Fase ini tidak menulis satu baris kode fitur. Tujuannya mengunci spesifikasi
 sebelum ada kode, supaya implementasi tidak menyimpang dan tidak merusak yang
 sudah jalan.
 
-- [x] `docs/RANCANGAN_BUKU_MEDIS.md` dinaikkan dari "rancangan" jadi
+- [x] `docs/arsip/RANCANGAN_BUKU_MEDIS.md` dinaikkan dari "rancangan" jadi
       **spesifikasi normatif**. Dua keputusan ditutup: kondisi khusus memakai
       **kolom `children.medical_flags`** (bukan tabel `child_medical_flags`),
       dan timeline dikelompokkan **per kunjungan** (bukan per kejadian).
@@ -250,13 +250,13 @@ Implementasi backend. Mobile belum disentuh; itu fase berikutnya.
       Penolakan Ibu sengaja `403` yang terbaca, bukan diam-diam diabaikan -
       jawaban 200 padahal tidak tersimpan membuat kader mengira sudah tercatat.
 - [x] `ChildTimelineTest` - 21 test, memetakan seluruh aturan 1-7 di
-      `RANCANGAN_BUKU_MEDIS.md` bagian 7.3 ke nama test yang sama.
+      `arsip/RANCANGAN_BUKU_MEDIS.md` bagian 7.3 ke nama test yang sama.
 - [x] Tiga jebakan ditutup test: `limit` menghitung tanggal bukan baris; baris
       soft-deleted tidak muncul lagi; penimbangan tanpa kader tetap tampil
       (`leftJoin`, karena `kader_id` nullable dengan `ON DELETE SET NULL`).
 - [x] Dokumentasi: `API_CONTRACT.md` (dua endpoint + kode error),
       `DATABASE_SCHEMA.md` (kolom baru + alasannya), laporan baru
-      `docs/LAPORAN_BUKU_MEDIS.md`.
+      `docs/arsip/LAPORAN_BUKU_MEDIS.md`.
 - [x] **Verifikasi:** 96 test / 364 assertion hijau, Pint lulus, 30 route
       `api/`, `periksa-teks.ps1` bersih.
 - [x] **Fase 2:** mobile — model, service, perubahan `detail_anak_screen.dart`.
@@ -288,9 +288,9 @@ yang sudah ada ditambah isinya.
       keluhan, tombol "Muat lebih banyak", refresh gabungan.
 - [x] Test kontrak: 13 test timeline + 3 test medical_flags di
       `test/kontrak_api_test.dart`. Total 105 test hijau.
-- [x] Dokumentasi: `LAPORAN_BUKU_MEDIS.md` (bagian 7 mobile), `API_CONTRACT.md`
+- [x] Dokumentasi: `arsip/LAPORAN_BUKU_MEDIS.md` (bagian 7 mobile), `API_CONTRACT.md`
       (konsumsi mobile), `DATABASE_SCHEMA.md` (catatan mobile),
-      `RANCANGAN_BUKU_MEDIS.md` (bagian 10 + 13), `README.md`.
+      `arsip/RANCANGAN_BUKU_MEDIS.md` (bagian 10 + 13), `README.md`.
 
 **Push masih tertunda.** Environment ini tidak punya kredensial GitHub: tidak ada
 `gh`, tidak ada `GH_TOKEN`, tidak ada `credential.helper`, dan tidak ada `/dev/tty`

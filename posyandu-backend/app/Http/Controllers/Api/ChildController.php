@@ -4,10 +4,13 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Child;
+use App\Models\Consent;
 use App\Models\Measurement;
 use App\Models\User;
 use App\Services\ChildTimelineService;
 use App\Services\GrowthChartService;
+use App\Services\ReferralService;
+use App\Services\VisitService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
@@ -62,11 +65,9 @@ class ChildController extends Controller
             $validated = $request->validate([
                 'nik' => 'nullable|string|size:16|unique:children,nik',
                 'name' => 'required|string|max:255',
+                'place_of_birth' => 'required_without:birth_place|string|max:100',
+                'birth_place' => 'required_without:place_of_birth|string|max:100',
                 // `date_format:Y-m-d` WAJIB dipakai, bukan `date` saja.
-                // Rule `date` hanya mengandalkan strtotime() sehingga "26-09-2026" lolos
-                // validasi, lalu PostgreSQL menolaknya saat insert
-                // (SQLSTATE 22008) dan itu jadi 500. Dengan date_format,
-                // format salah ditolak sebagai 422 sebelum menyentuh DB.
                 'date_of_birth' => 'required|date_format:Y-m-d|before_or_equal:today',
                 'gender' => 'required|in:L,P',
                 'birth_weight' => 'nullable|numeric|min:0',
@@ -80,6 +81,8 @@ class ChildController extends Controller
                     'string',
                     'size:16',
                 ],
+                'consent_type' => 'required|in:data_processing,data_sharing,research',
+                'consent_document_version' => 'required|string|max:20',
             ]);
 
             // --- Tentukan ibu pemilik anak -------------------------------
@@ -88,15 +91,46 @@ class ChildController extends Controller
                 return $error;
             }
 
+            if ($mother && $mother->role === 'ibu' && isset($mother->status) && $mother->status !== 'active') {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Akun Ibu belum disetujui oleh Kader Posyandu. Tidak dapat menambahkan data anak.',
+                    'errors' => null,
+                ], 403);
+            }
+
             // --- Simpan (UUID dibuat otomatis oleh trait HasUuids) -------
-            $child = Child::create([
+            $nik = $validated['nik'] ?? null;
+
+            $childData = [
                 'user_id' => $mother->id,
-                'nik' => $validated['nik'] ?? null,
+                'nik' => $nik,
+                'nik_hash' => $nik ? hash('sha256', $nik) : null,
                 'name' => $validated['name'],
                 'date_of_birth' => $validated['date_of_birth'],
                 'gender' => $validated['gender'],
                 'birth_weight' => $validated['birth_weight'] ?? null,
                 'birth_height' => $validated['birth_height'] ?? null,
+            ];
+
+            if (array_key_exists('place_of_birth', $validated)) {
+                $childData['place_of_birth'] = $validated['place_of_birth'];
+            }
+            if (array_key_exists('birth_place', $validated)) {
+                $childData['birth_place'] = $validated['birth_place'];
+                if (! array_key_exists('place_of_birth', $childData)) {
+                    $childData['place_of_birth'] = $validated['birth_place'];
+                }
+            }
+
+            $child = Child::create($childData);
+
+            Consent::create([
+                'child_id' => $child->id,
+                'granted_by' => $user->id,
+                'consent_type' => $validated['consent_type'],
+                'granted_at' => now(),
+                'document_version' => $validated['consent_document_version'],
             ]);
 
             return response()->json([
@@ -256,6 +290,8 @@ class ChildController extends Controller
                     Rule::unique('children', 'nik')->ignore($child->id),
                 ],
                 'name' => ['sometimes', 'required', 'string', 'max:255'],
+                'place_of_birth' => ['sometimes', 'string', 'max:100'],
+                'birth_place' => ['sometimes', 'string', 'max:100'],
                 // Sama seperti `store`: date_format mencegah 500 dari
                 // PostgreSQL, before_or_equal mencegah tanggal lahir di masa depan.
                 'date_of_birth' => [
@@ -268,14 +304,14 @@ class ChildController extends Controller
                 // Batas 500 karakter divalidasi di sini, bukan lewat CHECK
                 // constraint, supaya kesalahan ketik jadi 422 yang bisa dibaca
                 // kader. Isinya teks bebas satu penanda per baris dan sengaja
-                // TIDAK diparsing - lihat `RANCANGAN_BUKU_MEDIS.md` bagian 5.1.
+                // TIDAK diparsing - lihat `docs/arsip/RANCANGAN_BUKU_MEDIS.md` bagian 5.1.
                 'medical_flags' => ['sometimes', 'nullable', 'string', 'max:500'],
                 'user_id' => ['sometimes', 'exists:users,id'],
                 'ibu_nik' => ['sometimes', 'string', 'size:16'],
             ]);
 
             // Hanya Kader yang boleh menulis kondisi khusus. Ibu tetap boleh
-            // MEMBACA penanda anaknya sendiri (`RANCANGAN_BUKU_MEDIS.md` 12).
+            // MEMBACA penanda anaknya sendiri (`docs/arsip/RANCANGAN_BUKU_MEDIS.md` 12).
             //
             // Penolakan di sini, bukan diam-diam diabaikan: `validate()` di atas
             // sudah menerima `medical_flags` untuk semua role, jadi tanpa
@@ -288,6 +324,10 @@ class ChildController extends Controller
                     'message' => 'Akses ditolak. Hanya Kader yang dapat menulis kondisi khusus anak.',
                     'errors' => ['medical_flags' => ['Hanya Kader yang dapat mengubah kondisi khusus anak.']],
                 ], 403);
+            }
+
+            if (array_key_exists('birth_place', $validated) && ! array_key_exists('place_of_birth', $validated)) {
+                $validated['place_of_birth'] = $validated['birth_place'];
             }
 
             // Buang key yang tidak berubah agar tidak menimpa nilai lama.
@@ -570,6 +610,104 @@ class ChildController extends Controller
 
         } catch (\Throwable $e) {
             Log::error('Gagal mengambil data pertumbuhan anak: '.$e->getMessage(), [
+                'user_id' => $user->id,
+                'child_id' => $id,
+                'exception' => $e,
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Terjadi kesalahan server. Silakan coba lagi.',
+                'errors' => null,
+            ], 500);
+        }
+    }
+
+    /**
+     * Daftar kunjungan satu anak (P0-1), terbaru lebih dulu.
+     *
+     * Didaftarkan di group `RoleCheck:ibu,kader` yang sama dengan `timeline`
+     * dan `growth`, supaya aturan aksesnya persis sama: Ibu hanya anaknya
+     * sendiri, Kader semua. Otorisasi memakai `findChildForUser()` yang sudah
+     * ada, bukan salinan baru.
+     *
+     * Bentuk keluaran ada di `VisitService::listForChild()`; controller hanya
+     * memasang envelope baku.
+     */
+    public function visits(Request $request, $id, VisitService $visits)
+    {
+        $user = $request->user();
+
+        try {
+            $child = $this->findChildForUser($id, $user, 'melihat');
+
+            if (! $child instanceof Child) {
+                return $child;
+            }
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Daftar kunjungan anak berhasil diambil.',
+                'data' => [
+                    'child' => [
+                        'id' => $child->id,
+                        'name' => $child->name,
+                    ],
+                    'visits' => $visits->listForChild($child),
+                ],
+            ], 200);
+
+        } catch (\Throwable $e) {
+            Log::error('Gagal mengambil daftar kunjungan anak: '.$e->getMessage(), [
+                'user_id' => $user->id,
+                'child_id' => $id,
+                'exception' => $e,
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Terjadi kesalahan server. Silakan coba lagi.',
+                'errors' => null,
+            ], 500);
+        }
+    }
+
+    /**
+     * Daftar rujukan satu anak, terbaru lebih dulu.
+     *
+     * Didaftarkan di group `RoleCheck:ibu,kader` yang sama dengan `timeline`,
+     * `growth`, dan `visits`, supaya aturan aksesnya persis sama: Ibu hanya
+     * anaknya sendiri, Kader semua. Otorisasi memakai `findChildForUser()` yang
+     * sudah ada, bukan salinan baru.
+     *
+     * Bentuk keluaran ada di `ReferralService::listForChild()`; controller hanya
+     * memasang envelope baku.
+     */
+    public function referrals(Request $request, $id, ReferralService $referrals)
+    {
+        $user = $request->user();
+
+        try {
+            $child = $this->findChildForUser($id, $user, 'melihat');
+
+            if (! $child instanceof Child) {
+                return $child;
+            }
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Daftar rujukan anak berhasil diambil.',
+                'data' => [
+                    'child' => [
+                        'id' => $child->id,
+                        'name' => $child->name,
+                    ],
+                    'referrals' => $referrals->listForChild($child),
+                ],
+            ], 200);
+
+        } catch (\Throwable $e) {
+            Log::error('Gagal mengambil daftar rujukan anak: '.$e->getMessage(), [
                 'user_id' => $user->id,
                 'child_id' => $id,
                 'exception' => $e,

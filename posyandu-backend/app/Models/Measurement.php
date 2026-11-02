@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\Auditable;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
@@ -21,10 +22,11 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  */
 class Measurement extends Model
 {
-    use HasFactory, HasUuids, SoftDeletes;
+    use Auditable, HasFactory, HasUuids, SoftDeletes;
 
     protected $fillable = [
         'child_id',
+        'visit_id',
         'kader_id',
         'measurement_date',
         'weight_kg',
@@ -39,6 +41,12 @@ class Measurement extends Model
     public function child()
     {
         return $this->belongsTo(Child::class);
+    }
+
+    /** Kunjungan tempat penimbangan ini dicatat. Null bila diluar sesi kunjungan. */
+    public function visit()
+    {
+        return $this->belongsTo(Visit::class);
     }
 
     /**

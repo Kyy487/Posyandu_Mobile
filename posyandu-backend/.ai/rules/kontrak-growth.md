@@ -9,7 +9,7 @@ paths:
 # Kontrak endpoint grafik tumbuh kembang (Opsi D)
 
 ## Sumber kebenaran ada di dokumen, bukan di kode
-Spesifikasi lengkap ada di `docs/RANCANGAN_GRAFIK_TUMBUH_KEMBANG.md`. Baca
+Spesifikasi lengkap ada di `docs/arsip/RANCANGAN_GRAFIK_TUMBUH_KEMBANG.md`. Baca
 bagian 5 (keputusan yang sudah ditutup), 7.1 sampai 7.6 (rute, bentuk
 respons, aturan, kompatibilitas, dependency), dan 9 (rencana pengujian)
 sebelum menulis kode apapun di jalur yang tercantum di `paths` file ini.
@@ -18,27 +18,32 @@ Kalau implementasi merasa perlu menyimpang dari dokumen itu, dokumennya yang
 diubah lebih dulu. Penyimpangan yang tidak tertulis di dokumen dianggap bug,
 bukan variasi yang bisa diterima.
 
-## Sembilan belas aturan di 7.3 tidak boleh dilanggar
-Urut naik, tanpa penghitungan ulang, sembunyikan baris soft-deleted, tanpa
-data tetap 200, z-score null tetap null, penimbangan tanpa kader tetap tampil,
-pita hanya untuk BB/U, pita ikut gender anak, pita dikirim walau points
-kosong, pita menutup 0 sampai 60 bulan, tanpa filter tanggal, jumlah query
-tetap dua, Ibu tidak boleh membuka anak orang, Ibu boleh membuka anaknya
-sendiri, kader boleh semua anak, id bukan UUID membalas 404, `data` berisi
-tepat tiga kunci, satu titik per tanggal, dan `medical_flags` terbaca apa
-adanya.
+## Aturan di 7.3 tidak boleh dilanggar
+Rancangan asli mencantumkan 19 aturan. **Amendemen 15 Oktober 2026** (lihat
+`docs/arsip/RANCANGAN_WHO_MULTIDIM.md`): tiga aturan diubah, aturan 13–22 ditambah.
+Pokok yang tetap: urut naik, tanpa penghitungan ulang (semua kolom z-score &
+status dibaca apa adanya dari trigger), sembunyikan baris soft-deleted, tanpa
+data tetap 200, z-score/status null tetap null, penimbangan tanpa kader tetap
+tampil, pita BB/U tetap ada, pita TB/U & IMT/U ditambah via `who_references`
+(satu query UNION ALL), pita ikut gender anak, pita dikirim walau points kosong,
+pita menutup 0–60 bulan, tanpa filter tanggal, jumlah query tetap dua, otorisasi
+ikut `findChildForUser`, id bukan UUID membalas 404, `data` berisi **tepat empat
+kunci** (`child`, `series`, `who_reference`, `who_references`), satu titik per
+tanggal, dan `medical_flags` terbaca apa adanya.
 
 Setiap aturan punya satu nama test di bagian 7.3. Test dengan nama itu wajib
 ada. Test boleh ditambah, tapi tidak boleh di-rename atau dihapus tanpa
 memperbarui tabel di 7.3 - kalau tidak, pemetaan itu berbohong.
 
 ## Bentuk respons tidak boleh berubah sendiri
-`data` berisi tepat tiga kunci: `child`, `series`, `who_reference`. Di dalam
-`series` ada `unit`, `order` (selalu `"asc"`), dan `points`. Di dalam
-`points` ada `date`, `age_in_months`, `weight_kg`, `height_cm`,
-`head_circumference_cm`, `z_score_wfa`, `status_gizi`. Di dalam
-`who_reference` ada `metric` (selalu `"weight_for_age"`), `source`, `gender`,
-`age_range`, dan `points`.
+`data` berisi tepat empat kunci: `child`, `series`, `who_reference`,
+`who_references`. Di dalam `series` ada `unit`, `order` (selalu `"asc"`), dan
+`points`. `unit` bertambah `bmi` (satuan `kg/m2`). Di dalam `points` bertambah
+`bmi`, `z_score_hfa`, `status_stunting`, `z_score_bfa`, `status_gizi_imt`,
+`z_score_wfh`, `status_wfh`. Di dalam `who_reference` ada `metric` (selalu
+`"weight_for_age"`), `source`, `gender`, `age_range`, dan `points` (dengan
+`median_kg`/`lower_kg`/`upper_kg`). `who_references` berisi tiga metrik
+(weight_for_age, height_for_age, bmi_for_age) dalam bentuk seragam.
 
 Menambah field baru itu boleh dan tidak merusak klien; mengganti nama,
 menghapus, atau mengubah tipe field yang ada tidak boleh. `z_score_wfa` dan
@@ -62,16 +67,12 @@ Jangan menulis rumus z-score atau median WHO di PHP maupun Dart. Buka
 `database/migrations/2026_09_26_010000_create_who_wfa_standards_and_fix_zscore_trigger.php`
 dan baca konstantanya kalau angka referensinya perlu diubah.
 
-## Pita hanya untuk BB/U. Jangan menambah TB/U
-`who_reference.metric` adalah `weight_for_age`. Database tidak punya tabel
-TB/U, jadi `who_reference` **tidak boleh** memuat pita tinggi badan, dan
-`measurements` tidak boleh mendapat kolom `z_score_hfa` atau status stunting.
-TB tetap dikirim di `points[].height_cm` sebagai nilai mentah, dan itu
-memang tidak punya pita - itu keputusan, bukan kekurangan.
-
-Kalau suatu saat TB/U dibutuhkan, itu perubahan dokumen bagian 5.1 lebih
-dulu, lalu migration terpisah. Jangan menambah kolomnya sambil mengimplementasikan
-grafik.
+## Pita: BB/U tetap; TB/U & IMT/U ditambah di `who_references`
+`who_reference` tunggal tetap `weight_for_age` (untuk kompatibilitas). Pita
+TB/U dan IMT/U dikirim via `who_references` (tiga metrik, satu query UNION ALL
+di SQL). BB/TB tidak punya pita (sumbu panjang badan). BMI dihitung di SQL.
+`status_wfh` disimpan lewat trigger (status hanya dihitung PostgreSQL). Tidak
+ada klasifikasi status yang dihitung di PHP.
 
 ## `leftJoin` ke `users`, bukan `join`
 `kader_id` bisa `null` karena `ON DELETE SET NULL`. Query penimbangan wajib

@@ -83,10 +83,17 @@ return [
 
         'slack' => [
             'driver' => 'slack',
-            'url' => env('LOG_SLACK_WEBHOOK_URL'),
-            'username' => env('LOG_SLACK_USERNAME', env('APP_NAME', 'Laravel')),
-            'emoji' => env('LOG_SLACK_EMOJI', ':boom:'),
+            'url' => env('SLACK_WEBHOOK_URL'),
+            'username' => env('SLACK_USERNAME', env('APP_NAME', 'Laravel')),
+            'emoji' => env('SLACK_EMOJI', ':boom:'),
             'level' => env('LOG_LEVEL', 'critical'),
+            'replace_placeholders' => true,
+        ],
+
+        'satusehat' => [
+            'driver' => 'single',
+            'path' => storage_path('logs/satusehat.log'),
+            'level' => env('LOG_LEVEL', 'info'),
             'replace_placeholders' => true,
         ],
 

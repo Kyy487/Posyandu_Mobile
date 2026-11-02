@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../models/growth_chart.dart';
 import '../services/growth_chart_service.dart';
-import '../screens/login_screen.dart';
+import '../screens/shared/login_screen.dart';
 import '../utils/status_gizi.dart';
 import 'growth_line_chart.dart';
 
@@ -63,7 +63,7 @@ class GrowthChartPalette {
 /// Seluruh isi layar grafik tumbuh kembang.
 ///
 /// Dipakai oleh Ibu dan Kader tanpa perbedaan apa pun selain [palette].
-/// Bentuknya dikunci di `docs/RANCANGAN_GRAFIK_TUMBUH_KEMBANG.md` bagian 8 dan
+/// Bentuknya dikunci di `docs/arsip/RANCANGAN_GRAFIK_TUMBUH_KEMBANG.md` bagian 8 dan
 /// 8.7; kalau perlu berubah, dokumennya yang diubah lebih dulu.
 ///
 /// Yang read-only untuk kedua role: layar ini hanya menampilkan. Kader mencatat
@@ -96,11 +96,30 @@ class _GrowthChartViewState extends State<GrowthChartView> {
   bool _isLoading = true;
   String? _errorMessage;
 
-  /// Garis mana yang ditebalkan. Grafik selalu menampilkan keduanya, jadi ini
-  /// hanya sorotan - bukan pemilih data.
-  GrowthMetric _metrik = GrowthMetric.weight;
+  /// Garis mana yang digambar. Sekarang benar-benar pemilih data: satu metrik
+  /// per kanvas, karena IMT/U bersatuan `kg/m²` yang tidak bisa dipetakan ke
+  /// kanvas kg atau cm.
+  GrowthMetric _metrik = GrowthMetric.weightForAge;
 
   GrowthChartPalette get _warna => widget.palette;
+
+  /// Pita WHO untuk metrik yang sedang dipilih, atau `null` kalau server tidak
+  /// mengirimnya. Dicocokkan lewat `metric`, bukan label tampilan.
+  WhoBandReference? get _bandAktif => _data?.bandUntuk(_metrik.metricKey);
+
+  bool get _pitaAktifAda {
+    final band = _bandAktif;
+    return band != null && !band.kosong;
+  }
+
+  /// Metrik aktif punya minimal satu titik yang bisa digambar.
+  bool get _metrikAktifPunyaTitik {
+    final data = _data;
+    if (data == null) return false;
+    return data.series.points.any(
+      (p) => p.umurTahun != null && _metrik.nilaiDari(p) != null,
+    );
+  }
 
   @override
   void initState() {
@@ -183,12 +202,14 @@ class _GrowthChartViewState extends State<GrowthChartView> {
         children: [
           _buildHeader(data),
           const SizedBox(height: 16),
-          if (data.tanpaPita) _buildPitaTidakTersedia(data),
+          if (!_pitaAktifAda) _buildPitaTidakTersedia(data),
           _buildChart(data),
           const SizedBox(height: 12),
-          _buildLegend(data),
+          if (_pitaAktifAda) _buildLegend(data),
           const SizedBox(height: 20),
           _buildStatusTerakhir(data),
+          const SizedBox(height: 16),
+          _buildKartuMultidim(data),
         ],
       ),
     );
@@ -237,15 +258,14 @@ class _GrowthChartViewState extends State<GrowthChartView> {
     );
   }
 
-  /// Dua tombol toggle, bukan `SegmentedButton` atau `TabBar`.
+  /// Tiga tombol metrik, bukan `SegmentedButton` atau `TabBar`.
   ///
-  /// Alasannya: grafik menampilkan BB dan TB di satu kanvas dengan dua sumbu y,
-  /// bukan salah satu atau yang lain. Jadi yang dipilih hanya garis yang
-  /// ditebalkan - memakai `TabBar` akan menyiratkan isi tab yang berbeda,
-  /// padahal tidak ada.
+  /// Grafik menggambar satu metrik per kanvas dengan satu sumbu y, jadi tombol
+  /// ini benar-benar memilih data. `TabBar` tidak dipakai karena tampilannya
+  /// menyiratkan halaman yang berbeda, padahal ini satu kartu yang sama.
   Widget _buildChart(GrowthChart data) {
     return Container(
-      padding: const EdgeInsets.fromLTRB(8, 16, 16, 8),
+      padding: const EdgeInsets.fromLTRB(8, 16, 8, 8),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(20),
@@ -259,33 +279,39 @@ class _GrowthChartViewState extends State<GrowthChartView> {
       ),
       child: Column(
         children: [
-          Row(
-            children: [
-              _buildMetrikButton(
-                label: 'Berat Badan',
-                unit: data.series.weightUnit,
-                aktif: _metrik == GrowthMetric.weight,
-                onTap: () => setState(() => _metrik = GrowthMetric.weight),
-              ),
-              const SizedBox(width: 8),
-              _buildMetrikButton(
-                label: 'Tinggi Badan',
-                unit: data.series.heightUnit,
-                aktif: _metrik == GrowthMetric.height,
-                onTap: () => setState(() => _metrik = GrowthMetric.height),
-              ),
-            ],
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 8),
+            child: Row(
+              children: [
+                _buildMetrikButton(
+                  metrik: GrowthMetric.weightForAge,
+                  unit: data.series.weightUnit,
+                ),
+                const SizedBox(width: 8),
+                _buildMetrikButton(
+                  metrik: GrowthMetric.heightForAge,
+                  unit: data.series.heightUnit,
+                ),
+                const SizedBox(width: 8),
+                _buildMetrikButton(
+                  metrik: GrowthMetric.bmiForAge,
+                  unit: data.series.bmiUnit,
+                ),
+              ],
+            ),
           ),
           const SizedBox(height: 16),
           SizedBox(
             height: 280,
             child: data.tanpaData
                 ? _buildBelumAdaData()
-                : GrowthLineChart(
+                : _metrikAktifPunyaTitik
+                ? GrowthLineChart(
                     series: data.series,
-                    whoReference: data.whoReference,
+                    whoBands: data.whoBands,
                     metrikAktif: _metrik,
-                  ),
+                  )
+                : _buildMetrikKosong(),
           ),
         ],
       ),
@@ -293,14 +319,15 @@ class _GrowthChartViewState extends State<GrowthChartView> {
   }
 
   Widget _buildMetrikButton({
-    required String label,
+    required GrowthMetric metrik,
     required String unit,
-    required bool aktif,
-    required VoidCallback onTap,
   }) {
+    final aktif = _metrik == metrik;
+    final warnaGaris = GrowthLineChart.warnaMetrik(metrik);
+
     return Expanded(
       child: InkWell(
-        onTap: onTap,
+        onTap: () => setState(() => _metrik = metrik),
         borderRadius: BorderRadius.circular(12),
         child: Container(
           padding: const EdgeInsets.symmetric(vertical: 10),
@@ -316,14 +343,29 @@ class _GrowthChartViewState extends State<GrowthChartView> {
           ),
           child: Column(
             children: [
-              Text(
-                label,
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.bold,
-                  color: aktif ? _warna.warnaTeksAksen : Colors.grey[700],
-                ),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Container(
+                    width: 8,
+                    height: 8,
+                    decoration: BoxDecoration(
+                      color: warnaGaris,
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    metrik.label,
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                      color: aktif ? _warna.warnaTeksAksen : Colors.grey[700],
+                    ),
+                  ),
+                ],
               ),
+              const SizedBox(height: 2),
               Text(
                 unit,
                 style: TextStyle(
@@ -341,10 +383,9 @@ class _GrowthChartViewState extends State<GrowthChartView> {
   /// Legenda satu baris untuk pita WHO.
   ///
   /// Pengguna tidak boleh menebak artinya dari warna saja - area abu-abu tanpa
-  /// keterangan akan sering dibaca sebagai "area yang salah".
+  /// keterangan akan sering dibaca sebagai "area yang salah". Teksnya sengaja
+  /// generik karena pita yang digambar bisa BB/U, TB/U, atau IMT/U.
   Widget _buildLegend(GrowthChart data) {
-    if (data.tanpaPita) return const SizedBox.shrink();
-
     return Row(
       children: [
         Container(
@@ -506,10 +547,127 @@ class _GrowthChartViewState extends State<GrowthChartView> {
     );
   }
 
-  /// Warna + ikon mengikuti klasifikasi status gizi dari trigger WHO.
+  // -----------------------------------------------------------------
+  // Kartu ringkas indikator multidimensi.
+  /// TB/U, IMT/U, dan BB/TB dari penimbangan terakhir yang punya salah satunya.
+  ///
+  /// Terpisah dari kartu BB/U di atas, karena masing-masing indikator WHO
+  /// punya statusnya sendiri dan layar tidak boleh menyimpulkan satu dari yang
+  /// lain. Angkanya dibaca apa adanya dari trigger; tidak ada yang dihitung di
+  /// sini. Warna memakai pemetaan yang sama dengan kartu BB/U.
+  Widget _buildKartuMultidim(GrowthChart data) {
+    final titik = data.series.titikMultidimTerakhir;
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: _warna.aksen.withValues(alpha: 0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.straighten, color: _warna.aksen, size: 20),
+              const SizedBox(width: 8),
+              const Expanded(
+                child: Text(
+                  'Indikator Pertumbuhan',
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          if (titik == null)
+            const Text(
+              'Belum ada data TB/U, IMT/U, atau BB/TB untuk anak ini.',
+              style: TextStyle(color: Colors.grey, fontSize: 13, height: 1.4),
+            )
+          else ...[
+            _barisIndikator('TB/U - Stunting', titik.statusStunting),
+            const SizedBox(height: 10),
+            _barisIndikator('IMT/U', titik.statusGiziImt),
+            const SizedBox(height: 10),
+            // BB/TB tidak punya acuan di atas 24 bulan, jadi barisnya
+            // menjelaskan itu alih-alih menampilkan "-" tanpa sebab.
+            if (titik.ageInMonths != null && titik.ageInMonths! < 24)
+              _barisIndikator('BB/TB', titik.statusWfh, nilaiZ: titik.zScoreWfh)
+            else
+              _barisIndikatorTidakBerlaku(
+                'BB/TB',
+                'Tidak berlaku untuk usia 24 bulan ke atas.',
+              ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _barisIndikator(String label, String? status, {double? nilaiZ}) {
+    final teks = status ?? (nilaiZ == null ? null : 'z ${nilaiZ.toStringAsFixed(2)}');
+    final warna = status == null ? Colors.grey : warnaStatusGizi(status).warna;
+
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SizedBox(
+          width: 108,
+          child: Text(
+            label,
+            style: TextStyle(fontSize: 12, color: Colors.grey[700]),
+          ),
+        ),
+        Expanded(
+          child: Text(
+            teks ?? '-',
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.bold,
+              color: warna,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _barisIndikatorTidakBerlaku(String label, String keterangan) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SizedBox(
+          width: 108,
+          child: Text(
+            label,
+            style: TextStyle(fontSize: 12, color: Colors.grey[700]),
+          ),
+        ),
+        Expanded(
+          child: Text(
+            keterangan,
+            style: const TextStyle(
+              fontSize: 12,
+              color: Colors.grey,
+              fontStyle: FontStyle.italic,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
   // -----------------------------------------------------------------
   // Empty state di dalam kanvas.
-  ///
   /// Kartu pesan muncul di dalam area grafik, bukan menggantikannya, supaya
   /// pengguna tetap tahu tempat di mana grafiknya akan tampil begitu ada
   /// penimbangan.
@@ -528,6 +686,32 @@ class _GrowthChartViewState extends State<GrowthChartView> {
             'Belum ada penimbangan yang tercatat',
             textAlign: TextAlign.center,
             style: TextStyle(color: Colors.grey, fontSize: 13),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Metrik aktif tidak punya satu titik pun untuk digambar.
+  ///
+  /// Terjadi misalnya saat IMT/U dipilih tapi tinggi badan belum pernah diukur,
+  /// sehingga BMI semua titik `null`. Dibedakan dari [._buildBelumAdaData]:
+  /// di sini anak **sudah** ditimbang, cuma metrik ini yang belum ada datanya.
+  Widget _buildMetrikKosong() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(
+            Icons.show_chart,
+            size: 60,
+            color: _warna.warnaIkonKosong,
+          ),
+          const SizedBox(height: 12),
+          Text(
+            'Belum ada data ${_metrik.label} yang bisa digambar',
+            textAlign: TextAlign.center,
+            style: const TextStyle(color: Colors.grey, fontSize: 13),
           ),
         ],
       ),

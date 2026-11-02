@@ -36,6 +36,7 @@ class UserFactory extends Factory
             // Panjang NIK harus tepat 16 digit: kolom `users.nik` adalah
             // `varchar(16)` dan `AuthController` memvalidasi `size:16`.
             'nik' => (string) fake()->unique()->numerify('3273############'),
+            'nik_hash' => fn (array $attributes) => hash('sha256', $attributes['nik']),
             'name' => fake()->name(),
             'password' => static::$password ??= Hash::make(self::PASSWORD),
             // Literal string, bukan konstanta: seluruh aplikasi membandingkan
@@ -43,6 +44,11 @@ class UserFactory extends Factory
             'role' => 'ibu',
             'phone_number' => fake()->numerify('08##########'),
             'jabatan' => null,
+            'status' => 'active',
+            'place_of_birth' => 'Bandung',
+            'date_of_birth' => '1990-01-01',
+            'gender' => 'P',
+            'address' => 'Jl. Test',
             'remember_token' => Str::random(10),
         ];
     }
@@ -59,6 +65,7 @@ class UserFactory extends Factory
         return $this->state(fn (array $attributes) => [
             'role' => 'kader',
             'jabatan' => 'Kader Posyandu',
+            'status' => 'active',
         ]);
     }
 

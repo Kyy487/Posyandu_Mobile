@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\Auditable;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
@@ -35,10 +36,11 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  */
 class ImmunizationRecord extends Model
 {
-    use HasFactory, HasUuids, SoftDeletes;
+    use Auditable, HasFactory, HasUuids, SoftDeletes;
 
     protected $fillable = [
         'child_id',
+        'visit_id',
         'kader_id',
         'immunization_type_id',
         'date_given',
@@ -62,6 +64,12 @@ class ImmunizationRecord extends Model
     public function child(): BelongsTo
     {
         return $this->belongsTo(Child::class);
+    }
+
+    /** Kunjungan tempat suntikan ini dicatat. Null bila diluar sesi kunjungan. */
+    public function visit(): BelongsTo
+    {
+        return $this->belongsTo(Visit::class);
     }
 
     /**

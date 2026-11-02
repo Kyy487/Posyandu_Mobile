@@ -5,14 +5,16 @@ Proyek ini menggunakan UUID untuk seluruh Primary Key dan relasi tabel.
 ## 1. `users` (Master Data)
 Menyimpan autentikasi Ibu dan Kader.
 * `id` (UUID, PK)
-* `nik` (String 16, Unique)
+* `nik` (Text, Unique, terenkripsi AES-256-GCM via `$casts`)
+* `nik_hash` (String 64, Index, SHA-256 — untuk lookup login)
 * `name`, `email`, `password`, `phone_number`
 * `role` (Enum: 'ibu', 'kader')
 
 ## 2. `children` (Data Anak)
 * `id` (UUID, PK)
 * `user_id` (UUID, FK -> users.id) — acuan resmi relasi ibu
-* `nik` (String 16, Unique, Nullable)
+* `nik` (Text, Unique, Nullable, terenkripsi AES-256-GCM via `$casts`)
+* `nik_hash` (String 64, Index, Nullable, SHA-256 — untuk lookup)
 * `name`, `gender` ('L', 'P'), `date_of_birth`
 * `birth_weight` (Float), `birth_height` (Float)
 * `medical_flags` (Text, Nullable) — kondisi khusus anak (alergi, penyakit
@@ -41,24 +43,45 @@ Menyimpan autentikasi Ibu dan Kader.
 > diparsing** (Kader dan Ibu membaca nilai yang sama apa adanya), dan **tidak ada
 > CHECK constraint** — batas 500 karakter divalidasi di `ChildController@update`
 > supaya kesalahan ketik jadi 422 yang bisa dibaca, bukan error PostgreSQL.
-> Keputusan lengkapnya ada di `docs/RANCANGAN_BUKU_MEDIS.md` bagian 5.1.
+> Keputusan lengkapnya ada di `docs/arsip/RANCANGAN_BUKU_MEDIS.md` bagian 5.1.
 
 ## 3. `measurements` (e-KMS / Riwayat Tumbuh Kembang)
 
 Migration `2026_09_27_020000_prepare_measurements_for_recap.php` menyiapkan
 tabel ini untuk rekap bulanan (Opsi E). Opsi D (grafik tumbuh kembang) hanya
-membaca tabel ini dan tidak menambah kolom.
+membaca tabel ini. Kolom indikator WHO multidimensi ditambahkan P0-2 (10 Oktober
+2026) dan perluasan grafik multidimensi (15 Oktober 2026), lihat di bawah.
 
 * `id` (UUID, PK)
 * `child_id` (UUID, FK -> children.id, **cascade delete**)
 * `kader_id` (UUID, FK -> users.id, nullable, **set null**) — nullable + `ON
   DELETE SET NULL` supaya riwayat penimbangan tetap utuh walau akun kader
   dihapus. Nilai `NULL` berarti "kader tidak diketahui", bukan "riwayat hilang".
+* `visit_id` (UUID, FK -> visits.id, nullable, **set null**) — kunjungan tempat
+  penimbangan dicatat. Ditambahkan migration
+  `2026_10_11_233501_add_visit_id_to_measurements_table.php` (P0-1). `NULL`
+  berarti penimbangan tidak terkait kunjungan (alur lama tetap sah).
 * `measurement_date` (Date)
 * `weight_kg`, `height_cm`, `head_circumference_cm` (Decimal)
-* `age_in_months` (Int), `z_score_wfa` (Decimal), `status_gizi` (String)
+* `age_in_months` (Int), `z_score_wfa` (Decimal), `status_gizi` (String) — BB/U.
+  `status_gizi` **khusus BB/U**, bukan status komposit terburuk (dipulihkan
+  migration `2026_10_12_000000_restore_wfa_only_status_gizi_trigger.php`).
+* `z_score_hfa` (Decimal, Nullable), `status_stunting` (String 20, Nullable) —
+  TB/U. Ditambahkan migration
+  `2026_10_10_104713_add_who_multidim_columns_to_measurements.php`
+* `z_score_bfa` (Decimal, Nullable), `status_gizi_imt` (String 30, Nullable) —
+  IMT/U. Migration yang sama
+* `z_score_wfh` (Decimal, Nullable) — BB/TB (`< 24` bulan, indeks `length_cm`).
+  Ditambahkan migration `2026_10_10_112842_create_who_wfh_standards_table.php`
+* `status_wfh` (String 20, Nullable) — status BB/TB. Ditambahkan migration
+  `2026_10_15_052851_add_status_wfh_to_measurements_and_trigger.php` (Opsi A)
 * `deleted_at` (Timestamp, nullable) — soft delete
 * `created_at`, `updated_at`
+
+Semua kolom turunan (`age_in_months`, `z_score_*`, `status_*`) diisi trigger
+`calculate_measurement_who_zscore`: dikosongkan lebih dulu, lalu hanya diisi
+bila acuan WHO yang cocok ditemukan. Di luar rentang (mis. umur > 60 bulan, atau
+BB/TB untuk umur ≥ 24 bulan), nilainya `NULL` — bukan `"Normal"`.
 
 **Index dan constraint:**
 
@@ -84,20 +107,64 @@ Tabel acuan perhitungan Z-Score berat badan menurut umur. Dihasilkan oleh migrat
 * `median_kg` (Decimal), `sd_kg` (Decimal)
 * Unique `(age_in_months, gender)` — 122 baris (61 usia × 2 jenis kelamin)
 
-Tabel ini **satu-satunya** acuan WHO di database. Belum ada acuan TB/U
-(`who_hfa_standards`), jadi `measurements.z_score_hfa` dan status stunting
-tidak ada. Lihat `RANCANGAN_GRAFIK_TUMBUH_KEMBANG.md` bagian 5.1.
+`lower_kg` dan `upper_kg` diturunkan dari `median_kg` dan `sd_kg` di SQL saat
+query, bukan disimpan sebagai kolom.
 
-Opsi D (grafik tumbuh kembang) membaca tabel ini untuk pita ±2 SD, dan **tidak
-mengubah apa pun**: tidak ada tabel baru, tidak ada kolom baru, dan trigger
-`trg_measurements_who_zscore` tetap sama. `lower_kg` dan `upper_kg` diturunkan
-dari `median_kg` dan `sd_kg` di SQL saat query, bukan disimpan sebagai kolom.
-Jadi `GET /children/{id}/growth` tidak menambah migration apa pun.
+Tabel acuan WHO lain (semua ditambahkan P0-2, 10 Oktober 2026):
+
+* `who_hfa_standards` — TB/U, kolom `age_in_months`, `gender`, `l`, `m`, `s`;
+  unique `(age_in_months, gender)`. Migration
+  `2026_10_10_104330_create_who_hfa_standards_table.php`.
+* `who_bfa_standards` — IMT/U, bentuk sama dengan HFA. Migration
+  `2026_10_10_104404_create_who_bfa_standards_table.php`.
+* `who_wfh_standards` — BB/TB, diindeks `length_cm` (bukan umur), kolom `l`,
+  `m`, `s`; unique `(length_cm, gender)`. Migration
+  `2026_10_10_112842_create_who_wfh_standards_table.php`.
+
+Pita TB/U dan IMT/U dihitung dari `(l, m, s)` dengan rumus inverse LMS WHO di
+SQL (bukan disimpan sebagai kolom), dan grafis multidimensi membacanya lewat
+satu `UNION ALL` bersama BB/U. Lihat `docs/arsip/RANCANGAN_WHO_MULTIDIM.md` bagian
+4.4–4.6.
+
+## 4.1 `immunization_types` (Master Dosis Imunisasi)
+
+Migration `2026_09_26_031000_create_immunization_types_table.php`. Satu baris =
+satu dosis. Ini **data referensi** program nasional yang dibaca seluruh anak
+untuk menyusun checklist; tidak ada data anak di tabel ini.
+
+* `id` (UUID, PK)
+* `code` (String 20) — mis. `HB`, `BCG`, `POLIO`, `DPT-HB-HIB`, `MR`, `IPV`,
+  `ROTAVIRUS`, `PCV`, `JE`
+* `name` (String)
+* `dose_number` (Smallint, default 1)
+* `target_age_months` (Smallint, nullable) — usia target dalam bulan; `0` = saat lahir
+* `interval_months` (Smallint, nullable) — jarak dari dosis sebelumnya. Hanya
+  dikirim ke klien untuk tampilan; **tidak** dipakai server untuk validasi
+  tanggal (validasi membandingkan tanggal dosis tetangga yang benar-benar dicatat)
+* `notes` (Text, nullable)
+* `is_active` (Boolean, default `true`) — ditambahkan migration
+  `2026_10_12_011440_add_is_active_to_immunization_types_table.php`
+* `timestamps`
+* Unique `(code, dose_number)` (`immunization_types_code_dose_unique`)
+
+**Kenapa `is_active`, bukan `DELETE`?** `immunization_records.immunization_type_id`
+memakai `restrictOnDelete` (lihat bagian 5), sehingga menghapus baris master yang
+sudah dipakai akan gagal. Karena itu dosis yang sudah tidak dipakai (mis. jadwal
+lama berganti) di-`is_active = false`, bukan dihapus. Checklist, rekap, dan
+`GET /immunization-types` hanya membaca dosis aktif (scope
+`ImmunizationType::active()`), sementara catatan lama tetap utuh. Seeder master
+mengikuti kebijakan ini (lihat `DatabaseSeeder::seedImmunizationTypes()`).
+
+> Jadwal master terkini (jumlah dosis dan target usia) ada di
+> `docs/API_CONTRACT.md` bagian `GET /immunization-types`.
 
 ## 5. `immunization_records`
 * `id` (UUID, PK)
 * `child_id` (UUID, FK -> children.id)
-* `immunization_type_id` (UUID, FK -> immunization_types.id, ON DELETE SET NULL)
+* `visit_id` (UUID, FK -> visits.id, nullable, **set null**) — kunjungan tempat
+  suntikan dicatat. Migration
+  `2026_10_11_233502_add_visit_id_to_immunization_records_table.php` (P0-1).
+* `immunization_type_id` (UUID, FK -> immunization_types.id, **restrict on delete**)
 * `kader_id` (UUID, FK -> users.id, ON DELETE SET NULL, nullable)
 * `date_given` (Date)
 * `batch_number` (String, nullable), `notes` (Text, nullable)
@@ -111,6 +178,9 @@ Migration `2026_09_27_010000_create_medical_notes_table.php`. Satu anak punya
 * `id` (UUID, PK)
 * `child_id` (UUID, FK -> children.id, **cascade delete**)
 * `measurement_id` (UUID, FK -> measurements.id, nullable, **set null**) — boleh kosong karena keluhan bisa dicatat tanpa menimbang. Lihat catatan penting di bawah soal soft delete.
+* `visit_id` (UUID, FK -> visits.id, nullable, **set null**) — kunjungan tempat
+  keluhan dicatat. Migration
+  `2026_10_11_233503_add_visit_id_to_medical_notes_table.php` (P0-1).
 * `kader_id` (UUID, FK -> users.id, nullable, **set null**) — nullable agar catatan lama tetap utuh walau akun kader dihapus
 * `note_date` (Date)
 * `demam`, `rewel`, `diare` (Boolean, default `false`)
@@ -150,6 +220,126 @@ Migration `2026_09_27_010000_create_medical_notes_table.php`. Satu anak punya
 > pembatalan, itu harus dilakukan eksplisit — bukan diharapkan dari efek
 > samping `delete()`.
 
+## 5.2 `visits` (Kunjungan Layanan — P0-1)
+
+Migration `2026_10_11_233500_create_visits_table.php`. Satu kunjungan
+merepresentasikan **satu sesi layanan** untuk satu anak dan menjadi payung bagi
+pengukuran, imunisasi, dan keluhan yang terjadi di dalamnya. Spesifikasi penuh
+ada di `docs/arsip/RANCANGAN_VISIT.md`.
+
+* `id` (UUID, PK)
+* `child_id` (UUID, FK -> children.id, **cascade delete**)
+* `schedule_id` (UUID, FK -> posyandu_schedules.id, nullable, **set null**) —
+  agenda posyandu bila kunjungan terjadi pada sesi terjadwal
+* `visit_date` (Date)
+* `visit_type` (String(20)) — `posyandu` / `kunjungan_rumah` / `rujukan`
+* `kader_id` (UUID, FK -> users.id, nullable, **set null**) — nullable agar
+  riwayat kunjungan tetap utuh walau akun kader dihapus
+* `anamnesis` (Text, nullable) — keluhan utama
+* `catatan_kader` (Text, nullable)
+* `deleted_at` (Timestamp, nullable) — soft delete
+* `created_at`, `updated_at`
+
+**Index dan constraint:**
+
+* Index `(child_id, visit_date)` (`visits_child_date_index`) — melayani daftar
+  kunjungan per anak per periode
+* CHECK `visit_type IN ('posyandu','kunjungan_rumah','rujukan')`
+  (`visits_visit_type_check`)
+
+> **Tidak ada unique `(child_id, visit_date)`.** Satu anak boleh punya lebih
+> dari satu kunjungan di tanggal yang sama (mis. posyandu pagi lalu kunjungan
+> rumah sore). Keputusan ini sudah ditutup di `docs/arsip/RANCANGAN_VISIT.md` §7.1.
+>
+> **`visit_type` memakai string + CHECK, bukan enum PostgreSQL**, konsisten
+> dengan `medical_notes.tindak_lanjut` dan `posyandu_schedules.status`. Menambah
+> tipe baru cukup migration biasa.
+>
+> **Backfill.** Penimbangan lama yang belum punya `visit_id` dibuatkan satu
+> kunjungan "legacy" per `(anak, tanggal)` oleh migration
+> `2026_10_11_233504_backfill_legacy_visits_for_measurements.php`
+> (keputusan §7.3). Migration ini tidak melakukan apa pun di driver non-pgsql.
+
+## 5.3 `audit_logs` (Riwayat Audit)
+
+Migration `2026_10_12_013352_create_audit_logs_table.php`. Satu baris = satu
+perubahan yang dilakukan aplikasi pada entitas audited (`Child`, `Visit`,
+`Measurement`, `ImmunizationRecord`, `MedicalNote`).
+
+* `id` (UUID, PK)
+* `auditable_type` (String) — class model, mis. `App\Models\Child`
+* `auditable_id` (UUID) — primary key entitas yang diubah
+* `event` (String 20) — `created` / `updated` / `deleted` / `restored`
+* `actor_id` (UUID, FK -> users.id, nullable, **set null**) — pelaku perubahan;
+  null bila dilakukan sistem (seeder, backfill)
+* `old_values` (JSONB, nullable) — nilai sebelum perubahan
+* `new_values` (JSONB, nullable) — nilai sesudah perubahan
+* `ip_address` (String 45, nullable) — alamat IP asal permintaan
+* `timestamps`
+
+**Index dan constraint:**
+
+* Index `(auditable_type, auditable_id)` — riwayat per entitas
+* Index `(created_at)` — urut kronologis
+* Index `(actor_id)` — riwayat per pelaku
+* CHECK `event IN ('created','updated','deleted','restored')`
+
+> **Tidak ada penghapusan riwayat.** Baris audit tidak bisa dihapus lewat API.
+> Riwayat hanya bertambah.
+
+## 5.4 `consents` (Persetujuan UU PDP)
+
+Migration `2026_10_13_000003_create_consents_table.php`. Satu baris = satu
+persetujuan (consent) untuk satu anak dan satu `consent_type`. Wajib diisi saat
+pendaftaran anak (`ChildController@store`).
+
+* `id` (UUID, PK)
+* `child_id` (UUID, FK -> children.id, **cascade**)
+* `granted_by` (UUID, FK -> users.id, **cascade**) — Ibu/wali yang memberi persetujuan
+* `consent_type` (String 20) — `data_processing` / `data_sharing` / `research`
+* `granted_at` (Timestamp) — kapan persetujuan diberikan
+* `revoked_at` (Timestamp, nullable) — diisi saat consent dicabut; `null` = aktif
+* `document_version` (String 20) — versi formulir consent yang disetujui
+* `notes` (Text, nullable)
+* `timestamps`
+
+**Index dan constraint:**
+
+* Unique `(child_id, consent_type)` — satu baris per tipe consent per anak;
+  memberi ulang consent yang sudah dicabut memakai ulang baris yang sama
+  (reset `revoked_at`), bukan membuat baris baru.
+
+> **Pencabutan tidak menghapus baris.** `DELETE` mengisi `revoked_at`, sehingga
+> jejak persetujuan tetap tersimpan untuk audit (audit trail menyusul lewat
+> `audit_logs`).
+
+## 5.5 `referrals` (Rujukan ke Fasilitas Kesehatan)
+
+Migration `2026_10_13_152047_create_referrals_table.php`. Satu baris = satu
+rujukan anak ke fasilitas kesehatan, selalu terhubung ke satu kunjungan
+(`visit_id`) dan satu anak (`child_id`). Lihat `docs/arsip/RANCANGAN_RUJUKAN.md`.
+
+* `id` (UUID, PK)
+* `visit_id` (UUID, FK -> visits.id, **cascade**) — rujukan adalah bagian satu kunjungan
+* `child_id` (UUID, FK -> children.id, **cascade**)
+* `referral_date` (Date) — boleh berbeda dari `visits.visit_date`
+* `referral_type` (String 20) — `puskesmas` / `rs` / `faskes_lain`
+* `reason` (Text) — alasan rujukan
+* `facility_name` (String 255) — nama fasilitas tujuan
+* `status` (String 20) — `dibuat` / `dilaporkan` / `selesai`
+* `kader_id` (UUID, FK -> users.id, nullable, **set null**) — pencatat; null bila akun dihapus
+* `created_at`, `updated_at`
+* `deleted_at` (Timestamp, nullable) — soft delete
+
+**Index dan constraint:**
+
+* Index `(child_id, referral_date)` (`referrals_child_date_index`) — daftar rujukan satu anak per periode
+* CHECK `referral_type IN ('puskesmas','rs','faskes_lain')` (`referrals_referral_type_check`)
+* CHECK `status IN ('dibuat','dilaporkan','selesai')` (`referrals_status_check`)
+
+> **Pembatalan tidak menghapus baris.** `DELETE /referrals/{id}` mengisi
+> `deleted_at`, sehingga tindak lanjut tetap tersimpan untuk audit.
+
 ## 6. `spatial_zones` (Pemetaan - PostGIS) *Coming Soon*
 * `id` (UUID, PK), `child_id` (UUID, FK)
 * `coordinate` (Geometry/Point)
@@ -161,4 +351,4 @@ Objek berikut dibuat oleh migration yang sama dan **tidak** diubah oleh migratio
 * Trigger `trg_measurements_who_zscore` — `BEFORE INSERT OR UPDATE` pada `measurements`, sehingga revisi data otomatis di-recalc.
 
 > Detail perhitungan, klasifikasi status, dan cara rollback ada di
-> `docs/LAPORAN_ZSCORE_TRIGGER.md`.
+> `docs/arsip/LAPORAN_ZSCORE_TRIGGER.md`.

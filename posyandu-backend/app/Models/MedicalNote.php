@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\Auditable;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
@@ -24,10 +25,11 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  */
 class MedicalNote extends Model
 {
-    use HasFactory, HasUuids, SoftDeletes;
+    use Auditable, HasFactory, HasUuids, SoftDeletes;
 
     protected $fillable = [
         'child_id',
+        'visit_id',
         'measurement_id',
         'kader_id',
         'note_date',
@@ -87,6 +89,12 @@ class MedicalNote extends Model
     public function child(): BelongsTo
     {
         return $this->belongsTo(Child::class);
+    }
+
+    /** Kunjungan tempat catatan ini dibuat. Null bila diluar sesi kunjungan. */
+    public function visit(): BelongsTo
+    {
+        return $this->belongsTo(Visit::class);
     }
 
     /** Penimbangan yang dilampirkan. Null bila keluhan dicatat tanpa menimbang. */

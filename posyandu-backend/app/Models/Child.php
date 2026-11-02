@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\Auditable;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -13,14 +14,17 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Child extends Model
 {
-    use HasFactory, HasUuids, SoftDeletes;
+    use Auditable, HasFactory, HasUuids, SoftDeletes;
 
     protected $fillable = [
         'user_id',
         'nik',
+        'nik_hash',
         'name',
-        'date_of_birth',
+        'place_of_birth',
+        'birth_place',
         'gender',
+        'date_of_birth',
         'birth_weight',
         'birth_height',
         'medical_flags',
@@ -43,7 +47,16 @@ class Child extends Model
     protected $hidden = [
         'latestMeasurement',
         'deleted_at',
+        'nik',
+        'nik_hash',
     ];
+
+    protected function casts(): array
+    {
+        return [
+            'nik' => 'encrypted',
+        ];
+    }
 
     /**
      * Relasi yang SELALU dimuat bersama model ini.
@@ -89,6 +102,12 @@ class Child extends Model
         return $this->hasMany(Measurement::class);
     }
 
+    /** Satu Anak memiliki banyak kunjungan layanan. */
+    public function visits(): HasMany
+    {
+        return $this->hasMany(Visit::class);
+    }
+
     /**
      * Pengukuran terakhir anak, diurutkan dari yang terbaru.
      *
@@ -126,6 +145,18 @@ class Child extends Model
     public function medicalNotes(): HasMany
     {
         return $this->hasMany(MedicalNote::class);
+    }
+
+    /** Satu Anak memiliki banyak consent (persetujuan UU PDP). */
+    public function consents(): HasMany
+    {
+        return $this->hasMany(Consent::class);
+    }
+
+    /** Satu Anak memiliki banyak rujukan ke fasilitas kesehatan. */
+    public function referrals(): HasMany
+    {
+        return $this->hasMany(Referral::class);
     }
 
     // -----------------------------------------------------------------

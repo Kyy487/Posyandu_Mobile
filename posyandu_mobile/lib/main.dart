@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
-import 'screens/login_screen.dart';
+import 'screens/shared/login_screen.dart';
+import 'screens/kader/validasi/kader_registrations_screen.dart';
 import 'theme/app_theme.dart';
 
 void main() {
@@ -17,6 +18,10 @@ class MyApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       theme: AppTheme.build(),
       home: const LoginScreen(),
+      routes: {
+        '/login': (context) => const LoginScreen(),
+        '/kader/registrations': (context) => const KaderRegistrationsScreen(),
+      },
     );
   }
 }

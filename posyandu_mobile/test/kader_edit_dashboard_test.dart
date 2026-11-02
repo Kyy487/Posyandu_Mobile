@@ -20,13 +20,17 @@
 // adalah apa yang bisa salah tanpa server: state UI, prefill, validasi, dan
 // pemetaan warna.
 
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
 
 import 'package:posyandu_mobile/models/child.dart';
-import 'package:posyandu_mobile/screens/kader/edit_child_screen.dart';
-import 'package:posyandu_mobile/screens/kader/kader_dashboard_screen.dart';
+import 'package:posyandu_mobile/screens/kader/data_anak/edit_child_screen.dart';
+import 'package:posyandu_mobile/screens/kader/dashboard/kader_dashboard_screen.dart';
 import 'package:posyandu_mobile/utils/status_gizi.dart';
 
 const _channelSecureStorage = MethodChannel(
@@ -379,6 +383,82 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('daftar anak terisi tampil tanpa error render', (tester) async {
+      // Regresi f497bcf: `ListView.builder` di dalam
+      // `SingleChildScrollView > Column` sempat dibiarkan tanpa `shrinkWrap`.
+      // Selama daftarnya kosong layar aman, tapi begitu ada minimal satu anak,
+      // viewport meminta tinggi tak terhingga dan melempar
+      // "Vertical viewport was given unbounded height" - seluruh layar gagal
+      // render, daftar tidak tampil, dan tombol-tombol ikut tidak bisa ditekan.
+      // Test dengan state kosong tidak pernah menangkap ini, jadi di sini
+      // daftarnya sengaja diisi.
+      tester.view.physicalSize = const Size(1080, 2400);
+      tester.view.devicePixelRatio = 3.0;
+      addTearDown(tester.view.reset);
+
+      _pasangStorage(token: 'token-uji');
+
+      final client = MockClient((request) async {
+        final path = request.url.path;
+        if (path.endsWith('/children')) {
+          return http.Response(
+            jsonEncode({
+              'success': true,
+              'message': 'ok',
+              'data': [
+                {
+                  'id': '01a0ff96-eb85-71c4-bd7d-1931043a1243',
+                  'nik': '3201010102030001',
+                  'name': 'Naya Putri Uji',
+                  'parent_name': 'Siti Uji',
+                  'date_of_birth': '2023-06-15',
+                  'gender': 'P',
+                },
+                {
+                  'id': '01a0ff96-eb85-71c4-bd7d-1931043a1244',
+                  'nik': '3201010102030002',
+                  'name': 'Budi Santoso',
+                  'parent_name': 'Ibu Annisa',
+                  'date_of_birth': '2022-01-10',
+                  'gender': 'L',
+                },
+              ],
+            }),
+            200,
+            headers: {'content-type': 'application/json'},
+          );
+        }
+        if (path.endsWith('/user')) {
+          return http.Response(
+            jsonEncode({
+              'success': true,
+              'data': {'id': 'x', 'name': 'Kader Siti', 'role': 'kader'},
+            }),
+            200,
+            headers: {'content-type': 'application/json'},
+          );
+        }
+        return http.Response('{}', 404);
+      });
+
+      await http.runWithClient(() async {
+        await tester.pumpWidget(
+          const MaterialApp(home: DashboardKaderScreen()),
+        );
+        await tester.pumpAndSettle();
+
+        // Daftar anak kini ada di tab "Data Anak", bukan langsung di Beranda.
+        // Label nav hanya ada di Semantics/Tooltip (bukan Text), jadi ditekan
+        // lewat ikonnya.
+        await tester.tap(find.byIcon(Icons.people_alt_rounded));
+        await tester.pumpAndSettle();
+
+        expect(tester.takeException(), isNull);
+        expect(find.text('Naya Putri Uji'), findsOneWidget);
+        expect(find.text('Budi Santoso'), findsOneWidget);
+      }, () => client);
     });
   });
 }

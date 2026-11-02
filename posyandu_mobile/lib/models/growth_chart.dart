@@ -1,7 +1,7 @@
 /// Model grafik tumbuh kembang satu anak (Opsi D).
 ///
 /// Sumber datanya `GET /api/children/{id}/growth`, yang bentuknya dikunci di
-/// `docs/RANCANGAN_GRAFIK_TUMBUH_KEMBANG.md` bagian 7.2 dan di aturan agent
+/// `docs/arsip/RANCANGAN_GRAFIK_TUMBUH_KEMBANG.md` bagian 7.2 dan di aturan agent
 /// `posyandu-backend/.ai/rules/kontrak-growth.md`. Kalau bentuk di sini terasa
 /// perlu berubah, dokumennya yang diubah lebih dulu.
 ///
@@ -136,11 +136,18 @@ class GrowthPoint {
   /// Tidak ada fallback nol. `null` berarti "tidak ditimbang hari itu".
   final double? weightKg;
 
-  /// Nilai mentah, tanpa pita. Tidak ada acuan WHO TB/U di database, jadi
-  /// bagian 5.1 dokumen ini memutuskan tinggi badan digambar tanpa band.
+  /// Nilai mentah tinggi badan. Pitanya ada di `who_references` bermetrik
+  /// `height_for_age`; titik ini sendiri cuma menyimpan angkanya.
   final double? heightCm;
 
   final double? headCircumferenceCm;
+
+  /// Indeks Massa Tubuh anak, dihitung server: `berat / (tinggi/100)^2`.
+  ///
+  /// Bukan z-score dan bukan median WHO, jadi aman dikirim server. Pitanya ada
+  /// di `who_references` bermetrik `bmi_for_age`. `null` kalau tinggi atau berat
+  /// tidak ada - bukan nol.
+  final double? bmi;
 
   /// Dibaca apa adanya dari trigger, tidak dihitung ulang di sini.
   ///
@@ -150,14 +157,36 @@ class GrowthPoint {
 
   final String? statusGizi;
 
+  /// TB/U: z-score panjang/tinggi badan menurut umur, dari trigger.
+  final double? zScoreHfa;
+
+  final String? statusStunting;
+
+  /// IMT/U: z-score indeks massa tubuh menurut umur, dari trigger.
+  final double? zScoreBfa;
+
+  final String? statusGiziImt;
+
+  /// BB/TB: hanya < 24 bulan. `null` di luarnya, dan tidak pernah diisi 0.
+  final double? zScoreWfh;
+
+  final String? statusWfh;
+
   const GrowthPoint({
     this.date,
     this.ageInMonths,
     this.weightKg,
     this.heightCm,
     this.headCircumferenceCm,
+    this.bmi,
     this.zScoreWfa,
     this.statusGizi,
+    this.zScoreHfa,
+    this.statusStunting,
+    this.zScoreBfa,
+    this.statusGiziImt,
+    this.zScoreWfh,
+    this.statusWfh,
   });
 
   /// Umur dalam tahun-desimal untuk sumbu x.
@@ -176,6 +205,25 @@ class GrowthPoint {
   /// Titik ini bisa digambar di grafik tinggi badan.
   bool get bisaDigambarTinggi => umurTahun != null && heightCm != null;
 
+  /// Titik ini bisa digambar di grafik IMT/U.
+  ///
+  /// Syaratnya sama: umur untuk sumbu x, dan BMI untuk sumbu y. BMI `null`
+  /// berarti tinggi badannya tidak diukur hari itu, bukan BMI nol.
+  bool get bisaDigambarBmi => umurTahun != null && bmi != null;
+
+  /// Titik ini punya salah satu angka multidimensi dari trigger.
+  ///
+  /// Dipakai kartu ringkasan supaya tidak memilih titik terakhir yang seluruh
+  /// angka TB/U, IMT/U, dan BB/TB-nya `null` - itu akan menampilkan "-" padahal
+  /// masih ada kunjungan sebelumnya yang punya.
+  bool get punyaMultidim =>
+      zScoreHfa != null ||
+      statusStunting != null ||
+      zScoreBfa != null ||
+      statusGiziImt != null ||
+      zScoreWfh != null ||
+      statusWfh != null;
+
   /// Label tanggal siap tampil untuk keterangan titik.
   ///
   /// Memakai `labelTanggal()` yang sudah ada, bukan `DateTime.parse`, supaya
@@ -191,8 +239,15 @@ class GrowthPoint {
       weightKg: _desimal(json['weight_kg']),
       heightCm: _desimal(json['height_cm']),
       headCircumferenceCm: _desimal(json['head_circumference_cm']),
+      bmi: _desimal(json['bmi']),
       zScoreWfa: _desimal(json['z_score_wfa']),
       statusGizi: _teks(json['status_gizi']),
+      zScoreHfa: _desimal(json['z_score_hfa']),
+      statusStunting: _teks(json['status_stunting']),
+      zScoreBfa: _desimal(json['z_score_bfa']),
+      statusGiziImt: _teks(json['status_gizi_imt']),
+      zScoreWfh: _desimal(json['z_score_wfh']),
+      statusWfh: _teks(json['status_wfh']),
     );
   }
 
@@ -226,6 +281,10 @@ class GrowthSeries {
   final String weightUnit;
   final String heightUnit;
 
+  /// Satuan BMI untuk grafik IMT/U. Server mengirim `"kg/m2"`; default di sini
+  /// hanya jaring pengaman kalau kunci `unit.bmi` hilang pada klien lama.
+  final String bmiUnit;
+
   /// Arah urut dari server. Selalu `"asc"`.
   ///
   /// Field ini ada supaya klien tidak perlu menebak urutan dan supaya test bisa
@@ -239,6 +298,7 @@ class GrowthSeries {
   const GrowthSeries({
     this.weightUnit = 'kg',
     this.heightUnit = 'cm',
+    this.bmiUnit = 'kg/m2',
     this.order = 'asc',
     this.points = const <GrowthPoint>[],
   });
@@ -252,6 +312,10 @@ class GrowthSeries {
   /// Jumlah titik yang punya tinggi badan.
   int get jumlahTitikTinggi =>
       points.where((p) => p.heightCm != null && p.umurTahun != null).length;
+
+  /// Jumlah titik yang punya BMI (bisa digambar di grafik IMT/U).
+  int get jumlahTitikBmi =>
+      points.where((p) => p.bmi != null && p.umurTahun != null).length;
 
   /// Umur anak saat penimbangan terakhir, untuk batas kanan sumbu x.
   ///
@@ -296,6 +360,20 @@ class GrowthSeries {
     return null;
   }
 
+  /// Titik terakhir yang punya salah satu angka multidimensi dari trigger.
+  ///
+  /// Mengambil titik terakhir yang [GrowthPoint.punyaMultidim], bukan titik
+  /// terakhir yang ada: kunjungan terakhir anak di atas 60 bulan punya semua
+  /// angka itu `null`, sementara kunjungan sebelumnya masih punya. Kartu yang
+  /// menampilkan "-" padahal masih ada angka akan membuat Ibu mengira datanya
+  /// hilang.
+  GrowthPoint? get titikMultidimTerakhir {
+    for (final p in points.reversed) {
+      if (p.punyaMultidim) return p;
+    }
+    return null;
+  }
+
   factory GrowthSeries.fromJson(Map<String, dynamic> json) {
     final unit = json['unit'];
     final daftar = json['points'];
@@ -303,6 +381,7 @@ class GrowthSeries {
     return GrowthSeries(
       weightUnit: unit is Map ? _teks(unit['weight']) ?? 'kg' : 'kg',
       heightUnit: unit is Map ? _teks(unit['height']) ?? 'cm' : 'cm',
+      bmiUnit: unit is Map ? _teks(unit['bmi']) ?? 'kg/m2' : 'kg/m2',
       order: _teks(json['order']) ?? 'asc',
       points: daftar is List
           ? daftar
@@ -364,8 +443,9 @@ class WhoReferencePoint {
 
 /// Pita acuan WHO untuk berat badan menurut umur.
 ///
-/// Hanya untuk BB/U. Tidak ada pita tinggi badan, dan tidak akan pernah ada di
-/// kelas ini selama database tidak punya acuan TB/U.
+/// Ini salinan tunggal BB/U yang dipertahankan untuk kompatibilitas klien lama;
+/// tiga metrik (BB/U, TB/U, IMT/U) yang berbentuk seragam ada di
+/// [WhoBandReference] lewat `who_references`. Kelas ini **tidak diubah**.
 class WhoReference {
   /// Selalu `"weight_for_age"`. Dicek di test supaya kelas ini tidak diam-diam
   /// dipakai untuk metrik lain.
@@ -442,10 +522,18 @@ class GrowthChart {
   final GrowthSeries series;
   final WhoReference whoReference;
 
+  /// Tiga pita WHO berbagi bentuk seragam: BB/U, TB/U, dan IMT/U.
+  ///
+  /// Urutannya normatif di server (`weight_for_age`, `height_for_age`,
+  /// `bmi_for_age`); model ini tidak mengurutkan ulang, sama seperti `points`.
+  /// BB/TB sengaja tidak ada di sini karena sumbunya panjang badan, bukan umur.
+  final List<WhoBandReference> whoBands;
+
   const GrowthChart({
     this.child = const GrowthChild(),
     this.series = const GrowthSeries(),
     this.whoReference = const WhoReference(),
+    this.whoBands = const <WhoBandReference>[],
   });
 
   /// Belum ada penimbangan sama sekali.
@@ -461,10 +549,22 @@ class GrowthChart {
   /// Label ringkas untuk layar: "Siti - 2 Tahun 6 Bulan".
   String get judulLayar => '$child.name - ${child.labelUmur}';
 
+  /// Pita untuk satu metrik `weight_for_age`/`height_for_age`/`bmi_for_age`.
+  ///
+  /// `null` berarti metrik itu tidak dikirim server (misalnya klien lama), dan
+  /// grafik harus menggambar garis anak tanpa pita - bukan mengarang pita.
+  WhoBandReference? bandUntuk(String metric) {
+    for (final band in whoBands) {
+      if (band.metric == metric) return band;
+    }
+    return null;
+  }
+
   factory GrowthChart.fromJson(Map<String, dynamic> json) {
     final anak = json['child'];
     final deret = json['series'];
     final pita = json['who_reference'];
+    final pitaJamak = json['who_references'];
 
     return GrowthChart(
       child: anak is Map
@@ -476,6 +576,124 @@ class GrowthChart {
       whoReference: pita is Map
           ? WhoReference.fromJson(Map<String, dynamic>.from(pita))
           : const WhoReference(),
+      whoBands: pitaJamak is List
+          ? pitaJamak
+                .whereType<Map>()
+                .map(
+                  (e) =>
+                      WhoBandReference.fromJson(Map<String, dynamic>.from(e)),
+                )
+                .toList()
+          : const <WhoBandReference>[],
     );
+  }
+}
+
+/// Satu titik pita WHO berbentuk seragam untuk BB/U, TB/U, dan IMT/U.
+///
+/// Bentuknya sengaja sama untuk ketiga metrik supaya grafik tidak punya tiga
+/// jalur kode. `median`/`lower`/`upper` sudah punya satuan metriknya
+/// ([WhoBandReference.unit]).
+class WhoBandPoint {
+  final int ageInMonths;
+  final double median;
+  final double lower;
+  final double upper;
+
+  const WhoBandPoint({
+    required this.ageInMonths,
+    required this.median,
+    required this.lower,
+    required this.upper,
+  });
+
+  double get umurTahun => ageInMonths / 12.0;
+
+  factory WhoBandPoint.fromJson(Map<String, dynamic> json) {
+    // Default `-1` mengikuti [WhoReferencePoint]: field yang hilang tidak boleh
+    // diam-diam jadi 0, karena median 0 menarik sumbu y dan membuat pita
+    // terlihat benar padahal salah.
+    return WhoBandPoint(
+      ageInMonths: _bulan(json['age_in_months']) ?? -1,
+      median: _desimal(json['median']) ?? -1,
+      lower: _desimal(json['lower']) ?? -1,
+      upper: _desimal(json['upper']) ?? -1,
+    );
+  }
+
+  static double? _desimal(dynamic value) {
+    if (value == null) return null;
+    if (value is num) return value.toDouble();
+    return double.tryParse(value.toString());
+  }
+
+  static int? _bulan(dynamic value) {
+    if (value == null) return null;
+    if (value is num) return value.toInt();
+    return int.tryParse(value.toString());
+  }
+}
+
+/// Pita acuan WHO satu metrik (BB/U, TB/U, atau IMT/U).
+///
+/// `metric` nilainya `weight_for_age`, `height_for_age`, atau `bmi_for_age`.
+/// [WhoBandReference.metric] yang menghubungkan pita ke metrik di
+/// `growth_line_chart.dart`; mencocokkan lewat [label] akan rapuh karena label
+/// hanya untuk tampilan.
+class WhoBandReference {
+  final String metric;
+  final String label;
+  final String unit;
+  final String source;
+  final String? gender;
+  final int? ageFrom;
+  final int? ageTo;
+  final List<WhoBandPoint> points;
+
+  const WhoBandReference({
+    this.metric = '',
+    this.label = '',
+    this.unit = '',
+    this.source = '',
+    this.gender,
+    this.ageFrom,
+    this.ageTo,
+    this.points = const <WhoBandPoint>[],
+  });
+
+  /// Pita tidak ada. Grafik harus menggambar garis anak tanpa pita.
+  bool get kosong => points.isEmpty;
+
+  factory WhoBandReference.fromJson(Map<String, dynamic> json) {
+    final rentang = json['age_range'];
+    final daftar = json['points'];
+
+    return WhoBandReference(
+      metric: _teks(json['metric']) ?? '',
+      label: _teks(json['label']) ?? '',
+      unit: _teks(json['unit']) ?? '',
+      source: _teks(json['source']) ?? '',
+      gender: _teks(json['gender']),
+      ageFrom: rentang is Map ? _bulan(rentang['from']) : null,
+      ageTo: rentang is Map ? _bulan(rentang['to']) : null,
+      points: daftar is List
+          ? daftar
+                .whereType<Map>()
+                .map((e) => WhoBandPoint.fromJson(Map<String, dynamic>.from(e)))
+                .toList()
+          : const <WhoBandPoint>[],
+    );
+  }
+
+  static String? _teks(dynamic value) {
+    if (value == null) return null;
+    final text = value.toString().trim();
+    return text.isEmpty ? null : text;
+  }
+
+  static int? _bulan(dynamic value) {
+    if (value == null) return null;
+    if (value is num) return value.toInt();
+    return int.tryParse(value.toString());
   }
 }

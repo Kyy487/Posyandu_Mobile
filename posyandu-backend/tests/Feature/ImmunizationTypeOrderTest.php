@@ -18,21 +18,21 @@ use Tests\TestCase;
  * tidak ada satu pun perhitungan angka yang menjatuhkannya. Itu sebabnya bug
  * ini tidak akan pernah ketahuan dari kegagalan perhitungan.
  *
- * Test-test di sini sengaja memakai master 16 dosis yang sama persis dengan
- * `DatabaseSeeder::seedImmunizationTypes()`, karena itu satu-satunya master
- * 16 dosis di proyek ini. Kode vaccine di seed tersebut sengaja diurutkan
- * abjad, bukan menurut jadwal - jadi fixture ini sekaligus membuktikan bahwa
- * urutannya benar-benar berubah kalau `scopeOrderedForDosing()` kembali ke
- * `orderBy('code')`.
+ * Test-test di sini memakai master dosis dasar lengkap yang sama seperti
+ * `DatabaseSeeder::seedImmunizationTypes()`. Fixture menyalinnya supaya urutan
+ * yang diharapkan ditulis dari jadwal, bukan dari output endpoint. `code`
+ * dalam fixture sengaja tidak diurutkan menurut jadwal, jadi fixture ini
+ * sekaligus membuktikan bahwa urutannya benar-benar berubah kalau
+ * `scopeOrderedForDosing()` kembali ke `orderBy('code')`.
  */
 class ImmunizationTypeOrderTest extends TestCase
 {
     use RefreshDatabase;
 
     /**
-     * Master 16 dosis, disalin apa adanya dari `DatabaseSeeder`. `code` di
-     * array ini disusun dalam urutan alfabet (BCG, DPT-HB-HIB, HB, MR, POLIO)
-     * supaya test bisa membedakan "urutan jadwal" dari "urutan abjad".
+     * Master dosis aktif, disalin dari `DatabaseSeeder::seedImmunizationTypes()`.
+     * `code` di array ini tidak diurutkan menurut jadwal, supaya test bisa
+     * membedakan "urutan jadwal" dari "urutan abjad".
      *
      * @return array<int, array{0: string, 1: int, 2: int}>
      */
@@ -40,26 +40,31 @@ class ImmunizationTypeOrderTest extends TestCase
     {
         return [
             ['HB', 1, 0],
-            ['HB', 2, 2],
-            ['HB', 3, 4],
-            ['HB', 4, 6],
-            ['BCG', 1, 2],
-            ['POLIO', 1, 0],
+            ['BCG', 1, 1],
+            ['POLIO', 1, 1],
             ['POLIO', 2, 2],
             ['POLIO', 3, 3],
             ['POLIO', 4, 4],
-            ['POLIO', 5, 6],
             ['DPT-HB-HIB', 1, 2],
             ['DPT-HB-HIB', 2, 3],
             ['DPT-HB-HIB', 3, 4],
-            ['DPT-HB-HIB', 4, 6],
+            ['DPT-HB-HIB', 4, 18],
+            ['IPV', 1, 4],
+            ['IPV', 2, 9],
+            ['ROTAVIRUS', 1, 2],
+            ['ROTAVIRUS', 2, 3],
+            ['ROTAVIRUS', 3, 4],
+            ['PCV', 1, 2],
+            ['PCV', 2, 3],
+            ['PCV', 3, 12],
             ['MR', 1, 9],
             ['MR', 2, 18],
+            ['JE', 1, 10],
         ];
     }
 
     /**
-     * Menulis master 16 dosis ke database, satu kode satu baris.
+     * Menulis master dosis aktif ke database, satu dosis satu baris.
      */
     private function seedProgramNasional(): void
     {
@@ -76,11 +81,11 @@ class ImmunizationTypeOrderTest extends TestCase
      * Urutan master harus mengikuti jadwal suntikan, bukan abjad.
      *
      * Expected di bawah ditulis dari jadwal imunisasi nasional, bukan dari
-     * output: bulan 0 (HB-1, polio-1), bulan 2 (BCG, DPT-1, HB-2, polio-2),
-     * dan seterusnya. Perhatikan bulan 2: urutan kodenya BCG, DPT-HB-HIB, HB,
-     * POLIO - itu abjad, dan itu pun benar, karena `code` dipakai sebagai
-     * pemutus saat dua dosis menyasar bulan yang sama. Yang menentukan urutan
-     * suntik adalah `target_age_months`.
+     * output: bulan 0 (HB-1), bulan 1 (BCG-1, polio-1), bulan 2 (DPT-1, PCV-1,
+     * polio-2, rotavirus-1), dan seterusnya. Perhatikan bulan 2: urutan kodenya
+     * DPT-HB-HIB, PCV, POLIO, ROTAVIRUS - itu abjad, dan itu pun benar, karena
+     * `code` dipakai sebagai pemutus saat dua dosis menyasar bulan yang sama.
+     * Yang menentukan urutan suntik adalah `target_age_months`.
      */
     #[Test]
     public function urutan_master_mengikuti_jadwal_suntikan_bukan_abjad(): void
@@ -95,17 +100,23 @@ class ImmunizationTypeOrderTest extends TestCase
 
         $this->assertSame([
             // Bulan 0
-            'HB-1', 'POLIO-1',
+            'HB-1',
+            // Bulan 1
+            'BCG-1', 'POLIO-1',
             // Bulan 2
-            'BCG-1', 'DPT-HB-HIB-1', 'HB-2', 'POLIO-2',
+            'DPT-HB-HIB-1', 'PCV-1', 'POLIO-2', 'ROTAVIRUS-1',
             // Bulan 3
-            'DPT-HB-HIB-2', 'POLIO-3',
+            'DPT-HB-HIB-2', 'PCV-2', 'POLIO-3', 'ROTAVIRUS-2',
             // Bulan 4
-            'DPT-HB-HIB-3', 'HB-3', 'POLIO-4',
-            // Bulan 6
-            'DPT-HB-HIB-4', 'HB-4', 'POLIO-5',
-            // Bulan 9 dan 18
-            'MR-1', 'MR-2',
+            'DPT-HB-HIB-3', 'IPV-1', 'POLIO-4', 'ROTAVIRUS-3',
+            // Bulan 9
+            'IPV-2', 'MR-1',
+            // Bulan 10
+            'JE-1',
+            // Bulan 12
+            'PCV-3',
+            // Bulan 18
+            'DPT-HB-HIB-4', 'MR-2',
         ], $urutan);
     }
 
@@ -201,9 +212,39 @@ class ImmunizationTypeOrderTest extends TestCase
         $this->assertNotNull($data, 'respons harus punya wrapper data');
 
         $this->assertSame(
-            ['HB-1', 'POLIO-1', 'BCG-1', 'DPT-HB-HIB-1', 'HB-2', 'POLIO-2', 'DPT-HB-HIB-2', 'POLIO-3', 'DPT-HB-HIB-3', 'HB-3', 'POLIO-4', 'DPT-HB-HIB-4', 'HB-4', 'POLIO-5', 'MR-1', 'MR-2'],
+            ['HB-1', 'BCG-1', 'POLIO-1', 'DPT-HB-HIB-1', 'PCV-1', 'POLIO-2', 'ROTAVIRUS-1', 'DPT-HB-HIB-2', 'PCV-2', 'POLIO-3', 'ROTAVIRUS-2', 'DPT-HB-HIB-3', 'IPV-1', 'POLIO-4', 'ROTAVIRUS-3', 'IPV-2', 'MR-1', 'JE-1', 'PCV-3', 'DPT-HB-HIB-4', 'MR-2'],
             array_map(fn (array $tipe) => $tipe['code'].'-'.$tipe['dose_number'], $data)
         );
+    }
+
+    /**
+     * Endpoint hanya mengirim dosis aktif.
+     *
+     * Dosis yang dinonaktifkan (mis. jadwal lama) tetap ada di database demi
+     * catatan lama, tapi tidak boleh muncul di dropdown/checklist; kalau ikut
+     * muncul, kader bisa mencatat suntikan ke dosis yang sudah tidak dipakai.
+     */
+    #[Test]
+    public function endpoint_tidak_mengirim_dosis_nonaktif(): void
+    {
+        $kader = User::factory()->kader()->create();
+        $this->seedProgramNasional();
+
+        ImmunizationType::factory()->create([
+            'code' => 'VAKSIN-LAMA',
+            'dose_number' => 1,
+            'target_age_months' => 2,
+            'is_active' => false,
+        ]);
+
+        $data = $this->withToken($this->token($kader))
+            ->getJson('/api/immunization-types')
+            ->assertOk()
+            ->json('data');
+
+        $kode = array_map(fn (array $tipe) => $tipe['code'], $data);
+
+        $this->assertNotContains('VAKSIN-LAMA', $kode);
     }
 
     private function token(User $user): string

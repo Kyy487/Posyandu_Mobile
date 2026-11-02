@@ -26,7 +26,18 @@ class ImmunizationType extends Model
         'target_age_months',
         'interval_months',
         'notes',
+        'is_active',
     ];
+
+    /**
+     * @return array<string, string>
+     */
+    protected function casts(): array
+    {
+        return [
+            'is_active' => 'boolean',
+        ];
+    }
 
     /** Catatan suntikan anak yang memakai master ini. */
     public function records(): HasMany
@@ -75,6 +86,19 @@ class ImmunizationType extends Model
             ->orderByRaw('target_age_months ASC NULLS LAST')
             ->orderBy('code')
             ->orderBy('dose_number');
+    }
+
+    /**
+     * Hanya dosis yang masih dipakai program imunisasi saat ini.
+     *
+     * Dosis lama sengaja tidak dihapus (FK `immunization_records` memakai
+     * `restrictOnDelete`), melainkan dinonaktifkan lewat `is_active = false`.
+     * Checklist dan rekap selalu menambahkan scope ini supaya dosis yang sudah
+     * tidak dipakai tidak lagi muncul sebagai "belum" atau "terlambat".
+     */
+    public function scopeActive(Builder $query): Builder
+    {
+        return $query->where('is_active', true);
     }
 
     /**

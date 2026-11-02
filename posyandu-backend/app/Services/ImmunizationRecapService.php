@@ -93,6 +93,7 @@ class ImmunizationRecapService
             ->count('child_id');
 
         $byType = ImmunizationType::query()
+            ->active()
             ->orderedForDosing()
             ->get()
             ->map(fn (ImmunizationType $type) => [
@@ -139,7 +140,7 @@ class ImmunizationRecapService
             ->orderBy('name')
             ->get(['id', 'name', 'date_of_birth']);
 
-        $semuaTipe = ImmunizationType::query()->orderedForDosing()->get();
+        $semuaTipe = ImmunizationType::query()->active()->orderedForDosing()->get();
 
         $suntikanPerAnak = ImmunizationRecord::query()
             ->whereIn('child_id', $anak->modelKeys())
