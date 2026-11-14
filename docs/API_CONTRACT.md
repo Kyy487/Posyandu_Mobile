@@ -48,6 +48,16 @@ respons tetap benar setelah approval tanpa perlu `refresh()`.
 > diperlukan agar klien bisa memanggil endpoint pelengkapan data. Akun `kader`
 > yang terdaftar dengan kode valid langsung berstatus `active`.
 
+> Role `admin` adalah role internal untuk operasi data tertentu. Admin tidak
+> dapat mendaftar lewat `POST /register` dan dibuat lewat seeder atau perintah
+> CLI. Endpoint admin Fase 1 aktif dan hanya menerima role `admin`:
+>
+> | Method | Endpoint | Description |
+> | :--- | :--- | :--- |
+> | `GET` | `/admin/children/ihs/template` | Unduh template CSV import IHS |
+> | `POST` | `/admin/children/ihs/import` | Import IHS dari CSV (`dry_run`, `correct_existing`) |
+> | `PATCH` | `/admin/children/{child}/ihs` | Koreksi IHS satu anak (`reason` wajib) |
+
 ### Request body `POST /register`
 
 | Field | Tipe | Wajib | Keterangan |
@@ -69,7 +79,7 @@ respons tetap benar setelah approval tanpa perlu `refresh()`.
 | `role` | `"kader"` | Tidak | Hanya boleh bernilai `kader`. Kosong = `ibu` |
 | `kader_code` | string | Kader¹ | Kode dari `KADER_REGISTRATION_CODE` |
 | `verification_file` | file(jpg,jpeg,png) | Tidak | Bukti verifikasi, maksimal 2 MB |
-| `verification_type` | enum(`self_photo`,`kk`,`other`) | Tidak | Jenis bukti verifikasi |
+| `verification_type` | enum(`self_photo`,`ktp`,`kk`,`other`) | Tidak | Jenis bukti verifikasi |
 
 ¹ Wajib hanya bila `role` = `kader`.
 
@@ -215,7 +225,7 @@ Menerima `application/json` atau `multipart/form-data` (bila mengunggah berkas).
 | `education` | enum(`SD`,`SMP`,`SMA`,`SMK`,`D3`,`S1`,`S2`,`S3`,`other`) | Tidak | Pendidikan terakhir |
 | `occupation` | string(100) | Tidak | Pekerjaan |
 | `verification_file` | file(jpg,jpeg,png) | Tidak | Bukti verifikasi, maksimal 2 MB |
-| `verification_type` | enum(`self_photo`,`kk`,`other`) | Tidak | Jenis bukti verifikasi |
+| `verification_type` | enum(`self_photo`,`ktp`,`kk`,`other`) | Tidak | Jenis bukti verifikasi |
 
 Respons `200` berisi `data` = objek `user` terbaru.
 
@@ -268,6 +278,11 @@ membaca nilai yang sama.
 | `GET` | `/profile` | Ambil profil + status approval + verifikasi | Ibu / Kader |
 | `PUT`/`PATCH` | `/profile` | Update profil (bisa ganti password) | Ibu / Kader |
 
+Field `whatsapp`, `instagram`, dan `facebook` disimpan pada kolom Fase 1.
+Backend menormalisasi nomor WhatsApp ke format `+62...` dan handle sosial media
+tanpa `@`/URL. Nilai tidak valid dibalas `422` dengan error per field. Lihat
+`docs/RANCANGAN_STANDARISASI.md`.
+
 ## Kader - Persetujuan Registrasi Ibu (Protected, Kader only)
 | Method | Endpoint | Description |
 | :--- | :--- | :--- |
@@ -276,3 +291,18 @@ membaca nilai yang sama.
 | `POST` | `/kader/registrations/{user}/approve` | Setujui permohonan |
 | `POST` | `/kader/registrations/{user}/reject` | Tolak permohonan (wajib `rejection_reason`) |
 | `PATCH` | `/kader/registrations/{user}` | Koreksi data pendaftaran oleh Kader |
+
+## FHIR / SATUSEHAT (Protected, Kader only)
+
+| Method | Endpoint | Description |
+| :--- | :--- | :--- |
+| `GET` | `/kader/fhir/{resourceType}/{id}` | Ambil draft payload FHIR R4 |
+| `GET` | `/kader/fhir/{resourceType}/{id}/validate` | Validasi kelengkapan payload |
+| `POST` | `/kader/fhir/{resourceType}/{id}/send` | Kirim ke SATUSEHAT, atau catat ke log bila kredensial kosong |
+| `GET` | `/kader/fhir/Observation/{id}/bundle` | Draft `Bundle` berisi BB, TB, lingkar kepala, dan IMT |
+| `GET` | `/kader/fhir/Observation/{id}/bundle/validate` | Validasi seluruh `Observation` dalam bundle |
+
+`resourceType` yang didukung: `Patient`, `Encounter`, `Observation`,
+`Immunization`. Referensi pasien memakai `Patient/{ihs_number}`, bukan NIK.
+Validasi mengembalikan `data.valid`, `data.errors`, `data.warnings`, dan
+`data.payload`. Immunization wajib punya mapping KFA atau CVX.

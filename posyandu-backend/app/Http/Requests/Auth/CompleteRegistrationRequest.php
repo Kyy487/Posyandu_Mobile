@@ -41,7 +41,7 @@ class CompleteRegistrationRequest extends FormRequest
             'occupation' => ['nullable', 'string', 'max:100'],
 
             'verification_file' => ['nullable', 'file', 'mimes:jpg,jpeg,png', 'max:2048'],
-            'verification_type' => ['nullable', 'in:self_photo,kk,other'],
+            'verification_type' => ['nullable', 'in:self_photo,ktp,kk,other'],
         ];
     }
 

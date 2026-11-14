@@ -121,8 +121,10 @@ class RegistrationCompletionController extends Controller
 
     private function resolveUser(Request $request): ?User
     {
-        if ($request->user() !== null) {
-            return $request->user();
+        $user = $request->user() ?? $request->user('sanctum');
+
+        if ($user !== null) {
+            return $user;
         }
 
         $nik = (string) $request->input('nik');

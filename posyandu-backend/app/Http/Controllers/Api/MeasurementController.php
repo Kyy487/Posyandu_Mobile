@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Child;
 use App\Models\Measurement;
 use App\Models\Visit;
+use Carbon\CarbonImmutable;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
@@ -69,6 +70,7 @@ class MeasurementController extends Controller
                 'visit_id' => $visit?->id,
                 'kader_id' => $request->user()->id,
                 'measurement_date' => $validated['measurement_date'],
+                'measured_at' => $this->localDateToUtc($validated['measurement_date']),
                 'weight_kg' => $validated['weight_kg'],
                 'height_cm' => $validated['height_cm'],
                 'head_circumference_cm' => $validated['head_circumference_cm'] ?? null,
@@ -252,6 +254,10 @@ class MeasurementController extends Controller
                 }
             }
 
+            if (array_key_exists('measurement_date', $validated)) {
+                $validated['measured_at'] = $this->localDateToUtc($validated['measurement_date']);
+            }
+
             $measurement->fill($validated);
             $measurement->save();
 
@@ -305,6 +311,16 @@ class MeasurementController extends Controller
                 'errors' => null,
             ], 500);
         }
+    }
+
+    /**
+     * Tanggal ukur tanpa jam dianggap pukul 00:00 Asia/Jakarta.
+     */
+    private function localDateToUtc(string $date): CarbonImmutable
+    {
+        return CarbonImmutable::parse($date, 'Asia/Jakarta')
+            ->startOfDay()
+            ->utc();
     }
 
     /**

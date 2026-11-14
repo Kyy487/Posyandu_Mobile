@@ -21,6 +21,11 @@ class ImmunizationType extends Model
 
     protected $fillable = [
         'code',
+        'kfa_code',
+        'cvx_code',
+        'cvx_display',
+        'cvx_group_code',
+        'target_disease_code',
         'name',
         'dose_number',
         'target_age_months',

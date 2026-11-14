@@ -211,4 +211,9 @@ class User extends Authenticatable
     {
         return $this->status === 'rejected';
     }
+
+    public function isAdmin(): bool
+    {
+        return $this->role === 'admin';
+    }
 }

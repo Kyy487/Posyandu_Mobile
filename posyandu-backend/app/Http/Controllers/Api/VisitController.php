@@ -49,9 +49,12 @@ class VisitController extends Controller
                 'child_id' => ['required', 'uuid', Rule::exists('children', 'id')],
                 'schedule_id' => ['nullable', 'uuid', Rule::exists('posyandu_schedules', 'id')],
                 'visit_date' => ['required', 'date_format:Y-m-d', 'before_or_equal:today'],
+                'visit_started_at' => ['sometimes', 'nullable', 'date'],
+                'visit_ended_at' => ['sometimes', 'nullable', 'date'],
                 'visit_type' => ['required', 'string', Rule::in(Visit::VISIT_TYPES)],
                 'anamnesis' => ['nullable', 'string', 'max:2000'],
                 'catatan_kader' => ['nullable', 'string', 'max:2000'],
+                'edukasi_gizi' => ['nullable', 'string', 'max:2000'],
             ]);
 
             $child = Child::find($validated['child_id']);
@@ -142,9 +145,12 @@ class VisitController extends Controller
             $validated = $request->validate([
                 'schedule_id' => ['sometimes', 'nullable', 'uuid', Rule::exists('posyandu_schedules', 'id')],
                 'visit_date' => ['sometimes', 'required', 'date_format:Y-m-d', 'before_or_equal:today'],
+                'visit_started_at' => ['sometimes', 'nullable', 'date'],
+                'visit_ended_at' => ['sometimes', 'nullable', 'date'],
                 'visit_type' => ['sometimes', 'required', 'string', Rule::in(Visit::VISIT_TYPES)],
                 'anamnesis' => ['sometimes', 'nullable', 'string', 'max:2000'],
                 'catatan_kader' => ['sometimes', 'nullable', 'string', 'max:2000'],
+                'edukasi_gizi' => ['sometimes', 'nullable', 'string', 'max:2000'],
             ]);
 
             if ($validated === []) {

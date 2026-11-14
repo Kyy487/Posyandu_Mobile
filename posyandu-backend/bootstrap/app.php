@@ -2,6 +2,7 @@
 
 use App\Http\Middleware\CheckChildOnboarding;
 use App\Http\Middleware\CheckKaderVerification;
+use App\Http\Middleware\EnsureAdmin;
 use App\Http\Middleware\EnsureIbuActive;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Auth\AuthenticationException;
@@ -26,6 +27,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'ibu.active' => EnsureIbuActive::class,
             'kader.verification' => CheckKaderVerification::class,
             'child.onboarding' => CheckChildOnboarding::class,
+            'admin' => EnsureAdmin::class,
         ]);
         /*
         |--------------------------------------------------------------------------

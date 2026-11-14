@@ -29,16 +29,21 @@ class Visit extends Model
         'child_id',
         'schedule_id',
         'visit_date',
+        'visit_started_at',
+        'visit_ended_at',
         'visit_type',
         'kader_id',
         'anamnesis',
         'catatan_kader',
+        'edukasi_gizi',
     ];
 
     protected function casts(): array
     {
         return [
             'visit_date' => 'date:Y-m-d',
+            'visit_started_at' => 'datetime',
+            'visit_ended_at' => 'datetime',
         ];
     }
 

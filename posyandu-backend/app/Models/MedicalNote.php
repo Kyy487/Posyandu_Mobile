@@ -38,6 +38,8 @@ class MedicalNote extends Model
         'diare',
         'catatan',
         'tindak_lanjut',
+        'red_flags',
+        'icd10_code',
     ];
 
     /**
@@ -53,6 +55,7 @@ class MedicalNote extends Model
             'demam' => 'boolean',
             'rewel' => 'boolean',
             'diare' => 'boolean',
+            'red_flags' => 'array',
         ];
     }
 

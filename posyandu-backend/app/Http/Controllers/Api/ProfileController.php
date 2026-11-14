@@ -3,10 +3,12 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Support\SocialMediaNormalizer;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Validator;
+use InvalidArgumentException;
 
 class ProfileController extends Controller
 {
@@ -49,6 +51,24 @@ class ProfileController extends Controller
 
         $data = $validator->validated();
 
+        foreach (['whatsapp', 'instagram', 'facebook'] as $field) {
+            if (! array_key_exists($field, $data)) {
+                continue;
+            }
+
+            try {
+                $data[$field] = SocialMediaNormalizer::{$field}($data[$field]);
+            } catch (InvalidArgumentException $exception) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Validasi gagal.',
+                    'errors' => [
+                        $field => [$exception->getMessage()],
+                    ],
+                ], 422);
+            }
+        }
+
         if (isset($data['password'])) {
             $data['password'] = Hash::make($data['password']);
         }
@@ -64,4 +84,3 @@ class ProfileController extends Controller
         ]);
     }
 }
-

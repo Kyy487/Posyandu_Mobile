@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Api\Admin\ChildIhsController;
 use App\Http\Controllers\Api\AuditLogController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\ChildController;
@@ -67,6 +68,17 @@ Route::middleware('auth:sanctum')->group(function () {
             'message' => 'Data user aktif',
             'data' => $request->user()->load('verifications')->makeHidden(['nik', 'nik_hash', 'password']),
         ]);
+    });
+
+    // -----------------------------------------------------------------
+    // AREA ADMIN - pengelolaan data referensi internal.
+    //
+    // Admin tidak otomatis mendapat akses /kader/*. Fase 1 hanya IHS.
+    // -----------------------------------------------------------------
+    Route::middleware('admin')->prefix('admin')->group(function () {
+        Route::get('/children/ihs/template', [ChildIhsController::class, 'template']);
+        Route::post('/children/ihs/import', [ChildIhsController::class, 'import']);
+        Route::patch('/children/{child}/ihs', [ChildIhsController::class, 'update']);
     });
 
     // -----------------------------------------------------------------
@@ -302,7 +314,10 @@ Route::middleware('auth:sanctum')->group(function () {
         // Endpoint kirim meneruskan ke SATUSEHAT (atau log saja bila kredensial
         // belum diisi). Hanya untuk Kader.
         // -----------------------------------------------------------------
+        Route::get('/kader/fhir/Observation/{id}/bundle', [FhirController::class, 'observationBundle']);
+        Route::get('/kader/fhir/Observation/{id}/bundle/validate', [FhirController::class, 'validateObservationBundle']);
         Route::get('/kader/fhir/{resourceType}/{id}', [FhirController::class, 'show']);
+        Route::get('/kader/fhir/{resourceType}/{id}/validate', [FhirController::class, 'validate']);
         Route::post('/kader/fhir/{resourceType}/{id}/send', [FhirController::class, 'send']);
     });
 });

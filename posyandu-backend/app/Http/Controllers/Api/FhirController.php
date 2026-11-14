@@ -63,6 +63,77 @@ class FhirController extends Controller
         return response()->json($resource, 200);
     }
 
+    public function observationBundle(string $id): JsonResponse
+    {
+        $measurement = Measurement::query()->find($id);
+
+        if (! $measurement) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Data tidak ditemukan.',
+                'errors' => null,
+            ], 404);
+        }
+
+        return response()->json($this->satusehat->formatObservationBundle($measurement), 200);
+    }
+
+    public function validateObservationBundle(string $id): JsonResponse
+    {
+        $measurement = Measurement::query()->find($id);
+
+        if (! $measurement) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Data tidak ditemukan.',
+                'errors' => null,
+            ], 404);
+        }
+
+        $payload = $this->satusehat->formatObservationBundle($measurement);
+        $result = $this->satusehat->validatePayload('Bundle', $payload);
+
+        return response()->json([
+            'success' => true,
+            'message' => $result['valid']
+                ? 'Payload FHIR valid.'
+                : 'Payload FHIR belum lengkap.',
+            'data' => $result,
+        ]);
+    }
+
+    public function validate(string $resourceType, string $id): JsonResponse
+    {
+        if (! $this->isSupported($resourceType)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Resource type tidak didukung.',
+                'errors' => ['resourceType' => ['Tipe resource tidak dikenal.']],
+            ], 422);
+        }
+
+        $model = $this->findModel($resourceType, $id);
+
+        if (! $model) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Data tidak ditemukan.',
+                'errors' => null,
+            ], 404);
+        }
+
+        $payload = $this->format($resourceType, $model);
+        $result = $this->satusehat->validatePayload($resourceType, $payload);
+
+        return response()->json([
+            'success' => true,
+            'message' => $result['valid']
+                ? 'Payload FHIR valid.'
+                : 'Payload FHIR belum lengkap.',
+            'data' => $result,
+        ]);
+    }
+
     /**
      * Kirim resource ke SATUSEHAT (atau log saja bila kredensial belum diisi).
      */
@@ -108,5 +179,34 @@ class FhirController extends Controller
             'message' => 'Data terkirim ke SATUSEHAT.',
             'data' => $hasil,
         ], 200);
+    }
+
+    private function isSupported(string $resourceType): bool
+    {
+        return in_array($resourceType, ['Patient', 'Encounter', 'Observation', 'Immunization'], true);
+    }
+
+    private function findModel(string $resourceType, string $id): Child|Visit|Measurement|ImmunizationRecord|null
+    {
+        return match ($resourceType) {
+            'Patient' => Child::query()->find($id),
+            'Encounter' => Visit::query()->find($id),
+            'Observation' => Measurement::query()->find($id),
+            'Immunization' => ImmunizationRecord::query()->find($id),
+            default => null,
+        };
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function format(string $resourceType, Child|Visit|Measurement|ImmunizationRecord $model): array
+    {
+        return match ($resourceType) {
+            'Patient' => $this->satusehat->formatPatient($model),
+            'Encounter' => $this->satusehat->formatEncounter($model),
+            'Observation' => $this->satusehat->formatObservation($model),
+            'Immunization' => $this->satusehat->formatImmunization($model),
+        };
     }
 }

@@ -1,6 +1,16 @@
 # 🗄️ Database Schema (PostgreSQL)
 
-Proyek ini menggunakan UUID untuk seluruh Primary Key dan relasi tabel.
+Diverifikasi terhadap migration dan schema PostgreSQL aktual pada 14 November
+2026. Sumber kebenaran tetap migration di
+`posyandu-backend/database/migrations/`.
+
+Rancangan perubahan Fase 1 yang sudah dikunci ada di
+`docs/RANCANGAN_STANDARISASI.md`. Dokumen ini tetap mencerminkan schema aktual;
+kolom yang belum ada ditandai sebagai rencana di bagian 9.
+
+Proyek ini menggunakan UUID untuk hampir seluruh Primary Key dan relasi tabel.
+Pengecualian: pivot `posyandu_schedule_petugas` memakai `bigint` autoincrement
+karena dibuat dengan `$table->id()`.
 
 ## 1. `users` (Master Data)
 Menyimpan autentikasi dan profil Ibu serta Kader. Tidak ada kolom `email`.
@@ -20,7 +30,8 @@ Menyimpan autentikasi dan profil Ibu serta Kader. Tidak ada kolom `email`.
   keluarga. Enkripsi dan pelebaran kolom dilakukan migration
   `2026_11_13_000004_encrypt_no_kk_on_users_table.php`.
 * `name`, `password`, `phone_number`, `jabatan`
-* `role` (String, default `ibu`) — nilai aplikasi: `ibu`, `kader`
+* `role` (String, default `ibu`) — nilai aplikasi: `ibu`, `kader`.
+  Rencana Fase 1: tambah `admin` sebagai role internal (lihat bagian 9).
 * `status` (String, default `active`) — `pending` / `active` / `rejected`
 * `onboarding_status` (String 20, default `need_child_data`, Index) —
   `need_child_data` / `completed`. Ditambahkan migration
@@ -58,6 +69,29 @@ Menyimpan autentikasi dan profil Ibu serta Kader. Tidak ada kolom `email`.
 > kolomnya tetap tersedia untuk filter/reporting SQL. `next_action` tetap
 > accessor, bukan kolom.
 
+## 1.1 `user_verifications` (Dokumen Verifikasi Kader)
+
+Migration `2026_10_24_032705_create_user_verifications_table.php`. Satu baris =
+satu dokumen pendukung verifikasi akun kader. File disimpan di storage; tabel
+ini hanya menyimpan metadata.
+
+* `id` (UUID, PK)
+* `user_id` (UUID, FK -> users.id, **cascade delete**, Index)
+* `type` (String 255, default `other`) — `self_photo` / `ktp` / `kk` / `other`.
+  Migration `2026_11_14_000009_allow_ktp_in_user_verifications_type.php`
+  menghapus CHECK constraint lama yang belum mengenal `ktp`; validasi nilai
+  tetap dilakukan di FormRequest.
+* `file_path` (String 255) — path file di storage
+* `file_name` (String 255, Nullable)
+* `mime_type` (String 50, Nullable)
+* `uploaded_at` (Timestamp, default `CURRENT_TIMESTAMP`)
+* `timestamps`
+
+**Index dan constraint:**
+
+* Index `user_id` (`user_verifications_user_id_index`)
+* FK `user_id` memakai `ON DELETE CASCADE`; dokumen tidak berguna tanpa akun.
+
 ## 2. `children` (Data Anak)
 * `id` (UUID, PK)
 * `user_id` (UUID, FK -> users.id) — acuan resmi relasi ibu
@@ -92,8 +126,10 @@ Menyimpan autentikasi dan profil Ibu serta Kader. Tidak ada kolom `email`.
 **Index dan constraint:**
 
 * Unique `nik_hash` (`children_nik_hash_unique`)
+* Index `deleted_at` (`children_deleted_at_index`) — mempercepat scope soft delete
 * CHECK `children_birth_status_check`, `children_birth_order_check`
 * `birth_height` adalah generated column dari `birth_length`
+* FK `user_id` memakai `ON DELETE CASCADE`
 
 
 > ⚠️ **Kenapa soft delete?** `measurements.child_id` dan
@@ -161,6 +197,7 @@ BB/TB untuk umur ≥ 24 bulan), nilainya `NULL` — bukan `"Normal"`.
 * Index `(deleted_at, measurement_date)` — Serving rekap bulanan. Diuji dengan
   36.000 baris: tanpa index `Seq Scan` 2.132 ms, dengan index 0,245 ms
 * Index `(kader_id)` — melayani lookup FK `ON DELETE SET NULL`
+* Index `(visit_id)` — melayani lookup kunjungan dan FK `ON DELETE SET NULL`
 * **Tidak** ada index `status_gizi`; planner tidak memakainya, jadi dibuang
 
 > **Kenapa soft delete?** Tanpa itu, satu anak bisa punya dua penimbangan pada
@@ -262,6 +299,7 @@ Migration `2026_09_27_010000_create_medical_notes_table.php`. Satu anak punya
 **Index dan constraint:**
 
 * Index biasa `(child_id, note_date)`
+* Index `(visit_id)` — melayani lookup kunjungan dan FK `ON DELETE SET NULL`
 * **Partial unique** `(child_id, note_date) WHERE deleted_at IS NULL` — satu
   anak satu catatan per tanggal, tapi catatan yang sudah dibatalkan tidak
   menghalangi pencatatan ulang tanggal yang sama
@@ -410,6 +448,47 @@ rujukan anak ke fasilitas kesehatan, selalu terhubung ke satu kunjungan
 > **Pembatalan tidak menghapus baris.** `DELETE /referrals/{id}` mengisi
 > `deleted_at`, sehingga tindak lanjut tetap tersimpan untuk audit.
 
+## 5.6 `posyandu_schedules` (Agenda Posyandu)
+
+Migration `2026_09_26_033000_create_posyandu_schedules_table.php`. Satu baris =
+satu **acara** posyandu (mis. penimbangan rutin, imunisasi, kunjungan rumah),
+bukan jadwal per anak.
+
+* `id` (UUID, PK)
+* `title` (String 255)
+* `description` (Text, Nullable)
+* `scheduled_date` (Date)
+* `start_time`, `end_time` (Time, Nullable)
+* `location` (String 160, Nullable) — nama lokasi acara; bila kosong, API
+  memakai `config('posyandu.posyandu_name')` lewat accessor, bukan kolom
+  `location_name`
+* `status` (String 20, default `terjadwal`) — `terjadwal` / `berlangsung` /
+  `selesai` / `dibatalkan`
+* `notes` (Text, Nullable)
+* `created_by` (UUID, FK -> users.id, Nullable, **set null**)
+* `timestamps`
+
+**Index dan constraint:**
+
+* Index `(scheduled_date, status)` (`posyandu_schedules_scheduled_date_status_index`)
+* CHECK `posyandu_schedules_status_check`
+
+## 5.7 `posyandu_schedule_petugas` (Pivot Petugas Agenda)
+
+Migration `2026_09_26_034000_create_posyandu_schedule_petugas_table.php`. Pivot
+many-to-many antara agenda dan petugas (kader/bidan).
+
+* `id` (Bigint, PK, autoincrement) — **satu-satunya tabel dengan PK non-UUID**
+* `schedule_id` (UUID, FK -> posyandu_schedules.id, **cascade delete**)
+* `petugas_id` (UUID, FK -> users.id, **cascade delete**)
+* `timestamps`
+
+**Index dan constraint:**
+
+* Unique `(schedule_id, petugas_id)` (`schedule_petugas_unique`)
+* Index `petugas_id` (`posyandu_schedule_petugas_petugas_id_index`)
+* Kedua FK memakai `ON DELETE CASCADE`.
+
 ## 6. `spatial_zones` (Pemetaan - PostGIS) *Coming Soon*
 * `id` (UUID, PK), `child_id` (UUID, FK)
 * `coordinate` (Geometry/Point)
@@ -422,3 +501,145 @@ Objek berikut dibuat oleh migration yang sama dan **tidak** diubah oleh migratio
 
 > Detail perhitungan, klasifikasi status, dan cara rollback ada di
 > `docs/arsip/LAPORAN_ZSCORE_TRIGGER.md`.
+
+## 8. Pemetaan Standar FHIR R4/SATUSEHAT dan Posyandu/Kemenkes
+
+Bagian ini adalah **gap analysis dokumentatif**, bukan schema yang sudah
+diimplementasikan. Jangan menambah kolom hanya berdasarkan tabel di bagian ini
+tanpa migration baru dan persetujuan scope.
+
+### 8.1 Acuan
+
+* HL7 FHIR R4: <https://hl7.org/fhir/R4/>
+* SATUSEHAT FHIR R4 Implementation Guide:
+  <https://simplifier.net/guide/SATUSEHAT-FHIR-R4-Implementation-Guide>
+* Permenkes No. 2 Tahun 2020 tentang Standar Antropometri Anak:
+  <https://jdih.kemkes.go.id/storage/documents/pdfs/2020permenkes002.pdf>
+* WHO Child Growth Standards (0–5 tahun) dan WHO Growth Reference (5–18 tahun)
+* SATUSEHAT memakai **IHS number** sebagai referensi resource, bukan NIK.
+  Identifier NIK memakai system `https://fhir.kemkes.go.id/id/nik`; IHS number
+  pasien memakai `https://fhir.kemkes.go.id/id/patient-ihs-number`.
+* Waktu SATUSEHAT memakai format UTC+00. Tanggal lokal tanpa zona waktu tidak
+  cukup untuk `effectiveDateTime`, `occurrenceDateTime`, atau `Encounter.period`.
+
+### 8.2 Ringkasan pemetaan resource
+
+Status: **sebagian** = mapper ada tetapi belum sesuai IG; **belum** = belum ada
+mapper.
+
+| Entitas lokal | Resource FHIR R4 | Status | Catatan utama |
+|---|---|---|---|
+| `children` | `Patient` | sebagian | Identifier memakai system NIK yang salah; belum ada IHS number, address, telecom, contact, dan `meta.profile` SATUSEHAT. |
+| `users` (ibu/wali) | `RelatedPerson` + `Patient` bila ibu juga pasien | belum | Perlu relasi `MTH`/`FTH`, IHS number, dan keputusan apakah ibu dibuat sebagai `Patient` terpisah. |
+| `users` (kader/bidan) | `Practitioner` + `PractitionerRole` | belum | Perlu IHS number dan organisasi/posyandu. |
+| `visits` | `Encounter` | sebagian | `status` selalu `finished`; belum ada `period.end`, `participant`, `location`, `serviceProvider`, dan diagnosis. |
+| `measurements` | beberapa `Observation` | sebagian | Mapper hanya mengirim tinggi (`8302-2`); belum BB (`29463-7`), lingkar kepala (`9843-4`), IMT (`39156-5`), kategori, interpretasi, dan z-score. |
+| `immunization_records` + `immunization_types` | `Immunization` | sebagian | `vaccineCode` memakai kode lokal di system CVX; belum ada KFA, CVX group/name, performer, protocolApplied, reasonCode, dan `recorded`. |
+| `medical_notes` | `Condition` / `Observation` / `CarePlan` | belum | Perlu terminologi klinis (ICD-10/SNOMED CT/LOINC) dan keputusan resource per jenis catatan. |
+| `referrals` | `ServiceRequest` (+ `Task`/`Encounter`) | belum | `facility_name` masih teks bebas; perlu referensi `Organization`/`Location`. Di FHIR R4 tidak ada `ReferralRequest` (itu R3). |
+| `consents` | `Consent` | belum | Perlu mapping `consent_type` ke `scope`/`category`, policy, dan provision. |
+| `user_verifications` | `DocumentReference` | belum | Dokumen KTP/KK/foto diri; subject ke `Patient`/`RelatedPerson`. |
+| `audit_logs` | `AuditEvent` / `Provenance` | belum | Audit internal; pemetaan opsional dan perlu kebijakan retensi. |
+| `posyandu_schedules` | `Appointment` / `HealthcareService` / `Location` | belum | Perlu keputusan: agenda acara atau appointment per pasien. |
+| `who_*_standards` | tidak dipetakan | internal | Data acuan perhitungan, bukan resource FHIR. |
+
+### 8.3 Keputusan Fase 1
+
+Keputusan lengkap dan urutan migration ada di
+`docs/RANCANGAN_STANDARISASI.md`. Ringkasnya:
+
+1. **IHS number.** Fase 1 hanya `children.ihs_number`. IHS untuk ibu/kader
+   (`users.ihs_number`) ditunda sampai `RelatedPerson`/`Practitioner` masuk
+   scope. Jangan memakai NIK sebagai ID resource.
+2. **Mapping imunisasi.** Tambah kolom eksplisit di `immunization_types`:
+   `kfa_code`, `cvx_code`, `cvx_display`, `cvx_group_code` bila perlu, dan
+   `target_disease_code` opsional. Tidak memakai tabel mapping generik. Kode
+   lokal `HB`, `BCG`, `POLIO`, `DPT-HB-HIB`, `MR` tidak valid sebagai CVX.
+3. **Waktu pengukuran/kunjungan.** Tambah `measured_at`,
+   `visit_started_at`, dan `visit_ended_at` bertipe `timestamptz`. Simpan UTC;
+   UI memakai Asia/Jakarta. Data lama di-backfill dari tanggal + 00:00
+   Asia/Jakarta; data tanpa tanggal tetap null.
+4. **Fasilitas rujukan.** Tabel `health_facilities` dan ID fasilitas ditunda.
+   Fase 1 memakai satu konfigurasi Posyandu. `facility_name` tetap teks.
+5. **Alamat pasien.** Fase 1 tidak menambah kolom alamat anak.
+   `Patient.address` memakai alamat ibu/wali sampai ada keputusan terpisah.
+6. **Catatan medis.** Tambah `medical_notes.red_flags` JSONB dengan allowlist
+   aplikasi dan `medical_notes.icd10_code` nullable sebagai persiapan. ICD-10/
+   SNOMED tidak wajib. Jangan mengarang kode LOINC untuk z-score/status gizi.
+7. **Sosial media.** Tambah `users.whatsapp`, `users.instagram`, dan
+   `users.facebook`; simpan handle bersih dan normalisasi di service.
+8. **Di luar scope.** LILA, kehamilan/ANC, persalinan, KB, vitamin A, obat
+   cacing, dan PMT tidak dimodelkan di Fase 1.
+9. **Batasan WHO.** Data WHO 0-60 bulan dan BB/TB hanya <24 bulan tetap
+   menjadi batasan yang diketahui; perluasan data acuan bukan bagian Fase 1.
+
+### 8.4 Kepatuhan standar Posyandu/Kemenkes
+
+| Cakupan standar | Status data saat ini | Catatan |
+|---|---|---|
+| Identitas anak (NIK, KK, lahir) | sudah | NIK/KK terenkripsi; `birth_length` kanonis, `birth_height` generated. |
+| Antropometri BB/U, PB/U atau TB/U, BB/PB atau BB/TB, IMT/U | sebagian | BB/U, TB/U, IMT/U ada; BB/TB hanya <24 bulan. |
+| Imunisasi rutin | sebagian | Master dosis dan riwayat ada; mapping KFA/CVX belum. |
+| Buku KIA | sebagian | `buku_kia_id` ada; isi Buku KIA belum dimodelkan. |
+| Rujukan | sebagian | Tabel rujukan ada; tujuan masih teks bebas. |
+| Jadwal Posyandu | sudah | Agenda dan petugas sudah dimodelkan. |
+| Persetujuan UU PDP | sudah | `consents` ada. |
+| Kesehatan ibu hamil/ANC, KB, gizi ibu | belum | Di luar schema saat ini; perlu keputusan scope. |
+
+### 8.5 Aturan perubahan
+
+* Jangan mengubah tipe/nama kolom lama hanya untuk menyesuaikan FHIR.
+* Perubahan schema harus lewat migration baru, bukan edit migration lama.
+* Jangan mengirim NIK sebagai resource ID SATUSEHAT; simpan IHS number secara
+  eksplisit.
+* Jangan memakai kode lokal sebagai kode terminologi standar tanpa mapping.
+* Field baru harus additive dan tidak mengubah response envelope API lama.
+
+## 9. Rencana Perubahan Fase 1 (Terkunci, Belum Diterapkan)
+
+Rancangan lengkap, alasan, dan struktur kode ada di
+`docs/RANCANGAN_STANDARISASI.md`. Ringkasan kolom yang akan ditambahkan:
+
+| Tabel | Kolom | Tipe | Nullable | Catatan |
+|---|---|---|---|---|
+| `users` | `role` constraint | check | tidak | Nilai menjadi `ibu`, `kader`, `admin`. |
+| `users` | `whatsapp` | varchar(20) | ya | E.164. |
+| `users` | `instagram` | varchar(50) | ya | Handle tanpa `@`. |
+| `users` | `facebook` | varchar(100) | ya | Handle tanpa URL. |
+| `children` | `ihs_number` | varchar(50) | ya | Unique; diisi admin dulu. |
+| `visits` | `visit_started_at` | timestamptz | ya | Backfill dari `visit_date` + 00:00 Asia/Jakarta. |
+| `visits` | `visit_ended_at` | timestamptz | ya | Null bila durasi tidak diketahui. |
+| `visits` | `edukasi_gizi` | text | ya | Edukasi saat kunjungan. |
+| `measurements` | `measured_at` | timestamptz | ya | Backfill dari `measurement_date` + 00:00 Asia/Jakarta. |
+| `immunization_types` | `kfa_code` | varchar(50) | ya | Kode produk KFA. |
+| `immunization_types` | `cvx_code` | varchar(20) | ya | Kode CVX. |
+| `immunization_types` | `cvx_display` | varchar(255) | ya | Nama CVX. |
+| `immunization_types` | `cvx_group_code` | varchar(20) | ya | Bila IG membutuhkan. |
+| `immunization_types` | `target_disease_code` | varchar(20) | ya | Opsional. |
+| `medical_notes` | `red_flags` | jsonb | ya | Array kode allowlist aplikasi. |
+| `medical_notes` | `icd10_code` | varchar(10) | ya | Persiapan, tidak wajib. |
+
+Urutan migration Fase 1:
+
+1. `2026_11_14_000001_add_admin_role_to_users_table.php`
+2. `2026_11_14_000002_add_social_media_columns_to_users_table.php`
+3. `2026_11_14_000003_add_ihs_number_to_children_table.php`
+4. `2026_11_14_000004_add_visit_timing_and_edukasi_gizi_to_visits_table.php`
+5. `2026_11_14_000005_add_measured_at_to_measurements_table.php`
+6. `2026_11_14_000006_add_fhir_terminology_to_immunization_types_table.php`
+7. `2026_11_14_000007_add_red_flags_and_icd10_to_medical_notes_table.php`
+8. `2026_11_14_000008_backfill_visit_and_measurement_timestamps.php`
+9. `2026_11_14_000009_allow_ktp_in_user_verifications_type.php`
+10. `2026_11_14_000010_allow_red_flags_as_medical_note_content.php`
+
+Catatan:
+
+* Tidak ada tabel baru di Fase 1.
+* `timestamptz` disimpan UTC; UI menampilkan Asia/Jakarta.
+* Backfill tidak mengubah logika Z-Score.
+* `children.ihs_number` hanya untuk anak; `users.ihs_number` ditunda.
+* Role `admin` dibuat internal, tidak lewat `POST /register`.
+* `user_verifications.type` menerima `ktp`; constraint lama dihapus karena
+  dibuat oleh `$table->enum()` sebelum alur unggah ulang KTP ada.
+* `medical_notes_isi_check` menganggap `red_flags` tidak kosong sebagai isi
+  catatan, sehingga catatan red-flag saja tidak ditolak database.

@@ -23,6 +23,7 @@ class EnsureIbuActive
                     if ($user->rejection_reason) {
                         $msg .= ' Alasan: '.$user->rejection_reason;
                     }
+
                     return response()->json([
                         'success' => false,
                         'message' => $msg,
@@ -35,6 +36,7 @@ class EnsureIbuActive
                     if (str_contains($path, 'registration/status') || str_contains($path, 'registration/complete') || str_contains($path, 'logout') || str_contains($path, 'profile')) {
                         return $next($request);
                     }
+
                     return response()->json([
                         'success' => false,
                         'message' => 'Akun Anda masih menunggu persetujuan dari Kader Posyandu.',
@@ -47,5 +49,3 @@ class EnsureIbuActive
         return $next($request);
     }
 }
-
-

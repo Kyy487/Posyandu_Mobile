@@ -8,6 +8,7 @@ use App\Models\Measurement;
 use App\Models\MedicalNote;
 use App\Models\User;
 use App\Models\Visit;
+use App\Support\RedFlagCodes;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\JsonResponse;
@@ -150,6 +151,9 @@ class MedicalNoteController extends Controller
                 'diare' => ['nullable', 'boolean'],
                 'catatan' => ['nullable', 'string', 'max:1000'],
                 'tindak_lanjut' => ['nullable', 'string', Rule::in(MedicalNote::TINDAK_LANJUTS)],
+                'red_flags' => ['sometimes', 'nullable', 'array'],
+                'red_flags.*' => ['string', Rule::in(RedFlagCodes::all())],
+                'icd10_code' => ['sometimes', 'nullable', 'string', 'max:10', 'regex:/^[A-Z][0-9]{2}(\.[0-9A-Z]{1,4})?$/i'],
             ]);
 
             // Penimbangan yang dilampirkan harus milik anak yang sama. Dicek di
@@ -200,6 +204,8 @@ class MedicalNoteController extends Controller
                 'diare' => $validated['diare'] ?? false,
                 'catatan' => $this->normalizeCatatan($validated['catatan'] ?? null),
                 'tindak_lanjut' => $validated['tindak_lanjut'] ?? null,
+                'red_flags' => $validated['red_flags'] ?? null,
+                'icd10_code' => $validated['icd10_code'] ?? null,
             ]);
 
             return response()->json([
@@ -294,6 +300,9 @@ class MedicalNoteController extends Controller
                 'diare' => ['sometimes', 'nullable', 'boolean'],
                 'catatan' => ['sometimes', 'nullable', 'string', 'max:1000'],
                 'tindak_lanjut' => ['sometimes', 'nullable', 'string', Rule::in(MedicalNote::TINDAK_LANJUTS)],
+                'red_flags' => ['sometimes', 'nullable', 'array'],
+                'red_flags.*' => ['string', Rule::in(RedFlagCodes::all())],
+                'icd10_code' => ['sometimes', 'nullable', 'string', 'max:10', 'regex:/^[A-Z][0-9]{2}(\.[0-9A-Z]{1,4})?$/i'],
             ]);
 
             if ($validated === []) {
@@ -349,6 +358,7 @@ class MedicalNoteController extends Controller
                 'rewel' => $validated['rewel'] ?? $note->rewel,
                 'diare' => $validated['diare'] ?? $note->diare,
                 'catatan' => array_key_exists('catatan', $validated) ? $validated['catatan'] : $note->catatan,
+                'red_flags' => array_key_exists('red_flags', $validated) ? $validated['red_flags'] : $note->red_flags,
             ]);
 
             if ($isiError !== null) {
@@ -461,8 +471,10 @@ class MedicalNoteController extends Controller
 
         $catatan = $data['catatan'] ?? null;
         $adaCatatan = is_string($catatan) && trim($catatan) !== '';
+        $adaRedFlag = is_array($data['red_flags'] ?? null)
+            && $data['red_flags'] !== [];
 
-        if ($adaKeluhan || $adaCatatan) {
+        if ($adaKeluhan || $adaCatatan || $adaRedFlag) {
             return null;
         }
 
@@ -470,7 +482,7 @@ class MedicalNoteController extends Controller
             'success' => false,
             'message' => 'Catatan keluhan masih kosong.',
             'errors' => [
-                'demam' => ['Centang minimal satu keluhan, atau isi catatan.'],
+                'demam' => ['Centang minimal satu keluhan, isi catatan, atau pilih red flag.'],
             ],
         ], 422);
     }
@@ -482,7 +494,7 @@ class MedicalNoteController extends Controller
             'success' => false,
             'message' => 'Catatan keluhan masih kosong.',
             'errors' => [
-                'demam' => ['Centang minimal satu keluhan, atau isi catatan.'],
+                'demam' => ['Centang minimal satu keluhan, isi catatan, atau pilih red flag.'],
             ],
         ], 422);
     }
@@ -660,6 +672,8 @@ class MedicalNoteController extends Controller
             'keluhan' => $note->keluhan_list,
             'catatan' => $note->catatan,
             'tindak_lanjut' => $note->tindak_lanjut,
+            'red_flags' => $note->red_flags ?? [],
+            'icd10_code' => $note->icd10_code,
             'ringkasan' => $note->ringkasan,
             'created_at' => $note->created_at?->toIso8601String(),
             'updated_at' => $note->updated_at?->toIso8601String(),

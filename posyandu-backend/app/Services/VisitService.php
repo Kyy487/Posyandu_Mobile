@@ -60,10 +60,16 @@ class VisitService
             'child_id' => $child->id,
             'schedule_id' => $data['schedule_id'] ?? null,
             'visit_date' => $data['visit_date'],
+            'visit_started_at' => $this->localDateTime(
+                $data['visit_started_at'] ?? null,
+                $data['visit_date'],
+            ),
+            'visit_ended_at' => $this->localDateTime($data['visit_ended_at'] ?? null),
             'visit_type' => $data['visit_type'],
             'kader_id' => $kader->id,
             'anamnesis' => $this->normalizeText($data['anamnesis'] ?? null),
             'catatan_kader' => $this->normalizeText($data['catatan_kader'] ?? null),
+            'edukasi_gizi' => $this->normalizeText($data['edukasi_gizi'] ?? null),
         ]);
     }
 
@@ -80,6 +86,18 @@ class VisitService
 
         if (array_key_exists('catatan_kader', $data)) {
             $data['catatan_kader'] = $this->normalizeText($data['catatan_kader']);
+        }
+
+        if (array_key_exists('edukasi_gizi', $data)) {
+            $data['edukasi_gizi'] = $this->normalizeText($data['edukasi_gizi']);
+        }
+
+        if (array_key_exists('visit_started_at', $data)) {
+            $data['visit_started_at'] = $this->localDateTime($data['visit_started_at']);
+        }
+
+        if (array_key_exists('visit_ended_at', $data)) {
+            $data['visit_ended_at'] = $this->localDateTime($data['visit_ended_at']);
         }
 
         $visit->fill($data)->save();
@@ -120,6 +138,8 @@ class VisitService
             'child_id' => $visit->child_id,
             'schedule_id' => $visit->schedule_id,
             'visit_date' => CarbonImmutable::parse((string) $visit->visit_date)->toDateString(),
+            'visit_started_at' => $visit->visit_started_at?->toIso8601String(),
+            'visit_ended_at' => $visit->visit_ended_at?->toIso8601String(),
             'visit_type' => $visit->visit_type,
             'kader_id' => $visit->kader_id,
             'kader' => $visit->kader === null ? null : [
@@ -128,6 +148,7 @@ class VisitService
             ],
             'anamnesis' => $visit->anamnesis,
             'catatan_kader' => $visit->catatan_kader,
+            'edukasi_gizi' => $visit->edukasi_gizi,
             'created_at' => $visit->created_at?->toIso8601String(),
             'updated_at' => $visit->updated_at?->toIso8601String(),
         ];
@@ -174,6 +195,8 @@ class VisitService
                     'diare' => (bool) $n->diare,
                     'catatan' => $n->catatan,
                     'tindak_lanjut' => $n->tindak_lanjut,
+                    'red_flags' => $n->red_flags ?? [],
+                    'icd10_code' => $n->icd10_code,
                     'ringkasan' => $n->ringkasan,
                 ])
                 ->values()
@@ -200,6 +223,24 @@ class VisitService
         }
 
         return $data;
+    }
+
+    /**
+     * Tanggal lokal tanpa jam dianggap pukul 00:00 Asia/Jakarta.
+     */
+    private function localDateTime(?string $value, ?string $fallbackDate = null): ?CarbonImmutable
+    {
+        if ($value !== null && $value !== '') {
+            return CarbonImmutable::parse($value, 'Asia/Jakarta')->utc();
+        }
+
+        if ($fallbackDate === null || $fallbackDate === '') {
+            return null;
+        }
+
+        return CarbonImmutable::parse($fallbackDate, 'Asia/Jakarta')
+            ->startOfDay()
+            ->utc();
     }
 
     /**

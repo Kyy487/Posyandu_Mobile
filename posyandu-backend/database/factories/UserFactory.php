@@ -136,4 +136,15 @@ class UserFactory extends Factory
             'jabatan' => null,
         ]);
     }
+
+    /** Akun admin internal. Tidak dibuat lewat endpoint registrasi. */
+    public function admin(): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'role' => 'admin',
+            'jabatan' => null,
+            'status' => 'active',
+            'onboarding_status' => 'completed',
+        ]);
+    }
 }

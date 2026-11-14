@@ -29,6 +29,7 @@ class Measurement extends Model
         'visit_id',
         'kader_id',
         'measurement_date',
+        'measured_at',
         'weight_kg',
         'height_cm',
         'head_circumference_cm',
@@ -36,6 +37,13 @@ class Measurement extends Model
         'z_score_wfa',
         'status_gizi',
     ];
+
+    protected function casts(): array
+    {
+        return [
+            'measured_at' => 'datetime',
+        ];
+    }
 
     // Relasi balik ke Anak
     public function child()

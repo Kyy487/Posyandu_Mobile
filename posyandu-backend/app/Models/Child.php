@@ -20,6 +20,7 @@ class Child extends Model
         'user_id',
         'nik',
         'nik_hash',
+        'ihs_number',
         'name',
         'place_of_birth',
         'birth_place',
