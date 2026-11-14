@@ -3,17 +3,38 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
-use App\Models\UserVerification;
+use App\Http\Requests\Auth\CompleteRegistrationRequest;
+use App\Http\Requests\Child\StoreChildRequest;
+use App\Models\User;
+use App\Services\ChildOnboardingService;
+use App\Services\ParentRegistrationService;
+use App\Support\NikHasher;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Validator;
 
 class RegistrationCompletionController extends Controller
 {
+    public function __construct(
+        private readonly ParentRegistrationService $registrations,
+        private readonly ChildOnboardingService $onboarding,
+    ) {}
+
+    /**
+     * Status pendaftaran (bisa diakses via token atau NIK).
+     */
     public function show(Request $request): JsonResponse
     {
-        $user = $request->user()->load('verifications');
-        $user = $user->makeHidden(['nik', 'nik_hash', 'password']);
+        $user = $this->resolveUser($request);
+
+        if ($user === null) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Status pendaftaran tidak ditemukan.',
+                'errors' => null,
+            ], 404);
+        }
+
+        $user->load('verifications');
 
         return response()->json([
             'success' => true,
@@ -22,75 +43,43 @@ class RegistrationCompletionController extends Controller
         ]);
     }
 
-    public function update(Request $request): JsonResponse
+    /**
+     * Lengkapi atau perbaiki data pendaftaran Ibu.
+     */
+    public function update(CompleteRegistrationRequest $request): JsonResponse
     {
-        $user = $request->user();
+        $user = $this->resolveUser($request);
 
-        if ($user->role !== 'ibu' || $user->status !== 'pending') {
+        if ($user === null) {
             return response()->json([
                 'success' => false,
-                'message' => 'Hanya akun ibu dengan status menunggu persetujuan yang dapat melengkapi data.',
+                'message' => 'Status pendaftaran tidak ditemukan.',
+                'errors' => null,
+            ], 404);
+        }
+
+        if ($user->role !== 'ibu') {
+            return response()->json([
+                'success' => false,
+                'message' => 'Hanya akun Ibu yang dapat melengkapi data pendaftaran.',
                 'errors' => null,
             ], 403);
         }
 
-        $validator = Validator::make($request->all(), [
-            'name' => ['sometimes', 'string', 'max:255'],
-            'phone_number' => ['sometimes', 'nullable', 'string', 'max:16', 'regex:/^[0-9+\-\s]+$/'],
-            'place_of_birth' => ['sometimes', 'nullable', 'string', 'max:100'],
-            'date_of_birth' => ['sometimes', 'nullable', 'date'],
-            'gender' => ['sometimes', 'nullable', 'in:L,P'],
-            'address' => ['required', 'string'],
-            'verification_file' => ['nullable', 'file', 'mimes:jpg,jpeg,png,pdf', 'max:5120'],
-            'verification_type' => ['nullable', 'in:self_photo,kk,other'],
-        ]);
-
-        if ($validator->fails()) {
+        if (! in_array($user->status, ['pending', 'rejected'], true)) {
             return response()->json([
                 'success' => false,
-                'message' => 'Validasi gagal.',
-                'errors' => $validator->errors()->toArray(),
-            ], 422);
+                'message' => 'Data pendaftaran hanya dapat diubah saat status menunggu atau ditolak.',
+                'errors' => null,
+            ], 403);
         }
 
-        $data = $validator->validated();
-        if (array_key_exists('place_of_birth', $data) && $data['place_of_birth'] === '') {
-            unset($data['place_of_birth']);
-        }
-        if (array_key_exists('date_of_birth', $data) && $data['date_of_birth'] === '') {
-            unset($data['date_of_birth']);
-        }
-        if (array_key_exists('gender', $data) && $data['gender'] === '') {
-            unset($data['gender']);
-        }
-        if (array_key_exists('phone_number', $data) && $data['phone_number'] === '') {
-            unset($data['phone_number']);
-        }
-        if ($user->status === 'rejected') {
-            $user->status = 'pending';
-            $user->rejection_reason = null;
-            $user->approved_by = null;
-            $user->approved_at = null;
-            $user->verified_at = null;
-        }
-        $user->fill($data);
-        $user->save();
-
-        if ($request->hasFile('verification_file')) {
-            $file = $request->file('verification_file');
-            $path = $file->store('verifications', 'public');
-            UserVerification::create([
-                'user_id' => $user->id,
-                'type' => $request->input('verification_type', 'other'),
-                'file_path' => $path,
-                'file_name' => $file->getClientOriginalName(),
-                'mime_type' => $file->getMimeType(),
-                'uploaded_at' => now(),
-            ]);
-        }
-
-        $user->load('verifications');
-        $user = $user->makeHidden(['nik', 'nik_hash', 'password']);
+        $user = $this->registrations->completeProfile(
+            $user,
+            $request->validated(),
+            $request->file('verification_file'),
+            (string) $request->input('verification_type', 'other'),
+        );
 
         return response()->json([
             'success' => true,
@@ -98,5 +87,52 @@ class RegistrationCompletionController extends Controller
             'data' => $user,
         ]);
     }
-}
 
+    /**
+     * Onboarding data anak setelah akun Ibu disetujui Kader.
+     *
+     * Endpoint ini adalah satu-satunya jalur yang diizinkan selama
+     * `onboarding_status = need_child_data`.
+     */
+    public function storeChild(StoreChildRequest $request): JsonResponse
+    {
+        /** @var User $user */
+        $user = $request->user();
+
+        if ($user->role !== 'ibu') {
+            return response()->json([
+                'success' => false,
+                'message' => 'Hanya akun Ibu yang dapat melengkapi data anak.',
+                'errors' => null,
+            ], 403);
+        }
+
+        $child = $this->onboarding->store($user, $request->validated());
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Data anak berhasil disimpan. Onboarding selesai.',
+            'data' => [
+                'child' => $child,
+                'user' => $user->fresh()->load('verifications'),
+            ],
+        ], 201);
+    }
+
+    private function resolveUser(Request $request): ?User
+    {
+        if ($request->user() !== null) {
+            return $request->user();
+        }
+
+        $nik = (string) $request->input('nik');
+        if ($nik === '') {
+            return null;
+        }
+
+        return User::query()
+            ->where('nik_hash', NikHasher::hash($nik))
+            ->whereIn('status', ['pending', 'rejected'])
+            ->first();
+    }
+}

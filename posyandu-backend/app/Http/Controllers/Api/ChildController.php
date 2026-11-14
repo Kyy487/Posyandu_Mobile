@@ -11,10 +11,10 @@ use App\Services\ChildTimelineService;
 use App\Services\GrowthChartService;
 use App\Services\ReferralService;
 use App\Services\VisitService;
+use App\Support\NikHasher;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
-use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 
 class ChildController extends Controller
@@ -63,15 +63,22 @@ class ChildController extends Controller
 
         try {
             $validated = $request->validate([
-                'nik' => 'nullable|string|size:16|unique:children,nik',
+                // NIK dicek lewat hash, bukan kolom terenkripsi. Lihat child
+                // NIK uniqueness di StoreChildRequest.
+                'nik' => ['nullable', 'string', 'size:16', $this->uniqueChildNikRule()],
                 'name' => 'required|string|max:255',
                 'place_of_birth' => 'required_without:birth_place|string|max:100',
                 'birth_place' => 'required_without:place_of_birth|string|max:100',
                 // `date_format:Y-m-d` WAJIB dipakai, bukan `date` saja.
                 'date_of_birth' => 'required|date_format:Y-m-d|before_or_equal:today',
                 'gender' => 'required|in:L,P',
+                'birth_order' => 'nullable|integer|min:1|max:20',
                 'birth_weight' => 'nullable|numeric|min:0',
                 'birth_height' => 'nullable|numeric|min:0',
+                'birth_length' => 'nullable|numeric|min:0',
+                'birth_head_circumference' => 'nullable|numeric|min:0',
+                'birth_status' => 'nullable|in:normal,premature',
+                'buku_kia_id' => 'nullable|string|max:50',
                 'user_id' => [
                     $isKader ? 'required_without:ibu_nik' : 'nullable',
                     'exists:users,id',
@@ -105,12 +112,16 @@ class ChildController extends Controller
             $childData = [
                 'user_id' => $mother->id,
                 'nik' => $nik,
-                'nik_hash' => $nik ? hash('sha256', $nik) : null,
+                'nik_hash' => $nik ? NikHasher::hash($nik) : null,
                 'name' => $validated['name'],
                 'date_of_birth' => $validated['date_of_birth'],
                 'gender' => $validated['gender'],
+                'birth_order' => $validated['birth_order'] ?? null,
                 'birth_weight' => $validated['birth_weight'] ?? null,
-                'birth_height' => $validated['birth_height'] ?? null,
+                'birth_length' => $validated['birth_length'] ?? $validated['birth_height'] ?? null,
+                'birth_head_circumference' => $validated['birth_head_circumference'] ?? null,
+                'birth_status' => $validated['birth_status'] ?? null,
+                'buku_kia_id' => $validated['buku_kia_id'] ?? null,
             ];
 
             if (array_key_exists('place_of_birth', $validated)) {
@@ -124,6 +135,10 @@ class ChildController extends Controller
             }
 
             $child = Child::create($childData);
+
+            if ($mother && $mother->role === 'ibu' && $mother->needsChildData()) {
+                $mother->update(['onboarding_status' => 'completed']);
+            }
 
             Consent::create([
                 'child_id' => $child->id,
@@ -176,7 +191,10 @@ class ChildController extends Controller
             return $errors;
         }
 
-        $archived = Child::withTrashed()->where('nik', $nik)->whereNotNull('deleted_at')->first();
+        $archived = Child::withTrashed()
+            ->where('nik_hash', NikHasher::hash($nik))
+            ->whereNotNull('deleted_at')
+            ->first();
 
         if ($archived) {
             $errors['nik'] = ["NIK sudah dipakai oleh anak yang datanya sudah dihapus ({$archived->name}). "
@@ -184,6 +202,25 @@ class ChildController extends Controller
         }
 
         return $errors;
+    }
+
+    /**
+     * NIK disimpan terenkripsi sehingga `unique:children,nik` tidak bisa
+     * dipakai. Keunikan dicek lewat `nik_hash` (HMAC-SHA256 deterministik).
+     */
+    private function uniqueChildNikRule(?string $ignoreId = null): \Closure
+    {
+        return function (string $attribute, mixed $value, \Closure $fail) use ($ignoreId): void {
+            $query = Child::withTrashed()->where('nik_hash', NikHasher::hash((string) $value));
+
+            if ($ignoreId !== null) {
+                $query->whereKeyNot($ignoreId);
+            }
+
+            if ($query->exists()) {
+                $fail('NIK sudah dipakai oleh data anak lain.');
+            }
+        };
     }
 
     /**
@@ -220,7 +257,7 @@ class ChildController extends Controller
         $byNik = null;
 
         if ($hasNik) {
-            $byNik = User::where('nik', $validated['ibu_nik'])->first();
+            $byNik = User::where('nik_hash', NikHasher::hash($validated['ibu_nik']))->first();
 
             if (! $byNik) {
                 return [null, response()->json([
@@ -287,7 +324,7 @@ class ChildController extends Controller
                 'nik' => [
                     'sometimes', 'nullable', 'string', 'size:16',
                     // NIK anak unik, tapi abaikan dirinya sendiri saat update.
-                    Rule::unique('children', 'nik')->ignore($child->id),
+                    $this->uniqueChildNikRule($child->id),
                 ],
                 'name' => ['sometimes', 'required', 'string', 'max:255'],
                 'place_of_birth' => ['sometimes', 'string', 'max:100'],
@@ -299,8 +336,13 @@ class ChildController extends Controller
                     'date_format:Y-m-d', 'before_or_equal:today',
                 ],
                 'gender' => ['sometimes', 'required', 'in:L,P'],
+                'birth_order' => ['sometimes', 'nullable', 'integer', 'min:1', 'max:20'],
                 'birth_weight' => ['sometimes', 'nullable', 'numeric', 'min:0'],
                 'birth_height' => ['sometimes', 'nullable', 'numeric', 'min:0'],
+                'birth_length' => ['sometimes', 'nullable', 'numeric', 'min:0'],
+                'birth_head_circumference' => ['sometimes', 'nullable', 'numeric', 'min:0'],
+                'birth_status' => ['sometimes', 'nullable', 'in:normal,premature'],
+                'buku_kia_id' => ['sometimes', 'nullable', 'string', 'max:50'],
                 // Batas 500 karakter divalidasi di sini, bukan lewat CHECK
                 // constraint, supaya kesalahan ketik jadi 422 yang bisa dibaca
                 // kader. Isinya teks bebas satu penanda per baris dan sengaja
@@ -330,8 +372,23 @@ class ChildController extends Controller
                 $validated['place_of_birth'] = $validated['birth_place'];
             }
 
+            // `birth_length` adalah nama kanonis; `birth_height` diterima
+            // sebagai alias input dari klien lama, tetapi tidak pernah ditulis
+            // karena kolom itu generated dari `birth_length`.
+            $birthLengthProvided = array_key_exists('birth_length', $request->all())
+                || array_key_exists('birth_height', $request->all());
+
+            if ($birthLengthProvided) {
+                $validated['birth_length'] = $validated['birth_length'] ?? $validated['birth_height'] ?? null;
+                unset($validated['birth_height']);
+            }
+
             // Buang key yang tidak berubah agar tidak menimpa nilai lama.
-            foreach (['nik', 'birth_weight', 'birth_height'] as $optional) {
+            foreach (['nik', 'birth_order', 'birth_weight', 'birth_height', 'birth_length', 'birth_head_circumference', 'birth_status', 'buku_kia_id'] as $optional) {
+                if ($optional === 'birth_length' && $birthLengthProvided) {
+                    continue;
+                }
+
                 if (array_key_exists($optional, $validated) && $validated[$optional] === null
                     && ! array_key_exists($optional, $request->all())) {
                     unset($validated[$optional]);

@@ -134,4 +134,63 @@ class ChildService {
       return _offlineError();
     }
   }
+
+  Future<Map<String, dynamic>> completeOnboarding({
+    required String nik,
+    required String name,
+    required String placeOfBirth,
+    required String dateOfBirth,
+    required String gender,
+    required int birthOrder,
+    required double birthWeight,
+    required double birthLength,
+    required double birthHeadCircumference,
+    required String birthStatus,
+    String? bukuKiaId,
+    required String consentType,
+    required String consentDocumentVersion,
+  }) async {
+    final headers = await _authHeaders(json: true);
+    if (headers == null) return _sessionEnded();
+
+    try {
+      final response = await http.post(
+        Uri.parse('$baseUrl/registration/child'),
+        headers: headers,
+        body: json.encode({
+          'nik': nik,
+          'name': name,
+          'place_of_birth': placeOfBirth,
+          'date_of_birth': dateOfBirth,
+          'gender': gender,
+          'birth_order': birthOrder,
+          'birth_weight': birthWeight,
+          'birth_length': birthLength,
+          'birth_head_circumference': birthHeadCircumference,
+          'birth_status': birthStatus,
+          if (bukuKiaId != null && bukuKiaId.isNotEmpty)
+            'buku_kia_id': bukuKiaId,
+          'consent_type': consentType,
+          'consent_document_version': consentDocumentVersion,
+        }),
+      );
+
+      final body = _decode(response);
+
+      if (response.statusCode == 401) {
+        await _auth.logout();
+        return _sessionEnded();
+      }
+
+      return {
+        'success': body['success'] == true,
+        'status': response.statusCode,
+        'message': body['message']?.toString() ?? 'Gagal menyimpan data anak.',
+        'errors': body['errors'],
+        'data': body['data'],
+      };
+    } catch (e) {
+      return _offlineError();
+    }
+  }
 }

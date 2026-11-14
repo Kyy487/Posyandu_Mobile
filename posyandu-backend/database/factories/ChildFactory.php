@@ -4,6 +4,7 @@ namespace Database\Factories;
 
 use App\Models\Child;
 use App\Models\User;
+use App\Support\NikHasher;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 /**
@@ -19,16 +20,20 @@ class ChildFactory extends Factory
         return [
             'user_id' => User::factory(),
             // NIK tepat 16 digit karena kolom `children.nik` adalah `varchar(16)`
-            // dan `ChildController` memvalidasi `size:16`. `unique()` dipakai
-            // karena ada `children_nik_unique`; tanpa itu pembuatan factory
-            // kedua dalam satu proses bisa menghasilkan NIK yang sama dan gagal.
+            // dan `ChildController` memvalidasi `size:16`. Uniqueness dijaga
+            // oleh `children_nik_hash_unique`, bukan oleh kolom `nik` yang
+            // berisi ciphertext acak.
             'nik' => (string) fake()->unique()->numerify('3273############'),
-            'nik_hash' => fn (array $attributes) => hash('sha256', $attributes['nik']),
+            'nik_hash' => fn (array $attributes) => NikHasher::hash($attributes['nik']),
             'name' => fake()->name(),
             'date_of_birth' => fake()->dateTimeBetween('-5 years', '-1 month')->format('Y-m-d'),
             'gender' => fake()->randomElement(['L', 'P']),
+            'birth_order' => fake()->numberBetween(1, 4),
             'birth_weight' => fake()->randomFloat(2, 2.5, 4.0),
-            'birth_height' => fake()->randomFloat(1, 45, 52),
+            'birth_length' => fake()->randomFloat(1, 45, 52),
+            'birth_head_circumference' => fake()->randomFloat(1, 30, 36),
+            'birth_status' => 'normal',
+            'buku_kia_id' => null,
         ];
     }
 

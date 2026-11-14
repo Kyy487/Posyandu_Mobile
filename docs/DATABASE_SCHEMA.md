@@ -3,20 +3,83 @@
 Proyek ini menggunakan UUID untuk seluruh Primary Key dan relasi tabel.
 
 ## 1. `users` (Master Data)
-Menyimpan autentikasi Ibu dan Kader.
+Menyimpan autentikasi dan profil Ibu serta Kader. Tidak ada kolom `email`.
+
 * `id` (UUID, PK)
-* `nik` (Text, Unique, terenkripsi AES-256-GCM via `$casts`)
-* `nik_hash` (String 64, Index, SHA-256 — untuk lookup login)
-* `name`, `email`, `password`, `phone_number`
-* `role` (Enum: 'ibu', 'kader')
+* `nik` (Text, Nullable, terenkripsi AES-256-GCM via `$casts`)
+* `nik_hash` (String 64, Nullable, **Unique**, **HMAC-SHA256** dengan
+  `APP_KEY` — untuk lookup login dan pencegahan NIK ganda). Nilai lama SHA-256
+  di-rehash oleh migration
+  `2026_11_13_000005_rehash_nik_hash_with_hmac.php`. Migration
+  `2026_11_13_000009_normalize_nik_encryption_format.php` juga menormalkan
+  ciphertext lama (yang memakai serialisasi PHP) ke format `encryptString`
+  agar `$user->nik` mengembalikan NIK asli. Kolom `nik` terenkripsi acak
+  sehingga **tidak** bisa dipakai untuk unique.
+* `no_kk` (Text, Nullable, terenkripsi AES-256-GCM via `$casts`) — nomor Kartu
+  Keluarga. **Tidak unik** karena satu KK dipakai bersama oleh beberapa anggota
+  keluarga. Enkripsi dan pelebaran kolom dilakukan migration
+  `2026_11_13_000004_encrypt_no_kk_on_users_table.php`.
+* `name`, `password`, `phone_number`, `jabatan`
+* `role` (String, default `ibu`) — nilai aplikasi: `ibu`, `kader`
+* `status` (String, default `active`) — `pending` / `active` / `rejected`
+* `onboarding_status` (String 20, default `need_child_data`, Index) —
+  `need_child_data` / `completed`. Ditambahkan migration
+  `2026_11_13_000001_...`; seluruh user lama di-backfill menjadi `completed`.
+* `place_of_birth`, `date_of_birth`, `gender` (`L`/`P`), `address`
+* `blood_type` (String 3, Nullable) — `A` / `B` / `AB` / `O`
+* `rt_rw` (String 10, Nullable) — format seperti `001/002`
+* `education` (String 20, Nullable) — `SD`/`SMP`/`SMA`/`SMK`/`D3`/`S1`/`S2`/`S3`/`other`
+* `occupation` (String 100, Nullable)
+* `approved_by` (UUID, FK -> users.id, Nullable, **set null**), `approved_at`,
+  `rejection_reason`, `verified_at`
+* `verification_status` (String 20, **generated stored**, Index) — turunan dari
+  `status`: `pending` -> `pending`, `active` -> `approved`, `rejected` ->
+  `rejected`. Dibuat migration
+  `2026_11_13_000008_add_verification_status_generated_to_users.php`.
+* `remember_token`, `timestamps`
+
+**Index dan constraint:**
+
+* Unique `nik_hash` (`users_nik_hash_unique`)
+* Index `status`, `onboarding_status`, `verification_status`
+* CHECK `users_onboarding_status_check`, `users_blood_type_check`,
+  `users_education_check`, `users_rt_rw_check`
+* FK `approved_by` memakai `ON DELETE SET NULL` agar riwayat persetujuan tidak
+  ikut hilang saat akun kader dihapus.
+
+> `nik_hash` memakai `APP_KEY` sebagai kunci HMAC. Jangan mengganti `APP_KEY`
+> tanpa menghitung ulang seluruh `nik_hash`; jika tidak, login pengguna lama
+> akan gagal. `nik_hash` tetap deterministik sehingga aman untuk unique index.
+
+> `verification_status` adalah **kolom generated stored** dari `status`, jadi
+> tidak ada dual-write dan nilainya tidak mungkin berbeda. Accessor
+> `User::getVerificationStatusAttribute()` selalu menghitung dari `status` agar
+> tidak mengembalikan nilai generated yang basi setelah approval, sementara
+> kolomnya tetap tersedia untuk filter/reporting SQL. `next_action` tetap
+> accessor, bukan kolom.
 
 ## 2. `children` (Data Anak)
 * `id` (UUID, PK)
 * `user_id` (UUID, FK -> users.id) — acuan resmi relasi ibu
-* `nik` (Text, Unique, Nullable, terenkripsi AES-256-GCM via `$casts`)
-* `nik_hash` (String 64, Index, Nullable, SHA-256 — untuk lookup)
+* `nik` (Text, Nullable, terenkripsi AES-256-GCM via `$casts`)
+* `nik_hash` (String 64, Nullable, **Unique**, **HMAC-SHA256** dengan
+  `APP_KEY` — untuk lookup dan pencegahan NIK ganda). Nilai lama SHA-256
+  di-rehash oleh migration
+  `2026_11_13_000005_rehash_nik_hash_with_hmac.php`.
 * `name`, `gender` ('L', 'P'), `date_of_birth`
-* `birth_weight` (Float), `birth_height` (Float)
+* `place_of_birth` (String 100, Nullable), `birth_place` (String 100, Nullable)
+  — dua nama untuk field yang sama; service menyinkronkan keduanya.
+* `birth_order` (Smallint, Nullable) — urutan kelahiran.
+* `birth_weight` (Float, Nullable)
+* `birth_height` (Float, **generated stored**, Nullable) — alias baca dari
+  `birth_length`; tidak boleh ditulis dari aplikasi. Dibuat migration
+  `2026_11_13_000007_make_birth_height_generated_on_children.php`.
+* `birth_length` (Numeric(5,2), Nullable) — **nama kanonis** panjang lahir.
+  Migration baru mem-backfill nilai dari `birth_height` untuk baris yang belum
+  punya `birth_length`, lalu mengubah `birth_height` menjadi generated column.
+* `birth_head_circumference` (Numeric(5,2), Nullable) — lingkar kepala lahir.
+* `birth_status` (String 20, Nullable) — `normal` / `premature`.
+* `buku_kia_id` (String 50, Nullable) — identitas Buku KIA.
 * `medical_flags` (Text, Nullable) — kondisi khusus anak (alergi, penyakit
   bawaan), satu penanda per baris. Ditambahkan oleh migration
   `2026_09_29_010000_add_medical_flags_to_children_table.php`. Mobile membaca
@@ -25,6 +88,13 @@ Menyimpan autentikasi Ibu dan Kader.
 * `timestamps`
 * `deleted_at` (Timestamp, Nullable) — soft delete, ditambahkan oleh migration
   `2026_09_26_020000_add_deleted_at_to_children_table.php`
+
+**Index dan constraint:**
+
+* Unique `nik_hash` (`children_nik_hash_unique`)
+* CHECK `children_birth_status_check`, `children_birth_order_check`
+* `birth_height` adalah generated column dari `birth_length`
+
 
 > ⚠️ **Kenapa soft delete?** `measurements.child_id` dan
 > `immunization_records.child_id` memakai `ON DELETE CASCADE`. Hard delete pada anak

@@ -19,6 +19,7 @@ import '../data_anak/kader_data_anak_tab.dart';
 import '../profil/kader_profil_tab.dart';
 import '../imunisasi/rekap_imunisasi_screen.dart';
 import '../../kalkulator/calculator_screen.dart';
+import '../../assignment/assignment_dashboard_screen.dart';
 
 /// Shell Dashboard Kader: bottom navigation melayang 5 slot (Beranda, Jadwal,
 /// Scan, Data Anak, Profil) dengan Beranda sebagai tab awal.
@@ -176,7 +177,10 @@ class _DashboardKaderScreenState extends State<DashboardKaderScreen> {
       if (token == null) return;
       final res = await http.get(
         Uri.parse('${ApiConstants.baseUrl}/kader/registrations?status=pending'),
-        headers: {'Accept': 'application/json', 'Authorization': 'Bearer $token'},
+        headers: {
+          'Accept': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
       );
       if (res.statusCode != 200) return;
       final body = jsonDecode(res.body);
@@ -222,7 +226,9 @@ class _DashboardKaderScreenState extends State<DashboardKaderScreen> {
   void _bukaDetail(Child child) {
     Navigator.push(
       context,
-      MaterialPageRoute(builder: (context) => DetailAnakScreen(childData: child)),
+      MaterialPageRoute(
+        builder: (context) => DetailAnakScreen(childData: child),
+      ),
     ).then((_) => _muatData());
   }
 
@@ -241,7 +247,10 @@ class _DashboardKaderScreenState extends State<DashboardKaderScreen> {
       ikon: Icons.person_add_alt_1_rounded,
       label: 'Validasi Registrasi',
       warna: const Color(0xFFC4502A),
-      onTap: () => Navigator.pushNamed(context, '/kader/registrations').then((_) => _muatPendingRegistrations()),
+      onTap: () => Navigator.pushNamed(
+        context,
+        '/kader/registrations',
+      ).then((_) => _muatPendingRegistrations()),
       badgeCount: _pendingRegistrations,
     ),
     KaderMenuAksi(
@@ -254,7 +263,10 @@ class _DashboardKaderScreenState extends State<DashboardKaderScreen> {
       ikon: Icons.calculate_rounded,
       label: 'Kalkulator',
       warna: const Color(0xFF7C3FBF),
-      onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const CalculatorScreen())),
+      onTap: () => Navigator.push(
+        context,
+        MaterialPageRoute(builder: (context) => const CalculatorScreen()),
+      ),
     ),
     KaderMenuAksi(
       ikon: Icons.menu_book_rounded,
@@ -281,6 +293,17 @@ class _DashboardKaderScreenState extends State<DashboardKaderScreen> {
       onTap: () => Navigator.push(
         context,
         MaterialPageRoute(builder: (context) => const RekapImunisasiScreen()),
+      ),
+    ),
+    KaderMenuAksi(
+      ikon: Icons.assignment_rounded,
+      label: 'Tugas Mobile',
+      warna: const Color(0xFF1565C0),
+      onTap: () => Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => const AssignmentDashboardScreen(),
+        ),
       ),
     ),
   ];

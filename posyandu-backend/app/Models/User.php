@@ -4,8 +4,8 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
-use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
@@ -17,6 +17,7 @@ class User extends Authenticatable
     protected $fillable = [
         'nik',
         'nik_hash',
+        'no_kk',
         'name',
         // 'email',
         'password',
@@ -24,10 +25,15 @@ class User extends Authenticatable
         'phone_number',
         'jabatan',
         'status',
+        'onboarding_status',
         'place_of_birth',
         'date_of_birth',
         'gender',
+        'blood_type',
         'address',
+        'rt_rw',
+        'education',
+        'occupation',
         'whatsapp',
         'instagram',
         'facebook',
@@ -44,14 +50,83 @@ class User extends Authenticatable
         'nik_hash',
     ];
 
+    /**
+     * Field turunan yang selalu ikut di respons API.
+     *
+     * Flutter memakai `verification_status` dan `next_action` untuk menentukan
+     * layar berikutnya (lengkapi data / tunggu verifikasi / tambah anak /
+     * dashboard) tanpa perlu menebak dari kombinasi `status` + jumlah anak.
+     */
+    protected $appends = [
+        'verification_status',
+        'next_action',
+    ];
+
     protected function casts(): array
     {
         return [
             'nik' => 'encrypted',
+            'no_kk' => 'encrypted',
             'date_of_birth' => 'date',
             'approved_at' => 'datetime',
             'verified_at' => 'datetime',
         ];
+    }
+
+    /**
+     * Status verifikasi dengan penamaan yang dipakai klien.
+     *
+     * Selalu dihitung dari `status` agar tidak pernah mengembalikan nilai
+     * generated column yang sudah basi setelah `status` diubah pada model yang
+     * sama (mis. approval Kader). Kolom generated `verification_status` tetap
+     * ada di database untuk filter/reporting SQL.
+     */
+    public function getVerificationStatusAttribute(): string
+    {
+        return match ($this->status) {
+            'active' => 'approved',
+            'rejected' => 'rejected',
+            default => 'pending',
+        };
+    }
+
+    /**
+     * Langkah berikutnya yang harus dilakukan Ibu.
+     *
+     * `null` berarti akun sudah boleh masuk dashboard.
+     */
+    public function getNextActionAttribute(): ?string
+    {
+        if ($this->role !== 'ibu') {
+            return null;
+        }
+
+        return match ($this->verification_status) {
+            'pending' => 'complete_registration',
+            'rejected' => 'fix_registration',
+            'approved' => $this->needsChildData() ? 'add_child' : null,
+            default => null,
+        };
+    }
+
+    public function isVerificationPending(): bool
+    {
+        return $this->role === 'ibu' && $this->verification_status === 'pending';
+    }
+
+    public function isVerified(): bool
+    {
+        return $this->role !== 'ibu' || $this->verification_status === 'approved';
+    }
+
+    public function needsChildData(): bool
+    {
+        return $this->role === 'ibu' && $this->onboarding_status === 'need_child_data';
+    }
+
+    public function hasCompletedOnboarding(): bool
+    {
+        return $this->role !== 'ibu' || $this->onboarding_status === 'completed';
     }
 
     // Relasi: Satu Ibu memiliki banyak Anak
@@ -137,4 +212,3 @@ class User extends Authenticatable
         return $this->status === 'rejected';
     }
 }
-

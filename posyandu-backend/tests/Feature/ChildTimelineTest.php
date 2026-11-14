@@ -509,9 +509,10 @@ class ChildTimelineTest extends TestCase
     }
 
     /**
-     * `birth_weight` dan `birth_height` punya aturan null yang sama.
+     * `birth_weight` dan `birth_length` (alias lama `birth_height`) punya
+     * aturan null yang sama.
      *
-     *'incorrect input harus bisa dihapus|Totalỹi| jadi dikoreksi jadi kosong,
+     *'incorrect input harus bisa dihapus|Total��1i| jadi dikoreksi jadi kosong,
      * bukan terkunci selamanya karena mobile tidak pernah bisa mengirim null.
      */
     #[Test]
@@ -520,8 +521,9 @@ class ChildTimelineTest extends TestCase
         $anak = Child::factory()->create([
             'date_of_birth' => '2024-01-01',
             'birth_weight' => 3.2,
-            'birth_height' => 49,
+            'birth_length' => 49,
         ]);
+
         $kader = User::factory()->kader()->create();
 
         $this->kader($kader)->patchJson("/api/children/{$anak->id}", [

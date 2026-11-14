@@ -4,7 +4,9 @@ namespace Tests\Feature;
 
 use App\Models\Child;
 use App\Models\User;
+use App\Support\NikHasher;
 use Database\Factories\UserFactory;
+use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
 use Tests\TestCase;
@@ -27,11 +29,24 @@ class NikEncryptionTest extends TestCase
     {
         $nik = '3273012345678901';
 
-        $user1 = User::factory()->create(['nik' => $nik]);
-        $user2 = User::factory()->create(['nik' => $nik]);
+        $user = User::factory()->create(['nik' => $nik]);
 
-        $this->assertEquals($user1->nik_hash, $user2->nik_hash);
-        $this->assertEquals(hash('sha256', $nik), $user1->nik_hash);
+        $this->assertEquals(NikHasher::hash($nik), $user->nik_hash);
+        $this->assertNotEquals(hash('sha256', $nik), $user->nik_hash);
+        $this->assertSame(
+            $user->id,
+            User::query()->where('nik_hash', NikHasher::hash($nik))->value('id'),
+        );
+    }
+
+    public function test_nik_ganda_ditolak_oleh_unique_nik_hash(): void
+    {
+        $nik = '3273012345678901';
+        User::factory()->create(['nik' => $nik]);
+
+        $this->expectException(QueryException::class);
+
+        User::factory()->create(['nik' => $nik]);
     }
 
     public function test_login_by_nik_tetap_jalan(): void
@@ -77,13 +92,26 @@ class NikEncryptionTest extends TestCase
             'password_confirmation' => 'password123',
         ]);
 
-        // With new requirements, registration might need more fields
-        $this->assertTrue(true);
+        $response->assertCreated();
+        $response->assertJsonPath('success', true);
+        $response->assertJsonPath('data.status', 'pending');
+        $response->assertJsonPath(
+            'message',
+            'Pendaftaran berhasil. Akun Anda menunggu persetujuan dari Kader Posyandu.'
+        );
+
+        $responseData = $response->json();
+        $this->assertArrayNotHasKey('nik', $responseData['data']['user']);
+        $this->assertArrayNotHasKey('nik_hash', $responseData['data']['user']);
+        $this->assertArrayHasKey('token', $responseData['data']);
+        $this->assertNotEmpty($responseData['data']['token']);
+        $this->assertSame('need_child_data', $responseData['data']['user']['onboarding_status']);
     }
 
     public function test_nik_anak_tersimpan_encrypted(): void
     {
-        $child = Child::factory()->create();
+        $user = User::factory()->create();
+        $child = Child::factory()->create(['user_id' => $user->id]);
 
         $rawNik = \DB::table('children')->where('id', $child->id)->value('nik');
 

@@ -7,16 +7,16 @@ use App\Http\Controllers\Api\ConsentController;
 use App\Http\Controllers\Api\FhirController;
 use App\Http\Controllers\Api\ImmunizationController;
 // -- Area Controller --//
+use App\Http\Controllers\Api\KaderRegistrationController;
 use App\Http\Controllers\Api\MeasurementController;
 use App\Http\Controllers\Api\MedicalNoteController;
 use App\Http\Controllers\Api\PetugasController;
 use App\Http\Controllers\Api\PosyanduScheduleController;
+use App\Http\Controllers\Api\ProfileController;
 use App\Http\Controllers\Api\ReferralController;
+use App\Http\Controllers\Api\RegistrationCompletionController;
 use App\Http\Controllers\Api\ReminderController;
 use App\Http\Controllers\Api\VisitController;
-use App\Http\Controllers\Api\KaderRegistrationController;
-use App\Http\Controllers\Api\ProfileController;
-use App\Http\Controllers\Api\RegistrationCompletionController;
 use App\Http\Middleware\RoleCheck;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
@@ -46,6 +46,10 @@ Route::post('/register', [AuthController::class, 'register'])
 
 Route::post('/login', [AuthController::class, 'login'])
     ->middleware('throttle:'.config('posyandu.login_throttle'));
+Route::get('/registration/status', [RegistrationCompletionController::class, 'show']);
+Route::post('/registration/complete', [RegistrationCompletionController::class, 'update']);
+Route::put('/registration/complete', [RegistrationCompletionController::class, 'update']);
+Route::patch('/registration/complete', [RegistrationCompletionController::class, 'update']);
 
 // ---------------------------------------------------------------------
 // Route Terlindungi (Protected) - Wajib Bearer Token
@@ -53,11 +57,6 @@ Route::post('/login', [AuthController::class, 'login'])
 Route::middleware('auth:sanctum')->group(function () {
 
     Route::post('/logout', [AuthController::class, 'logout']);
-
-    Route::get('/registration/status', [RegistrationCompletionController::class, 'show']);
-    Route::post('/registration/complete', [RegistrationCompletionController::class, 'update']);
-    Route::put('/registration/complete', [RegistrationCompletionController::class, 'update']);
-    Route::patch('/registration/complete', [RegistrationCompletionController::class, 'update']);
 
     Route::get('/profile', [ProfileController::class, 'show']);
     Route::match(['put', 'patch'], '/profile', [ProfileController::class, 'update']);
@@ -71,9 +70,19 @@ Route::middleware('auth:sanctum')->group(function () {
     });
 
     // -----------------------------------------------------------------
+    // ONBOARDING ANAK - hanya untuk Ibu yang sudah diverifikasi Kader.
+    //
+    // Endpoint ini sengaja berada di luar `child.onboarding`; justru inilah
+    // satu-satunya jalan keluar dari status `need_child_data`.
+    // -----------------------------------------------------------------
+    Route::middleware('kader.verification')->group(function () {
+        Route::post('/registration/child', [RegistrationCompletionController::class, 'storeChild']);
+    });
+
+    // -----------------------------------------------------------------
     // AREA BALITA - dapat diakses Ibu maupun Kader
     // -----------------------------------------------------------------
-    Route::middleware([RoleCheck::class.':ibu,kader'])->group(function () {
+    Route::middleware([RoleCheck::class.':ibu,kader', 'kader.verification', 'child.onboarding'])->group(function () {
         Route::get('/children', [ChildController::class, 'index']);
         Route::get('/children/{id}', [ChildController::class, 'show']);
 
@@ -171,7 +180,7 @@ Route::middleware('auth:sanctum')->group(function () {
     // `GET /kader/reminders`. Dipisah supaya Kader tidak bisa memanggil endpoint
     // Ibu (dan sebaliknya) - lihat ReminderTest.
     // -----------------------------------------------------------------
-    Route::middleware([RoleCheck::class.':ibu', 'ibu.active'])->group(function () {
+    Route::middleware([RoleCheck::class.':ibu', 'ibu.active', 'kader.verification', 'child.onboarding'])->group(function () {
         Route::get('/ibu/reminders', [ReminderController::class, 'indexIbu']);
     });
 
@@ -284,6 +293,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/kader/registrations/{user}', [KaderRegistrationController::class, 'show']);
         Route::post('/kader/registrations/{user}/approve', [KaderRegistrationController::class, 'approve']);
         Route::post('/kader/registrations/{user}/reject', [KaderRegistrationController::class, 'reject']);
+        Route::patch('/kader/registrations/{user}', [KaderRegistrationController::class, 'correct']);
 
         // -----------------------------------------------------------------
         // AREA FHIR R4 - Jembatan integrasi SATUSEHAT

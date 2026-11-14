@@ -3,8 +3,11 @@ import 'package:flutter/services.dart';
 
 import '../../services/auth_service.dart';
 import '../../theme/app_theme.dart';
-import '../../screens/kader/dashboard/kader_dashboard_screen.dart' as kader_dash;
+import '../../screens/kader/dashboard/kader_dashboard_screen.dart'
+    as kader_dash;
 import '../../screens/ibu/home/dashboard_ibu_screen.dart' as dashboard_ibu;
+import '../../utils/post_login_destination.dart';
+import 'child_onboarding_screen.dart';
 import 'register_screen.dart';
 import 'registration_completion_screen.dart';
 import 'rejected_registration_screen.dart';
@@ -60,19 +63,34 @@ class _LoginScreenState extends State<LoginScreen> {
       await _authService.saveRememberedNik(_rememberNik ? nik : '');
       if (!mounted) return;
       final data = result['data'];
-      final user = data is Map ? data['user'] : null;
-      final role = (user is Map ? user['role'] : null)?.toString().toLowerCase();
-      final status = (user is Map ? user['status'] : null)?.toString();
-      if (role == 'ibu' && status == 'rejected') {
-        Navigator.of(context).pushReplacement(MaterialPageRoute(builder: (_) => RejectedRegistrationScreen(user: user)));
-        return;
+      final user = data is Map && data['user'] is Map
+          ? Map<String, dynamic>.from(data['user'] as Map)
+          : null;
+
+      switch (resolvePostLoginDestination(user)) {
+        case PostLoginDestination.rejectedRegistration:
+          Navigator.of(context).pushReplacement(
+            MaterialPageRoute(
+              builder: (_) => RejectedRegistrationScreen(user: user),
+            ),
+          );
+          return;
+        case PostLoginDestination.completeRegistration:
+          Navigator.of(context).pushReplacement(
+            MaterialPageRoute(
+              builder: (_) => const RegistrationCompletionScreen(),
+            ),
+          );
+          return;
+        case PostLoginDestination.childOnboarding:
+          Navigator.of(context).pushReplacement(
+            MaterialPageRoute(builder: (_) => const ChildOnboardingScreen()),
+          );
+          return;
+        case PostLoginDestination.dashboard:
+          _gotoDashboard(result);
+          return;
       }
-      if (role == 'ibu' && status == 'pending') {
-        Navigator.of(context).pushReplacement(MaterialPageRoute(builder: (_) => const RegistrationCompletionScreen()));
-        return;
-      }
-      _gotoDashboard(result);
-      return;
     }
 
     setState(() {
@@ -123,6 +141,18 @@ class _LoginScreenState extends State<LoginScreen> {
       ),
       (route) => false,
     );
+  }
+
+  void _handleDemoLogin(String role) async {
+    final result = await _authService.loginAsDemo(role: role);
+    if (result['success'] == true) {
+      _gotoDashboard(result['data']['user']);
+    } else {
+      setState(() {
+        _isLoading = false;
+        _errorMessage = result['message'] ?? 'Demo login gagal';
+      });
+    }
   }
 
   void _bukaRegister() {
@@ -341,7 +371,7 @@ class _LoginScreenState extends State<LoginScreen> {
               ),
             ),
             TextButton(
-              onPressed: _bukaRegister,
+              onPressed: _isLoading ? null : _bukaRegister,
               style: TextButton.styleFrom(
                 foregroundColor: Colors.white,
                 padding: const EdgeInsets.symmetric(horizontal: 8),
@@ -350,6 +380,40 @@ class _LoginScreenState extends State<LoginScreen> {
               ),
               child: const Text(
                 'Daftar di sini',
+                style: TextStyle(fontWeight: FontWeight.w700),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 4),
+        Wrap(
+          alignment: WrapAlignment.center,
+          spacing: 8,
+          runSpacing: 4,
+          children: [
+            TextButton(
+              onPressed: _isLoading ? null : () => _handleDemoLogin('ibu'),
+              style: TextButton.styleFrom(
+                foregroundColor: Colors.pinkAccent,
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+                minimumSize: Size.zero,
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
+              child: const Text(
+                'Masuk Demo Ibu',
+                style: TextStyle(fontWeight: FontWeight.w700),
+              ),
+            ),
+            TextButton(
+              onPressed: _isLoading ? null : () => _handleDemoLogin('kader'),
+              style: TextButton.styleFrom(
+                foregroundColor: Colors.lightGreenAccent,
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+                minimumSize: Size.zero,
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
+              child: const Text(
+                'Masuk Demo Kader',
                 style: TextStyle(fontWeight: FontWeight.w700),
               ),
             ),

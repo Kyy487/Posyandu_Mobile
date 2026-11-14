@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '/../theme/app_theme.dart';
 import 'login_screen.dart';
+import 'registration_completion_screen.dart';
 
 class PendingApprovalScreen extends StatelessWidget {
   const PendingApprovalScreen({super.key});
@@ -53,6 +54,23 @@ class PendingApprovalScreen extends StatelessWidget {
                       padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 12),
                     ),
                     child: const Text('Kembali ke Login'),
+                  ),
+                  const SizedBox(height: 12),
+                  ElevatedButton(
+                    onPressed: () {
+                      Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (_) => const RegistrationCompletionScreen(),
+                        ),
+                      );
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.white,
+                      foregroundColor: AppTheme.primary,
+                      side: const BorderSide(color: AppTheme.primary),
+                      padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 12),
+                    ),
+                    child: const Text('Lengkapi Data'),
                   ),
                 ],
               ),

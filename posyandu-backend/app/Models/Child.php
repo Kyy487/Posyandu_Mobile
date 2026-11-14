@@ -25,8 +25,12 @@ class Child extends Model
         'birth_place',
         'gender',
         'date_of_birth',
+        'birth_order',
         'birth_weight',
-        'birth_height',
+        'birth_length',
+        'birth_head_circumference',
+        'birth_status',
+        'buku_kia_id',
         'medical_flags',
     ];
 
@@ -55,7 +59,20 @@ class Child extends Model
     {
         return [
             'nik' => 'encrypted',
+            'date_of_birth' => 'date:Y-m-d',
+            'birth_order' => 'integer',
+            'birth_weight' => 'float',
+            // `birth_height` adalah kolom generated dari `birth_length`; jangan
+            // pernah diisi dari aplikasi.
+            'birth_height' => 'float',
+            'birth_length' => 'decimal:2',
+            'birth_head_circumference' => 'decimal:2',
         ];
+    }
+
+    public function isPremature(): bool
+    {
+        return $this->birth_status === 'premature';
     }
 
     /**

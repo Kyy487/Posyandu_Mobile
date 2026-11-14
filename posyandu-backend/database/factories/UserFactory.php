@@ -3,6 +3,7 @@
 namespace Database\Factories;
 
 use App\Models\User;
+use App\Support\NikHasher;
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
@@ -36,7 +37,7 @@ class UserFactory extends Factory
             // Panjang NIK harus tepat 16 digit: kolom `users.nik` adalah
             // `varchar(16)` dan `AuthController` memvalidasi `size:16`.
             'nik' => (string) fake()->unique()->numerify('3273############'),
-            'nik_hash' => fn (array $attributes) => hash('sha256', $attributes['nik']),
+            'nik_hash' => fn (array $attributes) => NikHasher::hash($attributes['nik']),
             'name' => fake()->name(),
             'password' => static::$password ??= Hash::make(self::PASSWORD),
             // Literal string, bukan konstanta: seluruh aplikasi membandingkan
@@ -49,6 +50,15 @@ class UserFactory extends Factory
             'date_of_birth' => '1990-01-01',
             'gender' => 'P',
             'address' => 'Jl. Test',
+            // Factory mewakili akun yang sudah lama terdaftar, jadi onboarding
+            // dianggap selesai. Test alur onboarding wajib mengeset state ini
+            // secara eksplisit ke `need_child_data`.
+            'onboarding_status' => 'completed',
+            'no_kk' => null,
+            'blood_type' => null,
+            'rt_rw' => null,
+            'education' => null,
+            'occupation' => null,
             'remember_token' => Str::random(10),
         ];
     }
@@ -75,6 +85,37 @@ class UserFactory extends Factory
         return $this->state(fn (array $attributes) => [
             'role' => 'ibu',
             'jabatan' => null,
+        ]);
+    }
+
+    /** Ibu yang sudah mendaftar tetapi belum disetujui Kader. */
+    public function menungguVerifikasi(): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'role' => 'ibu',
+            'status' => 'pending',
+            'onboarding_status' => 'need_child_data',
+        ]);
+    }
+
+    /** Ibu yang pendaftarannya ditolak Kader. */
+    public function ditolak(): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'role' => 'ibu',
+            'status' => 'rejected',
+            'onboarding_status' => 'need_child_data',
+            'rejection_reason' => 'Data tidak lengkap.',
+        ]);
+    }
+
+    /** Ibu terverifikasi yang belum melengkapi data anak. */
+    public function perluDataAnak(): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'role' => 'ibu',
+            'status' => 'active',
+            'onboarding_status' => 'need_child_data',
         ]);
     }
 

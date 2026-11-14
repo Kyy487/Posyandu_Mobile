@@ -1,5 +1,8 @@
 <?php
 
+use App\Http\Middleware\CheckChildOnboarding;
+use App\Http\Middleware\CheckKaderVerification;
+use App\Http\Middleware\EnsureIbuActive;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Auth\AuthenticationException;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
@@ -20,7 +23,9 @@ return Application::configure(basePath: dirname(__DIR__))
     )
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->alias([
-            'ibu.active' => \App\Http\Middleware\EnsureIbuActive::class,
+            'ibu.active' => EnsureIbuActive::class,
+            'kader.verification' => CheckKaderVerification::class,
+            'child.onboarding' => CheckChildOnboarding::class,
         ]);
         /*
         |--------------------------------------------------------------------------

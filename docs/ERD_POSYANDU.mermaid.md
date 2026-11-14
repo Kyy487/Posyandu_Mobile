@@ -4,29 +4,31 @@
 erDiagram
     USERS {
         uuid id PK
-        string nik "encrypted (UK)"
-        string nik_hash UK
+        text nik "encrypted, nullable"
+        string nik_hash "HMAC-SHA256, unique, nullable"
+        text no_kk "encrypted, not unique"
         string name
         string password
-        string role "ibu|kader|admin"
+        string role "ibu|kader"
         string status "pending|active|rejected"
+        string verification_status "generated: pending|approved|rejected"
+        string onboarding_status "need_child_data|completed"
         string phone_number
         string jabatan
         string place_of_birth
         date date_of_birth
         string gender "L|P"
+        string blood_type "A|B|AB|O"
         text address
-        string whatsapp
-        string instagram
-        string facebook
+        string rt_rw
+        string education "SD|SMP|SMA|SMK|D3|S1|S2|S3|other"
+        string occupation
         uuid approved_by FK
         timestamp approved_at
         text rejection_reason
         timestamp verified_at
-        timestamp email_verified_at
         string remember_token
         timestamps
-        timestamp deleted_at
     }
 
     USER_VERIFICATIONS {
@@ -42,23 +44,21 @@ erDiagram
     CHILDREN {
         uuid id PK
         uuid user_id FK
+        text nik "encrypted, nullable"
+        string nik_hash "HMAC-SHA256, unique, nullable"
         string name
-        string nik "encrypted (UK)"
-        string nik_hash UK
         string gender "L|P"
-        date birth_date
+        date date_of_birth
         string place_of_birth
-        decimal birth_weight
-        decimal birth_length
-        string father_name
-        string mother_name
-        string address
-        text medical_history
-        text allergy
-        text notes
-        string blood_type
-        json immunization_status
-        boolean is_active
+        string birth_place
+        smallint birth_order
+        float birth_weight
+        float birth_height "generated from birth_length"
+        numeric birth_length "canonical"
+        numeric birth_head_circumference
+        string birth_status "normal|premature"
+        string buku_kia_id
+        text medical_flags
         timestamps
         timestamp deleted_at
     }

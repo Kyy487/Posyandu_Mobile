@@ -4,7 +4,6 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\User;
-use App\Models\UserVerification;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
@@ -45,6 +44,53 @@ class KaderRegistrationController extends Controller
         return response()->json([
             'success' => true,
             'message' => 'Detail permohonan berhasil diambil.',
+            'data' => $user,
+        ]);
+    }
+
+    public function correct(Request $request, User $user): JsonResponse
+    {
+        if ($user->role !== 'ibu') {
+            return response()->json([
+                'success' => false,
+                'message' => 'Hanya permohonan role ibu yang dapat dikoreksi.',
+                'errors' => null,
+            ], 404);
+        }
+
+        if ($user->status !== 'pending') {
+            return response()->json([
+                'success' => false,
+                'message' => 'Permohonan ini tidak dalam status menunggu persetujuan.',
+                'errors' => null,
+            ], 422);
+        }
+
+        $validator = Validator::make($request->all(), [
+            'name' => ['sometimes', 'string', 'max:255'],
+            'phone_number' => ['sometimes', 'nullable', 'string', 'max:16', 'regex:/^[0-9+\-\s]+$/'],
+            'place_of_birth' => ['sometimes', 'nullable', 'string', 'max:100'],
+            'date_of_birth' => ['sometimes', 'nullable', 'date'],
+            'gender' => ['sometimes', 'nullable', 'string', 'in:L,P'],
+            'address' => ['sometimes', 'nullable', 'string'],
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Validasi gagal.',
+                'errors' => $validator->errors()->toArray(),
+            ], 422);
+        }
+
+        $user->fill($validator->validated());
+        $user->save();
+
+        $user = $user->makeHidden(['nik', 'nik_hash', 'password']);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Data permohonan berhasil dikoreksi oleh Kader.',
             'data' => $user,
         ]);
     }
@@ -128,4 +174,3 @@ class KaderRegistrationController extends Controller
         ]);
     }
 }
-

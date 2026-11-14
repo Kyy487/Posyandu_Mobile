@@ -7,6 +7,7 @@ use App\Models\ImmunizationType;
 use App\Models\MedicalNote;
 use App\Models\PosyanduSchedule;
 use App\Models\User;
+use App\Support\NikHasher;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\Hash;
 
@@ -80,9 +81,12 @@ class DatabaseSeeder extends Seeder
      */
     private function makeUser(string $nik, string $name, string $role, ?string $jabatan = null): User
     {
-        $user = User::firstOrNew(['nik' => $nik]);
+        $nikHash = NikHasher::hash($nik);
+        $user = User::firstOrNew(['nik_hash' => $nikHash]);
 
         if (! $user->exists) {
+            $user->nik = $nik;
+            $user->nik_hash = $nikHash;
             $user->name = $name;
             $user->role = $role;
             $user->password = Hash::make('password123');
@@ -101,8 +105,8 @@ class DatabaseSeeder extends Seeder
 
     private function seedAnak(): void
     {
-        $annisa = User::where('nik', '1111222233334444')->first();
-        $ceri = User::where('nik', '1111222233334445')->first();
+        $annisa = User::where('nik_hash', NikHasher::hash('1111222233334444'))->first();
+        $ceri = User::where('nik_hash', NikHasher::hash('1111222233334445'))->first();
 
         $anak = [
             ['1234567890123456', 'Budi Santoso', '2025-05-10', 'L', 3.2, 50.0, $annisa?->id],
@@ -116,14 +120,16 @@ class DatabaseSeeder extends Seeder
             }
 
             Child::updateOrCreate(
-                ['nik' => $nik],
+                ['nik_hash' => NikHasher::hash($nik)],
                 [
+                    'nik' => $nik,
+                    'nik_hash' => NikHasher::hash($nik),
                     'user_id' => $userId,
                     'name' => $name,
                     'date_of_birth' => $dob,
                     'gender' => $gender,
                     'birth_weight' => $weight,
-                    'birth_height' => $height,
+                    'birth_length' => $height,
                 ]
             );
         }
