@@ -56,7 +56,7 @@ Kondisi pada commit acuan:
 
 | Pemeriksaan | Hasil |
 |---|---|
-| Full test backend | 321 test lulus, 2323 assertion |
+| Full test backend | 323 test lulus, 2337 assertion |
 | Pint | Lulus |
 | Redaksi log | Processor aktif; NIK/token/kredensial disamarkan |
 | Migration 1-10 di database dev | Sudah dijalankan |
@@ -70,6 +70,10 @@ Kondisi pada commit acuan:
 | `7917057` | Standarisasi Fase 1: IHS anak, role admin, waktu kunjungan/pengukuran, terminologi imunisasi, red flags, mapper/validator FHIR, import CSV IHS. |
 | `2c143dc` | Redaksi log global untuk NIK/token/kredensial, ringkasan payload FHIR di `satusehat.log`, test throttle login, dokumentasi utama dan checklist Fase 1.5. |
 | `f11cff5` | Perintah `audit:prune`, kebijakan retensi audit 5 tahun, log aplikasi 30 hari, dokumentasi secret manager/`APP_DEBUG`, test retensi audit. |
+
+Test login akun `pending` dan `rejected` ada di
+`tests/Feature/LoginStatusTest.php`; keduanya tetap mendapat token dan
+`next_action` yang sesuai.
 
 Perintah verifikasi ulang ada di bagian 7.
 

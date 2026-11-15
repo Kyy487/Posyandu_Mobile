@@ -156,7 +156,7 @@ Sistem Informasi Manajemen Terpadu untuk mendigitalisasi pencatatan kesehatan ib
 | Method | Endpoint | Akses | Keterangan |
 |---|---|---|---|
 | `POST` | `/register` | Public | **Diubah:** Membuat akun `role: ibu` dengan `status: pending`, wajib upload bukti verifikasi, **tidak mengembalikan token**. |
-| `POST` | `/login` | Public | **Diubah:** Cek status akun. Jika `pending` → `403 "Akun Anda masih menunggu persetujuan dari Kader Posyandu."`. Jika `rejected` → `403 "Pendaftaran Anda ditolak. Alasan: {alasan}"`. Hanya `active` yang mendapat token. |
+| `POST` | `/login` | Public | **Diubah:** Akun `pending`/`rejected` tetap mendapat token agar bisa melengkapi/memperbaiki pendaftaran. Respons `200` berisi `message`, `data.status`, dan `data.next_action`; akses dashboard dibatasi middleware, bukan dengan menolak login. |
 
 #### Kader - Manajemen Permohonan Registrasi
 | Method | Endpoint | Akses | Keterangan |
@@ -209,7 +209,7 @@ Saat registrasi, wajib melengkapi minimal:
 | **4** | **Approval Kader** | P0 | **SELESAI** | Endpoint + UI kader untuk list/detail/approve/reject permohonan. |
 | **5** | **Perketat Data Anak** | P0 | **SELESAI** | Guard status ibu aktif, perkuat validasi field wajib anak. |
 | **6** | **Pindah/arsip IoT Smart Triage** | P1 | **SELESAI** | Dipindahkan/arsipkan atau dikeluarkan dari scope aktif. |
-| **7** | **Testing Alur** | P1 | **SELESAI sebagian** | Registrasi, approval, guard anak, dan unggah bukti sudah diuji. Test login untuk akun `pending`/`rejected` masih perlu ditambah. |
+| **7** | **Testing Alur** | P1 | **SELESAI** | Registrasi, approval, guard anak, unggah bukti, serta login akun `pending`/`rejected` sudah diuji lewat `LoginStatusTest`. |
 | **8** | **Standarisasi data Fase 1** | P1 | **SELESAI** | IHS, waktu, terminologi, red flags, sosial media, FHIR draft/validasi, import CSV admin. |
 | **9** | **Observability & security dasar** | P1 | **SELESAI** | Redaksi log, rate limit, guard admin, retensi audit, dokumentasi secret manager. |
 | **10** | **Finalisasi data eksternal Fase 1.5** | P1 | **BELUM** | Format IHS final, mapping KFA/CVX, persetujuan red flags. |
@@ -312,5 +312,5 @@ Spesifikasi lengkap modul yang sudah selesai atau ditunda ada di `docs/arsip/`.
 **Status:** Steps 1-6 selesai; testing alur selesai sebagian. Standarisasi Fase 1
 dan observability dasar sudah selesai. Fokus berikutnya adalah menutup Fase 1.5
 (data IHS, KFA/CVX, red flags, rehearsal staging, pilot admin), lalu masuk Fase 2A
-SATUSEHAT. Hasil teknis terbaru: `7917057`, `2c143dc`, `f11cff5`; full test 321
-lulus, 2323 assertion.
+SATUSEHAT. Hasil teknis terbaru: `7917057`, `2c143dc`, `f11cff5`; full test 323
+lulus, 2337 assertion.
