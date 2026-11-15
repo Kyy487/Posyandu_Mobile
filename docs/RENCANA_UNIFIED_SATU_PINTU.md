@@ -5,9 +5,9 @@
 > **diarsipkan di `docs/arsip/`**. Dokumen teknis (kontrak API, skema DB, cara menjalankan,
 > log setup) tetap terpisah — lihat §9.
 >
-> **Terakhir diperbarui:** 24 Oktober 2026  
-> **Prinsip kerja:** kalkulasi Z-score WHO **hanya** di trigger/function PostgreSQL, bukan di PHP.  
-> **Fokus saat ini:** Perbaikan alur registrasi & validasi akun + pengetatan data profil & anak.
+> **Terakhir diperbarui:** 15 November 2026<br>
+> **Prinsip kerja:** kalkulasi Z-score WHO **hanya** di trigger/function PostgreSQL, bukan di PHP.<br>
+> **Fokus saat ini:** Menutup Fase 1.5 (data IHS, terminologi KFA/CVX, red flags, rehearsal staging, pilot admin), lalu masuk Fase 2A SATUSEHAT.
 
 **Cara baca:** `[x]` = selesai · `[ ]` = belum · `[~]` = sebagian.
 
@@ -87,8 +87,13 @@ Sistem Informasi Manajemen Terpadu untuk mendigitalisasi pencatatan kesehatan ib
 - [x] **Alur persetujuan registrasi Ibu (Kader approval)** — **P0 (BARU)**
 - [x] **Perbaikan data profil user (kelengkapan + verifikasi)** — **P0 (BARU)**
 - [x] **Pengetatan data anak & guard status ibu aktif** — **P0 (BARU)**
+- [x] **Standarisasi data Fase 1** — IHS anak, role admin, waktu kunjungan,
+  terminologi imunisasi, red flags, sosial media, mapper/validator FHIR.
+- [x] **Observability & security dasar** — redaksi log, rate limit login,
+  guard admin, retensi audit 5 tahun, log aplikasi 30 hari.
+- [~] **Fase 1.5 kesiapan produksi** — menunggu format IHS final, mapping
+  KFA/CVX, persetujuan red flags, rehearsal staging, dan pilot admin.
 - [ ] **Notifikasi lokal terjadwal** (backend ada, mobile belum)
-- [ ] **Backup & retensi** 
 - [ ] **Evaluasi klinis** (validasi Z-score vs WHO Anthro)
 - [ ] **Uji coba kader**
 - [ ] **Performance test**
@@ -97,7 +102,9 @@ Sistem Informasi Manajemen Terpadu untuk mendigitalisasi pencatatan kesehatan ib
 - [ ] **Smart Triage (IoT)** — Dipindahkan ke arsip, tidak dalam scope aktif
 - [ ] **Fitur AI kompleks** (Food Scanner, dll) — Ditunda hingga kriteria terpenuhi
 - [ ] **Pemetaan Spasial (PostGIS)** — Ditunda
-- [ ] **Offline-First Sync, FHIR/SATUSEHAT** — Masih backlog
+- [~] **Offline-First Sync** — Ditunda
+- [~] **Pengiriman SATUSEHAT otomatis** — Draft dan validasi FHIR sudah selesai;
+  pengiriman nyata masuk Fase 2A.
 
 ---
 
@@ -202,7 +209,12 @@ Saat registrasi, wajib melengkapi minimal:
 | **4** | **Approval Kader** | P0 | **SELESAI** | Endpoint + UI kader untuk list/detail/approve/reject permohonan. |
 | **5** | **Perketat Data Anak** | P0 | **SELESAI** | Guard status ibu aktif, perkuat validasi field wajib anak. |
 | **6** | **Pindah/arsip IoT Smart Triage** | P1 | **SELESAI** | Dipindahkan/arsipkan atau dikeluarkan dari scope aktif. |
-| **7** | **Testing Alur** | P1 | **BELUM** | Uji register→pending→approve→login, guard anak, upload foto bukti. |
+| **7** | **Testing Alur** | P1 | **SELESAI sebagian** | Registrasi, approval, guard anak, dan unggah bukti sudah diuji. Test login untuk akun `pending`/`rejected` masih perlu ditambah. |
+| **8** | **Standarisasi data Fase 1** | P1 | **SELESAI** | IHS, waktu, terminologi, red flags, sosial media, FHIR draft/validasi, import CSV admin. |
+| **9** | **Observability & security dasar** | P1 | **SELESAI** | Redaksi log, rate limit, guard admin, retensi audit, dokumentasi secret manager. |
+| **10** | **Finalisasi data eksternal Fase 1.5** | P1 | **BELUM** | Format IHS final, mapping KFA/CVX, persetujuan red flags. |
+| **11** | **Rehearsal staging + pilot admin** | P1 | **BELUM** | Migrasi data staging, dry-run import, import nyata, rollback, audit review. |
+| **12** | **Fase 2A SATUSEHAT** | P2 | **BERIKUTNYA** | OAuth, outbox, queue, retry, idempotency, pengiriman resource, rekonsiliasi. |
 
 ### Prioritas Keseluruhan
 
@@ -213,13 +225,22 @@ Saat registrasi, wajib melengkapi minimal:
 | **P0** | Entitas Visit, WHO Multidimensi, Imunisasi Kemenkes | **Selesai** | Sudah dikerjakan |
 | **P1** | Audit trail, Consent UU PDP, Enkripsi NIK | **Selesai** | Sudah dikerjakan |
 | **P1** | Arsipkan Smart Triage (IoT) | **SELESAI** | Dikeluarkan dari scope aktif |
-| **P2** | Backup & retensi, Evaluasi klinis | **Belum** | Hardening |
+| **P1** | Standarisasi Fase 1 + FHIR draft | **Selesai** | IHS, waktu, terminologi, red flags, mapper/validator |
+| **P1** | Observability & security dasar | **Selesai** | Redaksi log, rate limit, retensi audit |
+| **P1** | Fase 1.5 kesiapan produksi | **Berjalan** | Menunggu data eksternal dan staging |
+| **P2** | Fase 2A pengiriman SATUSEHAT | **Berikutnya** | OAuth, outbox, queue, retry, rekonsiliasi |
+| **P2** | Backup & retensi, Evaluasi klinis | **Sebagian** | Retensi audit/log selesai; backup dan evaluasi klinis belum |
 | **P2** | Notifikasi lokal (mobile) | **Belum** | Backend ready, mobile pending |
-| **P3** | Fitur AI, FHIR, Offline Sync | **Ditunda** | Sesuai kebijakan |
+| **P3** | Fitur AI, Offline Sync, PostGIS | **Ditunda** | Sesuai kebijakan |
 
 ### Fase Pengembangan Saat Ini
 - **Fase 1-4:** Selesai
-- **Fase 5 (Evaluasi):** Sedang berjalan, namun **difokuskan ulang** ke perbaikan registrasi & validasi akun sebelum evaluasi menyeluruh.
+- **Fase 1.5 (Kesiapan produksi):** Sedang berjalan. Observability & security
+  dasar selesai; data IHS final, mapping KFA/CVX, red flags, rehearsal staging,
+  dan pilot admin masih menunggu.
+- **Fase 2A (SATUSEHAT):** Berikutnya setelah seluruh item A-G di
+  `docs/CHECKLIST_FASE_1_5.md` selesai dengan bukti.
+- **Fase 5 (Evaluasi):** Dilakukan setelah Fase 2A stabil.
 
 ---
 
@@ -233,7 +254,10 @@ Saat registrasi, wajib melengkapi minimal:
 | Buku Medis / Timeline | Selesai | Riwayat medis gabungan |
 | Kunjungan (Visit) & Rujukan | Selesai | Payung layanan terpadu |
 | Tata Kelola (Audit, Consent, Enkripsi) | Selesai | Pematuhan kebijakan |
-| **Registrasi & Approval Ibu** | **SELESAI** | Fokus saat ini |
+| **Registrasi & Approval Ibu** | **SELESAI** | Fondasi akses aplikasi |
+| **Standarisasi Fase 1 + FHIR draft** | **SELESAI** | IHS, waktu, terminologi, red flags |
+| **Observability & security dasar** | **SELESAI** | Redaksi log, retensi, rate limit |
+| **Fase 1.5 kesiapan produksi** | **Berjalan** | Menunggu data eksternal/staging |
 
 ### Dokumen Arsip
 Spesifikasi lengkap modul yang sudah selesai atau ditunda ada di `docs/arsip/`.
@@ -285,4 +309,8 @@ Spesifikasi lengkap modul yang sudah selesai atau ditunda ada di `docs/arsip/`.
 
 ---
 
-**Status:** Steps 1-5 (Dokumen terpusat, Migrasi DB, Auth, Approval Kader, Perketat Data Anak) selesai. P0 registrasi & validasi akun telah diterapkan. Lanjut ke testing alur dan item prioritas berikutnya.
+**Status:** Steps 1-6 selesai; testing alur selesai sebagian. Standarisasi Fase 1
+dan observability dasar sudah selesai. Fokus berikutnya adalah menutup Fase 1.5
+(data IHS, KFA/CVX, red flags, rehearsal staging, pilot admin), lalu masuk Fase 2A
+SATUSEHAT. Hasil teknis terbaru: `7917057`, `2c143dc`, `f11cff5`; full test 321
+lulus, 2323 assertion.

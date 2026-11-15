@@ -4,11 +4,12 @@ Dokumen ini adalah titik masuk untuk memahami kondisi proyek, memverifikasi
 implementasi Fase 1, melakukan pemeriksaan saat ada masalah, dan melanjutkan
 pekerjaan ke Fase 1.5.
 
-**Terakhir diperbarui:** 14 November 2026
-**Commit acuan:** `7917057` (`feat: standarisasi data Fase 1 dan integrasi FHIR`)
+**Terakhir diperbarui:** 15 November 2026
+**Commit acuan:** `f11cff5` (`feat: retensi audit log dan observability Fase 1.5`)
 **Branch:** `riezky`
-**Status:** Fase 1 selesai secara teknis; belum siap produksi sampai data
-eksternal (IHS, KFA/CVX, red flags) difinalkan.
+**Status:** Fase 1 selesai secara teknis; observability & security dasar selesai
+di repo. Fase 1.5 belum selesai karena data eksternal (IHS, KFA/CVX, red flags)
+dan rehearsal staging belum tersedia.
 
 ## 1. Cara Memakai Dokumen Ini
 
@@ -61,6 +62,14 @@ Kondisi pada commit acuan:
 | Migration 1-10 di database dev | Sudah dijalankan |
 | Dokumentasi schema, ERD, API | Sudah disinkronkan |
 | Branch remote | `origin/riezky` |
+
+### 3.1 Hasil kerja terbaru
+
+| Commit | Hasil |
+|---|---|
+| `7917057` | Standarisasi Fase 1: IHS anak, role admin, waktu kunjungan/pengukuran, terminologi imunisasi, red flags, mapper/validator FHIR, import CSV IHS. |
+| `2c143dc` | Redaksi log global untuk NIK/token/kredensial, ringkasan payload FHIR di `satusehat.log`, test throttle login, dokumentasi utama dan checklist Fase 1.5. |
+| `f11cff5` | Perintah `audit:prune`, kebijakan retensi audit 5 tahun, log aplikasi 30 hari, dokumentasi secret manager/`APP_DEBUG`, test retensi audit. |
 
 Perintah verifikasi ulang ada di bagian 7.
 
@@ -511,6 +520,42 @@ deploy staging/produksi.
 Setelah semua lulus, baru masuk **Fase 2A**: OAuth SATUSEHAT, outbox/queue,
 retry, idempotency, pengiriman resource, dan rekonsiliasi.
 
+### 9.8 Rancangan Fase 2A (setelah Fase 1.5)
+
+Fase 2A adalah pengiriman nyata ke SATUSEHAT, bukan lagi draft/validasi.
+
+1. **OAuth dan konfigurasi**
+   - Ambil token dari endpoint OAuth SATUSEHAT.
+   - Simpan `client_id`, `client_secret`, dan `org_id` di secret manager.
+   - Token tidak boleh masuk log atau database dalam bentuk plaintext.
+2. **Outbox dan queue**
+   - Setiap perubahan yang perlu dikirim menulis satu baris outbox.
+   - Worker mengirim resource secara asinkron.
+   - Retry dengan backoff, idempotency key, dan status akhir yang bisa diaudit.
+3. **Resource yang dikirim**
+   - `Patient` memakai `ihs_number`, bukan NIK.
+   - `Encounter`, `Observation` (BB/TB/LK/IMT), dan `Immunization`.
+   - Lanjutan: `RelatedPerson`, `Practitioner`, `ServiceRequest`, `Consent`,
+     dan `DocumentReference`.
+4. **Rekonsiliasi dan monitoring**
+   - Bandingkan resource lokal dengan respons SATUSEHAT.
+   - Alert untuk kegagalan berulang, token kedaluwarsa, dan antrean menumpuk.
+   - Dashboard operasional tanpa menampilkan NIK atau kredensial.
+5. **Lingkup yang tetap ditunda**
+   - WhatsApp dengan opt-in dan template.
+   - ICD-10/SNOMED wajib.
+   - Multi-Posyandu dan `health_facilities`.
+   - Offline-first sync dan AI Food Scanner.
+
+### 9.9 Urutan eksekusi berikutnya
+
+1. Finalkan data eksternal: format IHS, mapping KFA/CVX, dan daftar red flags.
+2. Rehearsal migrasi di staging dan pilot import IHS dengan data nyata.
+3. Tutup seluruh item A-G di `docs/CHECKLIST_FASE_1_5.md`.
+4. Mulai Fase 2A: OAuth, outbox, queue, retry, idempotency, pengiriman resource,
+   dan rekonsiliasi.
+5. Setelah Fase 2A stabil, lanjut notifikasi WhatsApp dan perluasan resource.
+
 ## 10. Rujukan Dokumen
 
 | Dokumen | Isi |
@@ -518,6 +563,7 @@ retry, idempotency, pengiriman resource, dan rekonsiliasi.
 | `docs/API_CONTRACT.md` | Kontrak endpoint dan envelope respons |
 | `docs/DATABASE_SCHEMA.md` | Schema aktual dan daftar migration |
 | `docs/ERD_POSYANDU.mermaid.md` | ERD Mermaid |
+| `docs/RENCANA_UNIFIED_SATU_PINTU.md` | Rencana induk lintas fase dan status fitur |
 | `docs/RANCANGAN_STANDARISASI.md` | Rancangan Fase 1 dan keputusan teknis |
 | `docs/CHECKLIST_FASE_1_5.md` | Checklist kerja dan bukti Fase 1.5 |
 | `docs/KEAMANAN_APLIKASI.md` | Catatan keamanan |

@@ -8,6 +8,7 @@ tanpa bukti.
 **Pemilik:** _(isi)_
 **Target selesai:** _(isi)_
 **Commit awal:** `7917057`
+**Hasil observability & security:** `2c143dc`, `f11cff5`
 
 ## A. Data IHS
 

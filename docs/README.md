@@ -43,6 +43,7 @@ posyandu/
 | FHIR R4 draft + validasi SATUSEHAT | Selesai (pengiriman otomatis belum) |
 | Red flags & edukasi gizi | Selesai |
 | Sosial media profil | Selesai |
+| Observability & retensi log | Selesai |
 | AI Food Scanner (microservice) | Belum dimulai |
 | Pemetaan Spasial (PostGIS) | Belum dimulai |
 
@@ -89,7 +90,7 @@ flutter test
 
 | Kategori | File |
 |---|---|
-| Dokumentasi utama | `DOKUMENTASI_UTAMA.md` (status, arsitektur, operasional, troubleshooting, Fase 1.5) |
+| Dokumentasi utama | `DOKUMENTASI_UTAMA.md` (status, hasil kerja, arsitektur, operasional, troubleshooting, Fase 1.5, Fase 2A) |
 | Rencana induk | `RENCANA_UNIFIED_SATU_PINTU.md` (rencana dan checklist lintas fase) |
 | Rancangan Fase 1 | `RANCANGAN_STANDARISASI.md` |
 | Checklist Fase 1.5 | `CHECKLIST_FASE_1_5.md` |
