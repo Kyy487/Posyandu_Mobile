@@ -1,8 +1,8 @@
 # DOKUMEN KEAMANAN APLIKASI POSYANDU
 
-**Versi Dokumen** : 1.0  
-**Tanggal Audit**   : 27 Oktober 2026  
-**Lingkup**         : `posyandu-backend` (Laravel 13 + Laravel Sanctum)  
+**Versi Dokumen** : 1.1<br>
+**Tanggal Audit**   : 15 November 2026<br>
+**Lingkup**         : `posyandu-backend` (Laravel 13 + Laravel Sanctum)<br>
 **Tujuan**          : Mendokumentasikan penerapan keamanan, temuan audit, serta rekomendasi perbaikan untuk persiapan rilis/produksi.
 
 ## 1. Ringkasan Eksekutif
@@ -29,6 +29,8 @@ Namun, masih terdapat beberapa poin yang **wajib diperkuat** sebelum dideploy ke
 | **Soft Delete** | Sudah Ada | Penghapusan data balita bersifat *soft delete*. Riwayat penimbangan, imunisasi, kunjungan, dan rujukan tetap tersimpan untuk menjaga integritas data medis. |
 | **Upload Verifikasi** | Sudah Ada | Hanya mengizinkan tipe file `jpg`, `jpeg`, `png`, `pdf` dengan batas ukuran `max:5120` KB. |
 | **Audit Trail** | Sudah Ada | Tersedia `AuditLogController` khusus untuk Kader guna meninjau riwayat perubahan data penting. |
+| **Redaksi Log** | Sudah Ada | Processor `App\Logging\RedactSensitiveData` menyamarkan NIK 16 digit, password, token, dan kredensial di semua channel log. Pesan `QueryException` yang memuat binding query ikut dibersihkan. Payload FHIR penuh tidak ditulis ke log. |
+| **Admin IHS Terpisah** | Sudah Ada | Endpoint `/api/admin/*` hanya untuk role `admin`; kader tidak dapat mengubah IHS. Setiap koreksi IHS dicatat ke `audit_logs`. |
 
 ## 3. Temuan Audit & Rekomendasi
 
@@ -52,6 +54,9 @@ Namun, masih terdapat beberapa poin yang **wajib diperkuat** sebelum dideploy ke
 | 4 | `SANCTUM_TOKEN_EXPIRATION` belum diatur | Sedang | Pertimbangkan menetapkan masa berlaku token (mis. 7-30 hari) sesuai kebutuhan aplikasi mobile. Jangan biarkan token berlaku tanpa batas jika risiko pencurian token cukup tinggi. |
 | 5 | `SESSION_ENCRYPT=false` | Sedang | Jika aplikasi masih menggunakan session berbasis cookie di masa depan, aktifkan `SESSION_ENCRYPT=true`. Untuk saat ini API *stateless* berbasis Sanctum sudah cukup baik. |
 | 6 | Throttling hanya pada login & register | Sedang | Tambahkan *rate limiting* pada endpoint sensitif seperti `POST/PATCH/DELETE` terkait data anak, kunjungan, rujukan, dan imunisasi untuk membatasi penyalahgunaan token yang valid. |
+| 7 | Retensi log dan audit log belum ditetapkan | Sedang | Tetapkan kebijakan retensi tertulis. Pisahkan audit medis (`audit_logs`) dari log aplikasi, backup sebelum pembersihan, dan jangan menghapus audit tanpa persetujuan. |
+| 8 | Kredensial SATUSEHAT masih berpotensi disimpan di `.env` | Sedang-Tinggi | Gunakan secret manager atau environment terenkripsi di server. Jangan commit `.env`, rotasi kredensial bila pernah terekspos, dan batasi akses file `.env`. |
+| 9 | Log aplikasi belum punya peringatan otomatis | Sedang | Pantau lonjakan error 5xx, kegagalan login, dan kegagalan import. Kirim alert ke kanal operasional tanpa menyertakan data pribadi. |
 
 ### 3.3 Prioritas P2 (Perbaikan Berkelanjutan)
 
@@ -73,6 +78,7 @@ Gunakan checklist ini sebagai panduan final sebelum aplikasi dipublikasikan.
 - [ ] `.env` tidak masuk ke *version control* (`.gitignore` terkonfirmasi)
 - [ ] `KADER_REGISTRATION_CODE` diatur sesuai kebijakan (kosong atau nilai kuat)
 - [ ] `APP_URL` menggunakan protokol `https://`
+- [ ] `SATUSEHAT_ORG_ID` dan kredensial SATUSEHAT diisi lewat secret manager, bukan file yang di-commit
 
 ### Keamanan API & Akses
 - [ ] CORS dikonfigurasi ketat (hanya origin resmi)
@@ -92,6 +98,8 @@ Gunakan checklist ini sebagai panduan final sebelum aplikasi dipublikasikan.
 - [ ] HTTPS & HSTS aktif
 - [ ] *Security headers* terpasang
 - [ ] *Logging* aktif tanpa menampilkan data sensitif ke client
+- [ ] Log sudah diperiksa: tidak ada NIK 16 digit, password, token, atau `client_secret`
+- [ ] Retensi log aplikasi dan `audit_logs` sudah ditetapkan dan didokumentasikan
 - [ ] Proses backup database & storage terjadwal
 - [ ] `composer audit` dan `npm audit` dalam keadaan bersih atau telah ditindaklanjuti
 
@@ -104,4 +112,4 @@ Fokus utama untuk kelayakan produksi adalah menyelesaikan poin **P0** terlebih d
 **Catatan:** Dokumen ini bersifat *living document*. Direkomendasikan untuk ditinjau ulang minimal setiap kali terdapat penambahan fitur sensitif (penambahan role, integrasi pihak ketiga, atau perubahan alur data kesehatan).  
 **Lokasi Dokumen:** `docs/KEAMANAN_APLIKASI.md`  
 **Pemilik Dokumen:** Tim Pengembang Posyandu  
-**Terakhir Diperbarui:** 27 Oktober 2026
+**Terakhir Diperbarui:** 15 November 2026

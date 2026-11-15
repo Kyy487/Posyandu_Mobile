@@ -14,6 +14,9 @@ php artisan serve
 > Bila `php` tidak dikenali di terminal, Laragon belum terdaftar di `PATH`.
 > Gunakan path penuh:
 > `C:\laragon\bin\php\php-8.4.25-Win32-vs17-x64\php.exe artisan serve`
+>
+> Pastikan ekstensi `fileinfo` dan `gd` aktif. Keduanya dibutuhkan untuk upload
+> file dan test. Cek dengan `php -m`; bila tidak ada, aktifkan di `php.ini`.
 
 Cek apakah backend hidup:
 

@@ -89,7 +89,6 @@ class AuthController extends Controller
         } catch (\Throwable $e) {
             // Aturan #10: pesan asli hanya ke log, tidak pernah ke klien.
             Log::error('Gagal mendaftar akun: '.$e->getMessage(), [
-                'nik' => $request->input('nik'),
                 'exception' => $e,
             ]);
 
@@ -151,7 +150,6 @@ class AuthController extends Controller
 
         } catch (\Throwable $e) {
             Log::error('Gagal login: '.$e->getMessage(), [
-                'nik' => $request->nik,
                 'exception' => $e,
             ]);
 

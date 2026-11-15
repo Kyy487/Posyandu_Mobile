@@ -169,7 +169,7 @@ class FhirController extends Controller
 
             return response()->json([
                 'success' => true,
-                'message' => 'Data FHIR siap dikirim. Kredensial SATUSEHAT belum diisi — payload hanya dicatat.',
+                'message' => 'Data FHIR siap dikirim. Kredensial SATUSEHAT belum diisi — ringkasan payload dicatat.',
                 'data' => $payload,
             ], 200);
         }

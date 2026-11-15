@@ -19,17 +19,20 @@ use Illuminate\Support\Facades\Log;
  *  2. Kirim — meneruskan payload ke endpoint SATUSEHAT.
  *
  * Selama kredensial SATUSEHAT belum diisi di .env, `sendToSatusehat()` hanya
- * mencatat payload ke `storage/logs/satusehat.log`. Begitu `SATUSEHAT_CLIENT_ID`
- * dan `SATUSEHAT_CLIENT_SECRET` diisi, method yang sama yang benar-benar
- * menembak API — tidak ada kode lain yang perlu diubah.
+ * mencatat ringkasan payload (hash, key, identifier system) ke
+ * `storage/logs/satusehat.log`. Payload penuh tidak ditulis agar NIK dan data
+ * pribadi tidak masuk log. Begitu `SATUSEHAT_CLIENT_ID` dan
+ * `SATUSEHAT_CLIENT_SECRET` diisi, method yang sama yang benar-benar menembak
+ * API — tidak ada kode lain yang perlu diubah.
  */
 class SatusehatFhirService
 {
     /**
      * Kirim resource FHIR ke SATUSEHAT.
      *
-     * Bila kredensial belum diisi, payload hanya dicatat ke log. Ini membuktikan
-     * sistem sudah memproduksi data FHIR-compliant yang siap tembak.
+     * Bila kredensial belum diisi, ringkasan payload dicatat ke log. Ini
+     * membuktikan sistem sudah memproduksi data FHIR-compliant yang siap tembak
+     * tanpa menyimpan NIK di file log.
      *
      * @param  array<string, mixed>  $payload
      */
@@ -41,7 +44,18 @@ class SatusehatFhirService
         if (empty($clientId) || empty($clientSecret)) {
             Log::channel('satusehat')->info('SATUSEHAT_FHIR_PAYLOAD', [
                 'resourceType' => $resourceType,
-                'payload' => $payload,
+                'payload_hash' => hash(
+                    'sha256',
+                    json_encode($payload, JSON_UNESCAPED_SLASHES) ?: '',
+                ),
+                'payload_keys' => array_keys($payload),
+                'identifier_systems' => array_values(array_filter(array_map(
+                    fn (mixed $identifier): ?string => is_array($identifier)
+                        ? ($identifier['system'] ?? null)
+                        : null,
+                    is_array($payload['identifier'] ?? null) ? $payload['identifier'] : [],
+                ))),
+                'has_subject' => isset($payload['subject']),
             ]);
 
             return [

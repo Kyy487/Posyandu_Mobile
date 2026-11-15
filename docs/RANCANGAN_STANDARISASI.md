@@ -4,6 +4,9 @@ Status: **terkunci pada 14 November 2026**. Dokumen ini adalah rancangan kerja
 Fase 1. Implementasi Fase 1 sudah dijalankan pada 14 November 2026; migration
 sudah diterapkan dan test suite sudah lulus.
 
+Untuk status terkini, operasional, troubleshooting, dan rencana Fase 1.5,
+lihat `docs/DOKUMENTASI_UTAMA.md`.
+
 ## 1. Keputusan yang dikunci
 
 | No | Topik | Keputusan |
