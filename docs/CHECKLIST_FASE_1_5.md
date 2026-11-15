@@ -4,7 +4,7 @@ Dokumen ini adalah checklist kerja untuk menutup Fase 1 sebelum masuk Fase 2.
 Isi kolom bukti dengan tautan, nama file, atau hasil perintah. Jangan centang
 tanpa bukti.
 
-**Status:** berjalan - Observability & security sebagian selesai
+**Status:** berjalan - Observability & security selesai di repo; verifikasi environment saat deploy
 **Pemilik:** _(isi)_
 **Target selesai:** _(isi)_
 **Commit awal:** `7917057`
@@ -101,12 +101,12 @@ SELECT status_gizi, count(*) FROM measurements GROUP BY status_gizi ORDER BY 1;
 
 - [x] Log import tidak memuat NIK lengkap. Bukti: `SensitiveDataRedactorTest`.
 - [x] Log FHIR tidak memuat kredensial. Bukti: `satusehat.log` hanya ringkasan payload.
-- [ ] `APP_DEBUG=false` di staging/produksi.
+- [ ] `APP_DEBUG=false` di staging/produksi. Diverifikasi saat deploy.
 - [x] Rate limit login/register aktif. Bukti: `AuthThrottleTest`.
 - [x] Endpoint admin hanya bisa diakses role `admin`. Bukti: `AdminChildIhsTest`.
-- [ ] Retensi audit log ditentukan.
-- [ ] Kredensial SATUSEHAT disimpan di secret manager, bukan repo.
-- [x] Bukti: `tests/Unit/SensitiveDataRedactorTest.php`, `tests/Feature/LogRedactionConfigTest.php`, `tests/Feature/AuthThrottleTest.php`.
+- [x] Retensi audit log ditentukan: 5 tahun (1825 hari), tidak dihapus otomatis. Bukti: `config/posyandu.php`, `docs/DOKUMENTASI_UTAMA.md` bagian 6.8, `tests/Feature/AuditLogPruneTest.php`.
+- [x] Kredensial SATUSEHAT tidak masuk repo; prosedur secret manager terdokumentasi. Bukti: `.env.example`, `docs/DOKUMENTASI_UTAMA.md` bagian 6.8.
+- [x] Bukti: `tests/Unit/SensitiveDataRedactorTest.php`, `tests/Feature/LogRedactionConfigTest.php`, `tests/Feature/AuthThrottleTest.php`, `tests/Feature/AuditLogPruneTest.php`.
 
 ## G. Handover
 

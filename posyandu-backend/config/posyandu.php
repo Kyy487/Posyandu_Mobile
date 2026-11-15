@@ -32,6 +32,10 @@ return [
 
     'register_throttle' => env('REGISTER_THROTTLE', '10,1'),
 
+    'audit' => [
+        'retention_days' => (int) env('AUDIT_LOG_RETENTION_DAYS', 1825),
+    ],
+
     /*
     |---------------------------------------------------------------------------
     | Nama Posyandu

@@ -55,7 +55,7 @@ Kondisi pada commit acuan:
 
 | Pemeriksaan | Hasil |
 |---|---|
-| Full test backend | 317 test lulus, 2311 assertion |
+| Full test backend | 321 test lulus, 2323 assertion |
 | Pint | Lulus |
 | Redaksi log | Processor aktif; NIK/token/kredensial disamarkan |
 | Migration 1-10 di database dev | Sudah dijalankan |
@@ -352,15 +352,16 @@ dihapus dan dibuat ulang oleh `RefreshDatabase`.
 - Log FHIR: `storage/logs/satusehat.log`.
 - Kedua channel memakai `App\Logging\RedactSensitiveData`, sehingga NIK,
   password, token, dan `client_secret` disamarkan sebelum ditulis.
-- Untuk produksi, pertimbangkan `LOG_CHANNEL=daily` dan
-  `LOG_DAILY_DAYS=30` agar file log tidak tumbuh tanpa batas. Nilai ini contoh;
-  sesuaikan dengan kebijakan operasional.
+- Untuk produksi, gunakan `LOG_CHANNEL=daily` dan `LOG_DAILY_DAYS=30` agar file
+  log tidak tumbuh tanpa batas. Nilai ini dapat diubah lewat `.env`.
 - `audit_logs` adalah data audit terpisah dan tidak ikut rotasi file log.
-  Retensinya harus ditetapkan tertulis bersama koordinator Posyandu. Jangan
-  menghapus audit sebelum periode audit berakhir.
-- Jangan commit `.env`. Kredensial SATUSEHAT sebaiknya disimpan di secret
-  manager atau environment terenkripsi di server, lalu dirotasi bila pernah
-  terekspos.
+  Kebijakan default: retensi 5 tahun (1825 hari), tidak dihapus otomatis.
+  Penghapusan hanya manual setelah backup dan persetujuan koordinator:
+  `php artisan audit:prune --dry-run`, lalu `php artisan audit:prune --force`.
+- Jangan commit `.env`. Kredensial SATUSEHAT wajib diinjeksi dari secret
+  manager atau environment terenkripsi di server (mis. systemd
+  `EnvironmentFile`, Docker secret, atau cloud secret manager), bukan dari file
+  yang ikut repository. Rotasi kredensial bila pernah terekspos.
 - Log lama yang dibuat sebelum processor redaksi dipasang bisa memuat NIK.
   Rotasi atau hapus setelah backup, lalu pastikan log baru sudah bersih.
 - Setelah deploy, cek log dan pastikan tidak ada NIK 16 digit, password, token,
@@ -375,6 +376,7 @@ git branch --show-current
 git log --oneline -1
 php artisan migrate:status
 php artisan route:list --path=api
+php artisan audit:prune --dry-run
 php artisan test
 vendor\bin\pint --test
 ```
@@ -430,6 +432,7 @@ GET /api/kader/fhir/Immunization/{id}/validate
 | Log FHIR kosong | Kredensial kosong | Cek `storage/logs/satusehat.log` |
 | Log masih memuat NIK | Processor redaksi tidak aktif atau config ter-cache | Jalankan `php artisan config:clear`, cek `logging.channels.*.tap` |
 | `satusehat.log` tidak memuat payload penuh | Memang disengaja | Hanya ringkasan; payload penuh tidak ditulis |
+| Audit log lama tidak terhapus | Perintah berjalan `--dry-run` atau belum lewat retensi | Cek `php artisan audit:prune --dry-run`, lalu `--force` setelah backup |
 | Rollback role admin gagal | Masih ada user admin | Pindahkan/hapus admin dulu |
 
 ## 9. Rancangan Fase 1.5
@@ -439,9 +442,10 @@ SATUSEHAT Fase 2.
 
 Checklist kerja dan kolom bukti ada di `docs/CHECKLIST_FASE_1_5.md`.
 
-Status per 15 November 2026: observability & security dasar sudah berjalan
-(redaksi log, test rate limit, test admin guard). `APP_DEBUG`, secret manager,
-dan retensi audit masih menunggu konfigurasi/keputusan operasional.
+Status per 15 November 2026: observability & security dasar selesai (redaksi
+log, test rate limit, test admin guard, kebijakan retensi audit 5 tahun, log
+aplikasi 30 hari). `APP_DEBUG=false` dan secret manager diverifikasi saat
+deploy staging/produksi.
 
 ### 9.1 Prinsip
 

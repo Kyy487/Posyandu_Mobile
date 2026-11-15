@@ -1,6 +1,6 @@
 # DOKUMEN KEAMANAN APLIKASI POSYANDU
 
-**Versi Dokumen** : 1.1<br>
+**Versi Dokumen** : 1.2<br>
 **Tanggal Audit**   : 15 November 2026<br>
 **Lingkup**         : `posyandu-backend` (Laravel 13 + Laravel Sanctum)<br>
 **Tujuan**          : Mendokumentasikan penerapan keamanan, temuan audit, serta rekomendasi perbaikan untuk persiapan rilis/produksi.
@@ -54,7 +54,7 @@ Namun, masih terdapat beberapa poin yang **wajib diperkuat** sebelum dideploy ke
 | 4 | `SANCTUM_TOKEN_EXPIRATION` belum diatur | Sedang | Pertimbangkan menetapkan masa berlaku token (mis. 7-30 hari) sesuai kebutuhan aplikasi mobile. Jangan biarkan token berlaku tanpa batas jika risiko pencurian token cukup tinggi. |
 | 5 | `SESSION_ENCRYPT=false` | Sedang | Jika aplikasi masih menggunakan session berbasis cookie di masa depan, aktifkan `SESSION_ENCRYPT=true`. Untuk saat ini API *stateless* berbasis Sanctum sudah cukup baik. |
 | 6 | Throttling hanya pada login & register | Sedang | Tambahkan *rate limiting* pada endpoint sensitif seperti `POST/PATCH/DELETE` terkait data anak, kunjungan, rujukan, dan imunisasi untuk membatasi penyalahgunaan token yang valid. |
-| 7 | Retensi log dan audit log belum ditetapkan | Sedang | Tetapkan kebijakan retensi tertulis. Pisahkan audit medis (`audit_logs`) dari log aplikasi, backup sebelum pembersihan, dan jangan menghapus audit tanpa persetujuan. |
+| 7 | Retensi log dan audit log belum ditetapkan | Sedang | Kebijakan: `audit_logs` disimpan 5 tahun (1825 hari) dan tidak dihapus otomatis; log aplikasi memakai `daily` dengan 30 file. Penghapusan audit hanya manual setelah backup dan persetujuan, lewat `php artisan audit:prune --dry-run` lalu `--force`. |
 | 8 | Kredensial SATUSEHAT masih berpotensi disimpan di `.env` | Sedang-Tinggi | Gunakan secret manager atau environment terenkripsi di server. Jangan commit `.env`, rotasi kredensial bila pernah terekspos, dan batasi akses file `.env`. |
 | 9 | Log aplikasi belum punya peringatan otomatis | Sedang | Pantau lonjakan error 5xx, kegagalan login, dan kegagalan import. Kirim alert ke kanal operasional tanpa menyertakan data pribadi. |
 
@@ -99,7 +99,7 @@ Gunakan checklist ini sebagai panduan final sebelum aplikasi dipublikasikan.
 - [ ] *Security headers* terpasang
 - [ ] *Logging* aktif tanpa menampilkan data sensitif ke client
 - [ ] Log sudah diperiksa: tidak ada NIK 16 digit, password, token, atau `client_secret`
-- [ ] Retensi log aplikasi dan `audit_logs` sudah ditetapkan dan didokumentasikan
+- [x] Retensi log aplikasi dan `audit_logs` sudah ditetapkan dan didokumentasikan
 - [ ] Proses backup database & storage terjadwal
 - [ ] `composer audit` dan `npm audit` dalam keadaan bersih atau telah ditindaklanjuti
 
