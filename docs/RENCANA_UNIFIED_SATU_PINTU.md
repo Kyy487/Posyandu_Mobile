@@ -312,5 +312,5 @@ Spesifikasi lengkap modul yang sudah selesai atau ditunda ada di `docs/arsip/`.
 **Status:** Steps 1-9 selesai; testing alur dan observability/security dasar
 sudah selesai. Fokus berikutnya adalah menutup Fase 1.5 (data IHS, KFA/CVX,
 red flags, rehearsal staging, pilot admin), lalu masuk Fase 2A SATUSEHAT.
-Hasil teknis terbaru: `7917057`, `2c143dc`, `f11cff5`; full test 328 lulus,
-2363 assertion.
+Hasil teknis terbaru: `7917057`, `2c143dc`, `f11cff5`, `c590c7f`, `f634613`;
+full test 328 lulus, 2363 assertion.

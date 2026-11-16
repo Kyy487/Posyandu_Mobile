@@ -70,10 +70,8 @@ Kondisi pada commit acuan:
 | `7917057` | Standarisasi Fase 1: IHS anak, role admin, waktu kunjungan/pengukuran, terminologi imunisasi, red flags, mapper/validator FHIR, import CSV IHS. |
 | `2c143dc` | Redaksi log global untuk NIK/token/kredensial, ringkasan payload FHIR di `satusehat.log`, test throttle login, dokumentasi utama dan checklist Fase 1.5. |
 | `f11cff5` | Perintah `audit:prune`, kebijakan retensi audit 5 tahun, log aplikasi 30 hari, dokumentasi secret manager/`APP_DEBUG`, test retensi audit. |
-
-Test login akun `pending` dan `rejected` ada di
-`tests/Feature/LoginStatusTest.php`; keduanya tetap mendapat token dan
-`next_action` yang sesuai.
+| `c590c7f` | Test login akun `pending`/`rejected`: tetap mendapat token dan `next_action` yang sesuai. |
+| `f634613` | Hardening CORS berbasis env, security headers global, CSP/no-store/HSTS, token Sanctum 30 hari, test keamanan, dokumentasi. |
 
 Perintah verifikasi ulang ada di bagian 7.
 
