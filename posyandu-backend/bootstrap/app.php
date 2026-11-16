@@ -4,6 +4,7 @@ use App\Http\Middleware\CheckChildOnboarding;
 use App\Http\Middleware\CheckKaderVerification;
 use App\Http\Middleware\EnsureAdmin;
 use App\Http\Middleware\EnsureIbuActive;
+use App\Http\Middleware\SecurityHeaders;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Auth\AuthenticationException;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
@@ -29,6 +30,9 @@ return Application::configure(basePath: dirname(__DIR__))
             'child.onboarding' => CheckChildOnboarding::class,
             'admin' => EnsureAdmin::class,
         ]);
+
+        $middleware->append(SecurityHeaders::class);
+
         /*
         |--------------------------------------------------------------------------
         | Redirect tamu untuk request API

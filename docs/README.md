@@ -44,6 +44,7 @@ posyandu/
 | Red flags & edukasi gizi | Selesai |
 | Sosial media profil | Selesai |
 | Observability & retensi log | Selesai |
+| Hardening API (CORS, security headers, token expiry) | Selesai |
 | AI Food Scanner (microservice) | Belum dimulai |
 | Pemetaan Spasial (PostGIS) | Belum dimulai |
 

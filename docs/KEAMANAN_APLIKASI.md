@@ -1,7 +1,7 @@
 # DOKUMEN KEAMANAN APLIKASI POSYANDU
 
-**Versi Dokumen** : 1.2<br>
-**Tanggal Audit**   : 15 November 2026<br>
+**Versi Dokumen** : 1.3<br>
+**Tanggal Audit**   : 16 November 2026<br>
 **Lingkup**         : `posyandu-backend` (Laravel 13 + Laravel Sanctum)<br>
 **Tujuan**          : Mendokumentasikan penerapan keamanan, temuan audit, serta rekomendasi perbaikan untuk persiapan rilis/produksi.
 
@@ -9,7 +9,7 @@
 
 Berdasarkan hasil audit terhadap kode sumber saat ini, aplikasi Posyandu **sudah menerapkan beberapa kontrol keamanan yang cukup baik** untuk skala aplikasi Posyandu. Beberapa hal krusial seperti pemisahan peran, proteksi data sensitif, dan pembatasan akses sudah ada.
 
-Namun, masih terdapat beberapa poin yang **wajib diperkuat** sebelum dideploy ke lingkungan produksi, terutama terkait konfigurasi lingkungan, model otorisasi, dan penerapan *security header*.
+CORS ketat, *security header*, dan masa berlaku token Sanctum sudah diterapkan di kode. Sisa pekerjaan sebelum produksi terutama konfigurasi lingkungan (`.env`, HTTPS/HSTS di server), model otorisasi, dan operasional monitoring.
 
 ## 2. Mekanisme Keamanan yang Telah Diterapkan
 
@@ -24,6 +24,9 @@ Namun, masih terdapat beberapa poin yang **wajib diperkuat** sebelum dideploy ke
 | **Registrasi Kader Terkontrol** | Sudah Ada | Pendaftaran kader wajib menyertakan `kader_code`. Dicek menggunakan `hash_equals()` untuk mencegah *timing attack*. Jika `KADER_REGISTRATION_CODE` kosong di `.env`, pendaftaran kader otomatis dimatikan (403). |
 | **Persetujuan Data (Consent)** | Sudah Ada | Saat penambahan data anak, wajib mengirim `consent_type` dan `consent_document_version`. Tercatat pada tabel `consents` sebagai bukti persetujuan (mendukung prinsip kepatuhan terkait perlindungan data). |
 | **Rate Limiting** | Sudah Ada | Diterapkan pada `POST /api/register` dan `POST /api/login` melalui `throttle` dengan nilai yang dikonfigurasi di `config/posyandu.php`. |
+| **CORS Ketat** | Sudah Ada | `config/cors.php` hanya membuka path `api/*`, origin diambil dari `CORS_ALLOWED_ORIGINS` (tanpa wildcard), dan `supports_credentials=false`. Origin kosong berarti tidak ada browser cross-origin yang diizinkan; aplikasi mobile tidak terpengaruh. |
+| **Security Headers** | Sudah Ada | Middleware global `App\Http\Middleware\SecurityHeaders` memasang `X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy`, `Permissions-Policy`, CSP untuk API, `Cache-Control: no-store` pada API, dan HSTS saat request HTTPS. |
+| **Masa Berlaku Token** | Sudah Ada | `SANCTUM_TOKEN_EXPIRATION` default 43200 menit (30 hari). Token kedaluwarsa ditolak sebagai 401; test ada di `tests/Feature/TokenExpirationTest.php`. |
 | **Standarisasi Error API** | Sudah Ada | Penanganan *exception* dikustomisasi di `bootstrap/app.php`. Response error untuk API bersifat konsisten berbentuk *JSON Envelope* (`success`, `message`, `errors`). Pesan *exception* asli hanya dicatat di *log*. |
 | **UUID untuk Data Anak** | Sudah Ada | ID anak menggunakan UUID. Terdapat validasi format UUID pada endpoint sensitif untuk mencegah *error* SQL dan mengurangi potensi *enumeration*. |
 | **Soft Delete** | Sudah Ada | Penghapusan data balita bersifat *soft delete*. Riwayat penimbangan, imunisasi, kunjungan, dan rujukan tetap tersimpan untuk menjaga integritas data medis. |
@@ -40,8 +43,8 @@ Namun, masih terdapat beberapa poin yang **wajib diperkuat** sebelum dideploy ke
 |---|---|---|---|
 | 1 | `APP_DEBUG` masih `true` pada `.env.example` | Tinggi | Set `APP_DEBUG=false` dan `APP_ENV=production` pada `.env` produksi. Jangan pernah mengaktifkan debug di lingkungan publik. |
 | 2 | `APP_KEY` bisa kosong | Tinggi | Pastikan `APP_KEY` ter-generate (`php artisan key:generate`) dan tidak pernah dibagikan atau di-*commit*. |
-| 3 | Belum ada konfigurasi CORS ketat | Tinggi | Buat `config/cors.php` dengan `allowed_origins` terbatas hanya ke domain/aplikasi resmi (web admin/mobile). Hindari penggunaan `*`. Jika menggunakan *credentials*, wajib batasi origin secara spesifik. |
-| 4 | Belum terkonfigurasi HTTPS/HSTS | Tinggi | Gunakan HTTPS pada seluruh endpoint API. Aktifkan *HTTP Strict Transport Security* (HSTS) melalui web server (Nginx/Apache) atau middleware. |
+| 3 | Origin CORS produksi belum diisi | Tinggi | Set `CORS_ALLOWED_ORIGINS` ke domain web admin resmi, pisahkan dengan koma. Jangan gunakan `*`. Aplikasi mobile tidak memakai CORS. |
+| 4 | HTTPS/HSTS belum aktif di server | Tinggi | Pasang TLS di seluruh endpoint API dan pastikan reverse proxy meneruskan `X-Forwarded-Proto`/`HTTPS`; middleware HSTS hanya mengirim header saat request terdeteksi HTTPS. |
 | 5 | `KADER_REGISTRATION_CODE` dapat dibiarkan kosong/tidak kuat | Tinggi | Jika tidak ada kebutuhan pendaftaran kader mandiri, **biarkan kosong** agar fitur dinonaktifkan. Jika tetap digunakan, wajib isi dengan nilai acak yang panjang dan unik. Jangan simpan di repositori. |
 
 ### 3.2 Prioritas P1 (Penting - Sangat Disarankan)
@@ -49,12 +52,12 @@ Namun, masih terdapat beberapa poin yang **wajib diperkuat** sebelum dideploy ke
 | No | Temuan | Risiko | Rekomendasi Perbaikan |
 |---|---|---|---|
 | 1 | Otorisasi masih bersifat manual per-controller | Sedang-Tinggi | Implementasikan *Laravel Policy* (`ChildPolicy`, `VisitPolicy`, `ReferralPolicy`, dll) dan manfaatkan `Gate::authorize()` / `$this->authorize()`. Hal ini mengurangi risiko lupa pengecekan kepemilikan data. |
-| 2 | Belum ada *Security Headers* | Sedang-Tinggi | Tambahkan middleware global untuk menerapkan: `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: strict-origin-when-cross-origin`, `Permissions-Policy`, dan `Strict-Transport-Security`. |
+| 2 | *Security Headers* sudah diterapkan | Rendah | Pertahankan middleware `SecurityHeaders`; verifikasi header di staging, terutama HSTS setelah TLS aktif. |
 | 3 | *File upload* masih dapat ditingkatkan | Sedang | Simpan file verifikasi di *storage* yang **tidak dapat dieksekusi langsung** oleh web server. Pertimbangkan mengganti nama file secara acak, validasi *MIME type* berbasis konten, serta penggunaan *signed URL* jika perlu diakses terbatas. |
-| 4 | `SANCTUM_TOKEN_EXPIRATION` belum diatur | Sedang | Pertimbangkan menetapkan masa berlaku token (mis. 7-30 hari) sesuai kebutuhan aplikasi mobile. Jangan biarkan token berlaku tanpa batas jika risiko pencurian token cukup tinggi. |
+| 4 | Masa berlaku token sudah dibatasi | Rendah | Default 30 hari (`SANCTUM_TOKEN_EXPIRATION=43200`). Sesuaikan bila kebijakan operasional meminta durasi lebih pendek. |
 | 5 | `SESSION_ENCRYPT=false` | Sedang | Jika aplikasi masih menggunakan session berbasis cookie di masa depan, aktifkan `SESSION_ENCRYPT=true`. Untuk saat ini API *stateless* berbasis Sanctum sudah cukup baik. |
 | 6 | Throttling hanya pada login & register | Sedang | Tambahkan *rate limiting* pada endpoint sensitif seperti `POST/PATCH/DELETE` terkait data anak, kunjungan, rujukan, dan imunisasi untuk membatasi penyalahgunaan token yang valid. |
-| 7 | Retensi log dan audit log belum ditetapkan | Sedang | Kebijakan: `audit_logs` disimpan 5 tahun (1825 hari) dan tidak dihapus otomatis; log aplikasi memakai `daily` dengan 30 file. Penghapusan audit hanya manual setelah backup dan persetujuan, lewat `php artisan audit:prune --dry-run` lalu `--force`. |
+| 7 | Retensi log dan audit log sudah ditetapkan | Rendah | `audit_logs` disimpan 5 tahun (1825 hari) dan tidak dihapus otomatis; log aplikasi memakai `daily` dengan 30 file. Penghapusan audit hanya manual setelah backup dan persetujuan, lewat `php artisan audit:prune --dry-run` lalu `--force`. |
 | 8 | Kredensial SATUSEHAT masih berpotensi disimpan di `.env` | Sedang-Tinggi | Gunakan secret manager atau environment terenkripsi di server. Jangan commit `.env`, rotasi kredensial bila pernah terekspos, dan batasi akses file `.env`. |
 | 9 | Log aplikasi belum punya peringatan otomatis | Sedang | Pantau lonjakan error 5xx, kegagalan login, dan kegagalan import. Kirim alert ke kanal operasional tanpa menyertakan data pribadi. |
 
@@ -81,11 +84,12 @@ Gunakan checklist ini sebagai panduan final sebelum aplikasi dipublikasikan.
 - [ ] `SATUSEHAT_ORG_ID` dan kredensial SATUSEHAT diisi lewat secret manager, bukan file yang di-commit
 
 ### Keamanan API & Akses
-- [ ] CORS dikonfigurasi ketat (hanya origin resmi)
-- [ ] Rate limiting aktif untuk endpoint login & register
-- [ ] Semua route sensitif terlindungi oleh `auth:sanctum` + `RoleCheck`
-- [ ] Logika status `ibu` (pending/rejected/active) berfungsi sesuai ekspektasi
-- [ ] Token Sanctum dapat dicabut dengan benar saat logout
+- [x] CORS dikonfigurasi ketat; isi `CORS_ALLOWED_ORIGINS` saat deploy
+- [x] Rate limiting aktif untuk endpoint login & register
+- [x] Semua route sensitif terlindungi oleh `auth:sanctum` + `RoleCheck`
+- [x] Logika status `ibu` (pending/rejected/active) berfungsi sesuai ekspektasi
+- [x] Token Sanctum dapat dicabut dengan benar saat logout
+- [x] Masa berlaku token dibatasi (`SANCTUM_TOKEN_EXPIRATION`, default 30 hari)
 
 ### Data & File
 - [ ] NIK tersimpan terenkripsi dan tidak bocor di response publik
@@ -95,8 +99,8 @@ Gunakan checklist ini sebagai panduan final sebelum aplikasi dipublikasikan.
 - [ ] Persetujuan (*consent*) tercatat saat penambahan anak
 
 ### Infrastruktur & Monitoring
-- [ ] HTTPS & HSTS aktif
-- [ ] *Security headers* terpasang
+- [ ] HTTPS & HSTS aktif di server
+- [x] *Security headers* terpasang di aplikasi
 - [ ] *Logging* aktif tanpa menampilkan data sensitif ke client
 - [ ] Log sudah diperiksa: tidak ada NIK 16 digit, password, token, atau `client_secret`
 - [x] Retensi log aplikasi dan `audit_logs` sudah ditetapkan dan didokumentasikan
@@ -107,9 +111,9 @@ Gunakan checklist ini sebagai panduan final sebelum aplikasi dipublikasikan.
 
 Secara keseluruhan, penerapan keamanan pada aplikasi Posyandu ini **sudah berjalan di arah yang benar**. Kontrol seperti autentikasi berbasis token, pembatasan peran, perlindungan NIK, *rate limiting*, konsistensi *error handling*, serta penggunaan *soft delete* patut diapresiasi.
 
-Fokus utama untuk kelayakan produksi adalah menyelesaikan poin **P0** terlebih dahulu, khususnya **konfigurasi lingkungan, CORS, dan HTTPS**. Setelah itu, lanjutkan ke **P1** untuk memperkuat model otorisasi dan *security headers*. Dengan perbaikan tersebut, aplikasi ini sudah cukup layak untuk digunakan secara aman pada lingkungan operasional Posyandu.
+Fokus utama untuk kelayakan produksi sekarang adalah **konfigurasi lingkungan dan HTTPS/HSTS di server**, lalu penguatan model otorisasi. CORS, *security headers*, dan masa berlaku token sudah tersedia di kode dan diuji. Dengan penyelesaian konfigurasi deploy tersebut, aplikasi ini sudah cukup layak untuk digunakan secara aman pada lingkungan operasional Posyandu.
 
 **Catatan:** Dokumen ini bersifat *living document*. Direkomendasikan untuk ditinjau ulang minimal setiap kali terdapat penambahan fitur sensitif (penambahan role, integrasi pihak ketiga, atau perubahan alur data kesehatan).  
 **Lokasi Dokumen:** `docs/KEAMANAN_APLIKASI.md`  
 **Pemilik Dokumen:** Tim Pengembang Posyandu  
-**Terakhir Diperbarui:** 15 November 2026
+**Terakhir Diperbarui:** 16 November 2026

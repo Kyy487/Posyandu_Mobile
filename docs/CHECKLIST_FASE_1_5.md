@@ -104,6 +104,8 @@ SELECT status_gizi, count(*) FROM measurements GROUP BY status_gizi ORDER BY 1;
 - [x] Log FHIR tidak memuat kredensial. Bukti: `satusehat.log` hanya ringkasan payload.
 - [ ] `APP_DEBUG=false` di staging/produksi. Diverifikasi saat deploy.
 - [x] Rate limit login/register aktif. Bukti: `AuthThrottleTest`.
+- [x] CORS ketat dan security headers aktif. Bukti: `config/cors.php`, `App\Http\Middleware\SecurityHeaders`, `tests/Feature/SecurityHeadersTest.php`.
+- [x] Masa berlaku token Sanctum dibatasi 30 hari. Bukti: `config/sanctum.php`, `tests/Feature/TokenExpirationTest.php`.
 - [x] Endpoint admin hanya bisa diakses role `admin`. Bukti: `AdminChildIhsTest`.
 - [x] Retensi audit log ditentukan: 5 tahun (1825 hari), tidak dihapus otomatis. Bukti: `config/posyandu.php`, `docs/DOKUMENTASI_UTAMA.md` bagian 6.8, `tests/Feature/AuditLogPruneTest.php`.
 - [x] Kredensial SATUSEHAT tidak masuk repo; prosedur secret manager terdokumentasi. Bukti: `.env.example`, `docs/DOKUMENTASI_UTAMA.md` bagian 6.8.

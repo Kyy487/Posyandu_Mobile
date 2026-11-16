@@ -211,7 +211,7 @@ Saat registrasi, wajib melengkapi minimal:
 | **6** | **Pindah/arsip IoT Smart Triage** | P1 | **SELESAI** | Dipindahkan/arsipkan atau dikeluarkan dari scope aktif. |
 | **7** | **Testing Alur** | P1 | **SELESAI** | Registrasi, approval, guard anak, unggah bukti, serta login akun `pending`/`rejected` sudah diuji lewat `LoginStatusTest`. |
 | **8** | **Standarisasi data Fase 1** | P1 | **SELESAI** | IHS, waktu, terminologi, red flags, sosial media, FHIR draft/validasi, import CSV admin. |
-| **9** | **Observability & security dasar** | P1 | **SELESAI** | Redaksi log, rate limit, guard admin, retensi audit, dokumentasi secret manager. |
+| **9** | **Observability & security dasar** | P1 | **SELESAI** | Redaksi log, rate limit, guard admin, retensi audit, CORS ketat, security headers, token 30 hari, dokumentasi secret manager. |
 | **10** | **Finalisasi data eksternal Fase 1.5** | P1 | **BELUM** | Format IHS final, mapping KFA/CVX, persetujuan red flags. |
 | **11** | **Rehearsal staging + pilot admin** | P1 | **BELUM** | Migrasi data staging, dry-run import, import nyata, rollback, audit review. |
 | **12** | **Fase 2A SATUSEHAT** | P2 | **BERIKUTNYA** | OAuth, outbox, queue, retry, idempotency, pengiriman resource, rekonsiliasi. |
@@ -226,7 +226,7 @@ Saat registrasi, wajib melengkapi minimal:
 | **P1** | Audit trail, Consent UU PDP, Enkripsi NIK | **Selesai** | Sudah dikerjakan |
 | **P1** | Arsipkan Smart Triage (IoT) | **SELESAI** | Dikeluarkan dari scope aktif |
 | **P1** | Standarisasi Fase 1 + FHIR draft | **Selesai** | IHS, waktu, terminologi, red flags, mapper/validator |
-| **P1** | Observability & security dasar | **Selesai** | Redaksi log, rate limit, retensi audit |
+| **P1** | Observability & security dasar | **Selesai** | Redaksi log, rate limit, retensi audit, CORS, header, token expiry |
 | **P1** | Fase 1.5 kesiapan produksi | **Berjalan** | Menunggu data eksternal dan staging |
 | **P2** | Fase 2A pengiriman SATUSEHAT | **Berikutnya** | OAuth, outbox, queue, retry, rekonsiliasi |
 | **P2** | Backup & retensi, Evaluasi klinis | **Sebagian** | Retensi audit/log selesai; backup dan evaluasi klinis belum |
@@ -309,8 +309,8 @@ Spesifikasi lengkap modul yang sudah selesai atau ditunda ada di `docs/arsip/`.
 
 ---
 
-**Status:** Steps 1-6 selesai; testing alur selesai sebagian. Standarisasi Fase 1
-dan observability dasar sudah selesai. Fokus berikutnya adalah menutup Fase 1.5
-(data IHS, KFA/CVX, red flags, rehearsal staging, pilot admin), lalu masuk Fase 2A
-SATUSEHAT. Hasil teknis terbaru: `7917057`, `2c143dc`, `f11cff5`; full test 323
-lulus, 2337 assertion.
+**Status:** Steps 1-9 selesai; testing alur dan observability/security dasar
+sudah selesai. Fokus berikutnya adalah menutup Fase 1.5 (data IHS, KFA/CVX,
+red flags, rehearsal staging, pilot admin), lalu masuk Fase 2A SATUSEHAT.
+Hasil teknis terbaru: `7917057`, `2c143dc`, `f11cff5`; full test 328 lulus,
+2363 assertion.

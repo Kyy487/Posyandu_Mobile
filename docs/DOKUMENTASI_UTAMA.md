@@ -56,7 +56,7 @@ Kondisi pada commit acuan:
 
 | Pemeriksaan | Hasil |
 |---|---|
-| Full test backend | 323 test lulus, 2337 assertion |
+| Full test backend | 328 test lulus, 2363 assertion |
 | Pint | Lulus |
 | Redaksi log | Processor aktif; NIK/token/kredensial disamarkan |
 | Migration 1-10 di database dev | Sudah dijalankan |
@@ -297,6 +297,9 @@ DB_DATABASE=posyandu_db
 DB_USERNAME=postgres
 DB_PASSWORD=
 
+CORS_ALLOWED_ORIGINS=
+SANCTUM_TOKEN_EXPIRATION=43200
+
 KADER_REGISTRATION_CODE=
 
 POSYANDU_ADMIN_NIK=
@@ -313,6 +316,11 @@ SATUSEHAT_ORG_ID=
 
 Catatan:
 
+- `CORS_ALLOWED_ORIGINS` diisi domain web admin resmi, dipisahkan koma. Kosong
+  berarti tidak ada origin browser yang diizinkan; aplikasi mobile tidak
+  terpengaruh. Jangan gunakan `*`.
+- `SANCTUM_TOKEN_EXPIRATION` adalah masa berlaku token dalam menit; default
+  43200 (30 hari).
 - `KADER_REGISTRATION_CODE` kosong berarti pendaftaran kader nonaktif.
 - `POSYANDU_ADMIN_*` hanya dipakai `AdminUserSeeder`.
 - `SATUSEHAT_ORG_ID` dipakai untuk `serviceProvider` Encounter dan identifier
@@ -379,6 +387,21 @@ dihapus dan dibuat ulang oleh `RefreshDatabase`.
   Rotasi atau hapus setelah backup, lalu pastikan log baru sudah bersih.
 - Setelah deploy, cek log dan pastikan tidak ada NIK 16 digit, password, token,
   atau `client_secret`.
+
+### 6.9 CORS, Header Keamanan, dan Token
+
+- `config/cors.php` hanya mengaktifkan CORS untuk path `api/*`. Origin diambil
+  dari `CORS_ALLOWED_ORIGINS`; kosong berarti tidak ada origin browser yang
+  diizinkan. Jangan memakai `*`.
+- `App\Http\Middleware\SecurityHeaders` memasang `X-Content-Type-Options`,
+  `X-Frame-Options`, `Referrer-Policy`, `Permissions-Policy`, CSP API,
+  `Cache-Control: no-store` pada API, dan HSTS saat request HTTPS.
+- Token Sanctum berlaku 30 hari (`SANCTUM_TOKEN_EXPIRATION=43200`). Token
+  kedaluwarsa ditolak sebagai 401 sehingga aplikasi mobile harus login ulang.
+- HSTS hanya dikirim bila request terdeteksi HTTPS. Pastikan reverse proxy
+  meneruskan `X-Forwarded-Proto` atau variabel `HTTPS` dengan benar.
+- Bukti test: `tests/Feature/SecurityHeadersTest.php` dan
+  `tests/Feature/TokenExpirationTest.php`.
 
 ## 7. Pemeriksaan Cepat
 
@@ -455,10 +478,11 @@ SATUSEHAT Fase 2.
 
 Checklist kerja dan kolom bukti ada di `docs/CHECKLIST_FASE_1_5.md`.
 
-Status per 15 November 2026: observability & security dasar selesai (redaksi
-log, test rate limit, test admin guard, kebijakan retensi audit 5 tahun, log
-aplikasi 30 hari). `APP_DEBUG=false` dan secret manager diverifikasi saat
-deploy staging/produksi.
+Status per 16 November 2026: observability & security dasar selesai (redaksi
+log, test rate limit, test admin guard, CORS ketat, security headers, token
+Sanctum 30 hari, kebijakan retensi audit 5 tahun, log aplikasi 30 hari).
+`APP_DEBUG=false`, origin CORS produksi, HTTPS/HSTS, dan secret manager
+diverifikasi saat deploy staging/produksi.
 
 ### 9.1 Prinsip
 
