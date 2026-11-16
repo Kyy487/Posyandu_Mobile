@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import '../../models/immunization.dart';
 import '../../services/immunization_service.dart';
 import '../../widgets/immunization_checklist.dart';
-import '../login_screen.dart';
+import '/../screens/shared/login_screen.dart';
 
 /// Status imunisasi untuk orang tua. Sepenuhnya read-only.
 ///

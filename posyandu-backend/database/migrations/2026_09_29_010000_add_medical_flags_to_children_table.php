@@ -6,9 +6,9 @@ use Illuminate\Support\Facades\Schema;
 
 /**
  * Menambahkan kolom `children.medical_flags` - penanda kondisi khusus anak
- * (alergi, penyakit bawaan) yang diminta `RANCANGAN.md` 3.1.A.
+ * (alergi, penyakit bawaan) yang diminta `docs/arsip/RANCANGAN.md` 3.1.A.
  *
- * Keputusan desain ada di `docs/RANCANGAN_BUKU_MEDIS.md` bagian 5.1: kondisi
+ * Keputusan desain ada di `docs/arsip/RANCANGAN_BUKU_MEDIS.md` bagian 5.1: kondisi
  * khusus memakai KOLOM di tabel `children`, bukan tabel terpisah
  * `child_medical_flags`. Alasannya, tabel terpisah baru layak kalau nanti ada
  * pertanyaan "alergi ini sejak kapan" atau lebih dari satu jenis penanda per

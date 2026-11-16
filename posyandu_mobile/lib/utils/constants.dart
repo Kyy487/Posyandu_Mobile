@@ -10,9 +10,16 @@
 /// aplikasi langsung nyambung ke `php artisan serve` di komputer sendiri.
 /// Untuk device fisik, ganti dengan IP komputer di jaringan Wi-Fi.
 class ApiConstants {
+  // IP untuk HP Fisik (Wireless / USB)
+  static const String _physicalDeviceUrl = 'http://192.168.1.4:8000/api';
+  
+  // IP Alias standar Emulator Android
+  static const String _emulatorUrl = 'http://10.0.2.2:8000/api';
+
+  // Pilih URL aktif lewat defaultValue di sini:
   static const String baseUrl = String.fromEnvironment(
     'API_BASE_URL',
-    defaultValue: 'http://10.0.2.2:8000/api',
+    defaultValue: _emulatorUrl, // Ganti ke _emulatorUrl kalau lagi pakai emulator
   );
 
   static const String loginEndpoint = '/login';
@@ -75,6 +82,42 @@ class ApiConstants {
   // tengah, dan grafik yang terpotong lebih menyesatkan daripada grafik penuh
   // yang sedikit padat.
   static const String childGrowthEndpoint = '/growth';
+
+  // Rujukan anak (lihat docs/arsip/RANCANGAN_RUJUKAN.md).
+  //
+  // Rujukan adalah catatan tindak lanjut per kunjungan, jadi daftarnya
+  // menempel pada anak seperti timeline: Ibu berhak melihat rujukan anaknya
+  // sendiri, karena itu tidak ada prefix `/kader/`.
+  //   baca : {childrenEndpoint}/{id}{childReferralsEndpoint}
+  static const String childReferralsEndpoint = '/referrals';
+
+  // Tulis rujukan (hanya Kader). Endpoint-nya di akar `/referrals`, bukan di
+  // bawah `/children/{id}`, karena `child_id` dikirim di body - sama polanya
+  // dengan `kaderMedicalNotesEndpoint`.
+  //   buat  : POST   {kaderReferralsEndpoint}
+  //   koreksi: PATCH {kaderReferralsEndpoint}/{id}
+  //   batal : DELETE {kaderReferralsEndpoint}/{id}
+  static const String kaderReferralsEndpoint = '/referrals';
+
+  // Daftar kunjungan satu anak (P0-1). Sama seperti timeline/rujukan, dibaca
+  // Ibu maupun Kader, jadi tidak ada prefix `/kader/`.
+  //   baca : {childrenEndpoint}/{id}{childVisitsEndpoint}
+  static const String childVisitsEndpoint = '/visits';
+
+  // Tulis kunjungan (hanya Kader). Di akar `/visits`, bukan di bawah
+  // `/children/{id}`, karena `child_id` dikirim di body - sama seperti rujukan.
+  //   buat  : POST  {kaderVisitsEndpoint}
+  //   koreksi: PATCH {kaderVisitsEndpoint}/{id}
+  static const String kaderVisitsEndpoint = '/visits';
+
+  // Persetujuan (consent) pemrosesan data anak (UU PDP No. 27/2022).
+  //
+  // Dibaca Ibu maupun Kader (Ibu hanya anaknya sendiri), tapi yang boleh
+  // memberi/mencabut hanya Ibu/wali. Ketiganya memakai path yang sama:
+  //   baca   : GET    {childrenEndpoint}/{id}{childConsentsEndpoint}
+  //   beri   : POST   {childrenEndpoint}/{id}{childConsentsEndpoint}
+  //   cabut  : DELETE {childrenEndpoint}/{id}{childConsentsEndpoint}
+  static const String childConsentsEndpoint = '/consents';
 
   // Daftar petugas. NIK tidak pernah ikut respons.
   static const String petugasEndpoint = '/petugas';

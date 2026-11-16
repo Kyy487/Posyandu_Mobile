@@ -7,6 +7,7 @@ use App\Models\ImmunizationType;
 use App\Models\MedicalNote;
 use App\Models\PosyanduSchedule;
 use App\Models\User;
+use App\Support\NikHasher;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\Hash;
 
@@ -80,9 +81,12 @@ class DatabaseSeeder extends Seeder
      */
     private function makeUser(string $nik, string $name, string $role, ?string $jabatan = null): User
     {
-        $user = User::firstOrNew(['nik' => $nik]);
+        $nikHash = NikHasher::hash($nik);
+        $user = User::firstOrNew(['nik_hash' => $nikHash]);
 
         if (! $user->exists) {
+            $user->nik = $nik;
+            $user->nik_hash = $nikHash;
             $user->name = $name;
             $user->role = $role;
             $user->password = Hash::make('password123');
@@ -101,8 +105,8 @@ class DatabaseSeeder extends Seeder
 
     private function seedAnak(): void
     {
-        $annisa = User::where('nik', '1111222233334444')->first();
-        $ceri = User::where('nik', '1111222233334445')->first();
+        $annisa = User::where('nik_hash', NikHasher::hash('1111222233334444'))->first();
+        $ceri = User::where('nik_hash', NikHasher::hash('1111222233334445'))->first();
 
         $anak = [
             ['1234567890123456', 'Budi Santoso', '2025-05-10', 'L', 3.2, 50.0, $annisa?->id],
@@ -116,21 +120,23 @@ class DatabaseSeeder extends Seeder
             }
 
             Child::updateOrCreate(
-                ['nik' => $nik],
+                ['nik_hash' => NikHasher::hash($nik)],
                 [
+                    'nik' => $nik,
+                    'nik_hash' => NikHasher::hash($nik),
                     'user_id' => $userId,
                     'name' => $name,
                     'date_of_birth' => $dob,
                     'gender' => $gender,
                     'birth_weight' => $weight,
-                    'birth_height' => $height,
+                    'birth_length' => $height,
                 ]
             );
         }
     }
 
     /**
-     * Master 16 dosis imunisasi (program HB Indonesian).
+     * Master dosis imunisasi dasar lengkap (program nasional Indonesia).
      *
      * SENGaja memakai `updateOrCreate` dengan kunci `code` + `dose_number`,
      * yang persis sama dengan unique constraint
@@ -147,47 +153,78 @@ class DatabaseSeeder extends Seeder
      * sama - bukan mengukum dari `interval_months`. Anak boleh datang dengan
      * dosis 2 tanpa dose 1 (misalnya dosis 1 diberikan di fasilitas lain),
      * jadi menolak berdasarkan master interval akan menghambat.
+     *
+     * Dosis program lama yang tidak lagi dipakai (HB 2-4, polio 5)
+     * dinonaktifkan lewat `is_active = false`, BUKAN dihapus: FK
+     * `immunization_records` memakai `restrictOnDelete` dan catatan anak yang
+     * memakainya harus tetap terbaca. Penonaktifan hanya menyentuh baris yang
+     * memang sudah ada, sehingga database baru tidak diisi dosis usang.
      */
     private function seedImmunizationTypes(): void
     {
+        // [code, name, dose, target_age_months, interval_months, notes]
         $types = [
-            // Hepatitis B - 4 dosis (0, 2, 4, 6 bulan)
-            ['HB', 'Hepatitis B', 1, 0, null],
-            ['HB', 'Hepatitis B', 2, 2, 2],
-            ['HB', 'Hepatitis B', 3, 4, 2],
-            ['HB', 'Hepatitis B', 4, 6, 2],
+            // Hepatitis B - 1 dosis (saat lahir)
+            ['HB', 'Hepatitis B', 1, 0, null, null],
 
-            // BCG - 1 dosis (2 bulan)
-            ['BCG', 'BCG', 1, 2, null],
+            // BCG - 1 dosis (1 bulan)
+            ['BCG', 'BCG', 1, 1, null, null],
 
-            // Polio Oral - 5 dosis (0, 2, 3, 4, 6 bulan)
-            ['POLIO', 'Polio Oral', 1, 0, null],
-            ['POLIO', 'Polio Oral', 2, 2, 2],
-            ['POLIO', 'Polio Oral', 3, 3, 1],
-            ['POLIO', 'Polio Oral', 4, 4, 1],
-            ['POLIO', 'Polio Oral', 5, 6, 2],
+            // Polio Oral (OPV) - 4 dosis (1, 2, 3, 4 bulan)
+            ['POLIO', 'Polio Oral', 1, 1, null, null],
+            ['POLIO', 'Polio Oral', 2, 2, 1, null],
+            ['POLIO', 'Polio Oral', 3, 3, 1, null],
+            ['POLIO', 'Polio Oral', 4, 4, 1, null],
 
-            // DPT-HB-Hib - 4 dosis (2, 3, 4, 6 bulan)
-            ['DPT-HB-HIB', 'DPT-HB-Hib', 1, 2, null],
-            ['DPT-HB-HIB', 'DPT-HB-Hib', 2, 3, 1],
-            ['DPT-HB-HIB', 'DPT-HB-Hib', 3, 4, 1],
-            ['DPT-HB-HIB', 'DPT-HB-Hib', 4, 6, 2],
+            // DPT-HB-Hib - 4 dosis (2, 3, 4, 18 bulan)
+            ['DPT-HB-HIB', 'DPT-HB-Hib', 1, 2, null, null],
+            ['DPT-HB-HIB', 'DPT-HB-Hib', 2, 3, 1, null],
+            ['DPT-HB-HIB', 'DPT-HB-Hib', 3, 4, 1, null],
+            ['DPT-HB-HIB', 'DPT-HB-Hib', 4, 18, 14, null],
+
+            // Polio Inaktif - 2 dosis (4, 9 bulan)
+            ['IPV', 'Polio Inaktif (IPV)', 1, 4, null, null],
+            ['IPV', 'Polio Inaktif (IPV)', 2, 9, 5, null],
+
+            // Rotavirus - 3 dosis (2, 3, 4 bulan)
+            ['ROTAVIRUS', 'Rotavirus', 1, 2, null, null],
+            ['ROTAVIRUS', 'Rotavirus', 2, 3, 1, null],
+            ['ROTAVIRUS', 'Rotavirus', 3, 4, 1, null],
+
+            // Pneumokokus - 3 dosis (2, 3, 12 bulan)
+            ['PCV', 'Pneumokokus (PCV)', 1, 2, null, null],
+            ['PCV', 'Pneumokokus (PCV)', 2, 3, 1, null],
+            ['PCV', 'Pneumokokus (PCV)', 3, 12, 9, null],
 
             // Campak-Rubella - 2 dosis (9, 18 bulan)
-            ['MR', 'Campak-Rubella', 1, 9, null],
-            ['MR', 'Campak-Rubella', 2, 18, 9],
+            ['MR', 'Campak-Rubella', 1, 9, null, null],
+            ['MR', 'Campak-Rubella', 2, 18, 9, null],
+
+            // Japanese Encephalitis - 1 dosis (10 bulan), wilayah endemis
+            ['JE', 'Japanese Encephalitis', 1, 10, null, 'Hanya di wilayah endemis JE sesuai kebijakan daerah.'],
         ];
 
-        foreach ($types as [$code, $name, $dose, $target, $interval]) {
+        foreach ($types as [$code, $name, $dose, $target, $interval, $notes]) {
             ImmunizationType::updateOrCreate(
                 ['code' => $code, 'dose_number' => $dose],
                 [
                     'name' => $name,
                     'target_age_months' => $target,
                     'interval_months' => $interval,
+                    'notes' => $notes,
+                    'is_active' => true,
                 ]
             );
         }
+
+        // Nonaktifkan (jangan hapus) dosis dari jadwal lama. `update()` hanya
+        // menyentuh baris yang sudah ada, jadi database yang baru di-seed tidak
+        // ikut mendapat baris usang.
+        ImmunizationType::where('code', 'HB')->where('dose_number', '>', 1)
+            ->update(['is_active' => false]);
+
+        ImmunizationType::where('code', 'POLIO')->where('dose_number', '>', 4)
+            ->update(['is_active' => false]);
     }
 
     /**

@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../models/posyandu_schedule.dart';
 import '../../services/schedule_service.dart';
-import '../login_screen.dart';
+import '/../screens/shared/login_screen.dart';
 
 /// Daftar agenda posyandu untuk orang tua. Read-only.
 ///

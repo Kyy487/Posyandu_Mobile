@@ -421,8 +421,8 @@ Group "8b. Grafik tumbuh kembang (Opsi D)"
 $r = Req 'GET' "$base/children/$idK1/growth" $tK $null
 Check "kader buka grafik -> 200" 200 $r.Status
 $g = $r.Body.data
-Check "  data tepat 3 kunci" 3 @($g.psobject.Properties.Name).Count
-Check "  kunci: child/series/who_reference" 'child series who_reference' (($g.psobject.Properties.Name) -join ' ')
+Check "  data tepat 4 kunci" 4 @($g.psobject.Properties.Name).Count
+Check "  kunci: child/series/who_reference/who_references" 'child series who_reference who_references' (($g.psobject.Properties.Name) -join ' ')
 Check "  order naik" 'asc' $g.series.order
 Check "  ada 1 titik" 1 @($g.series.points).Count
 Check "  gender di blok child" 'P' $g.child.gender
@@ -446,9 +446,20 @@ $pita = $g.who_reference.points[30]
 Check "  median di dalam batas pita" $true ($pita.lower_kg -lt $pita.median_kg -and $pita.median_kg -lt $pita.upper_kg)
 Note "pita bln 30: $pita.lower_kg / $pita.median_kg / $pita.upper_kg kg"
 
-# Tidak ada pita tinggi badan: database hanya punya acuan BB/U.
-Check "  tidak ada pita TB" $false ($null -ne $g.who_hfa_reference)
+# Tiga pita multidimensi ada di `who_references`, urut normatif.
+Check "  who_references berisi 3 metrik" 3 @($g.who_references).Count
+Check "  urutan metrik" 'weight_for_age height_for_age bmi_for_age' (($g.who_references.metric) -join ' ')
+Check "  unit metrik" 'kg cm kg/m2' (($g.who_references.unit) -join ' ')
+Check "  pita TB/U menutup 0-60 (61 titik)" 61 @($g.who_references[1].points).Count
+Check "  pita IMT/U menutup 0-60 (61 titik)" 61 @($g.who_references[2].points).Count
+Check "  gender pita TB/U = gender anak" $g.child.gender $g.who_references[1].gender
+$pitaTbu = $g.who_references[1].points[30]
+Check "  TB/U mengapit median" $true ($pitaTbu.lower -lt $pitaTbu.median -and $pitaTbu.median -lt $pitaTbu.upper)
+$pitaImtu = $g.who_references[2].points[30]
+Check "  IMT/U mengapit median" $true ($pitaImtu.lower -lt $pitaImtu.median -and $pitaImtu.median -lt $pitaImtu.upper)
+Check "  who_reference konsisten dengan who_references[0]" $g.who_references[0].points[30].median $g.who_reference.points[30].median_kg
 Check "  height_cm tetap ada di titik" $true ($null -ne $tr3.height_cm)
+Check "  bmi ada di titik" $true ($null -ne $tr3.bmi)
 
 # Query string harus diabaikan, bukan dipatuhi.
 $r2 = Req 'GET' "$base/children/$idK1/growth?limit=1&before=2020-01-01" $tK $null
@@ -465,7 +476,7 @@ Check "Ibu A buka grafik anak Ibu B -> 403" 403 $r.Status
 Check "  pesan" 'Akses ditolak. Anda tidak berhak melihat data anak ini.' $r.Body.message
 $r = Req 'GET' "$base/children/$idB/growth" $tB $null
 Check "Ibu B buka grafik anaknya -> 200" 200 $r.Status
-Check "  data.right 3 kunci" 3 @($r.Body.data.psobject.Properties.Name).Count
+Check "  data.right 4 kunci" 4 @($r.Body.data.psobject.Properties.Name).Count
 $r = Req 'GET' "$base/children/bukan-uuid/growth" $tK $null
 Check "id bukan UUID -> 404" 404 $r.Status
 

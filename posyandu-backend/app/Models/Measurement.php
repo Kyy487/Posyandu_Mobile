@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\Auditable;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
@@ -21,12 +22,14 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  */
 class Measurement extends Model
 {
-    use HasFactory, HasUuids, SoftDeletes;
+    use Auditable, HasFactory, HasUuids, SoftDeletes;
 
     protected $fillable = [
         'child_id',
+        'visit_id',
         'kader_id',
         'measurement_date',
+        'measured_at',
         'weight_kg',
         'height_cm',
         'head_circumference_cm',
@@ -35,10 +38,23 @@ class Measurement extends Model
         'status_gizi',
     ];
 
+    protected function casts(): array
+    {
+        return [
+            'measured_at' => 'datetime',
+        ];
+    }
+
     // Relasi balik ke Anak
     public function child()
     {
         return $this->belongsTo(Child::class);
+    }
+
+    /** Kunjungan tempat penimbangan ini dicatat. Null bila diluar sesi kunjungan. */
+    public function visit()
+    {
+        return $this->belongsTo(Visit::class);
     }
 
     /**

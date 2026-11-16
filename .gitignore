@@ -103,3 +103,12 @@ index.php
 # ---------------------------------------------------------------------
 .env.local
 *.local
+
+# ---------------------------------------------------------------------
+# 8. FILE REFERENSI BESAR
+# ---------------------------------------------------------------------
+# Buku KIA (~83 MB) adalah referensi acuan, bukan bagian dari source code.
+# Ukurannya melewati batas nyaman GitHub (peringatan >50 MB), jadi sengaja
+# tidak ikut di-commit. Simpan salinannya di lokal saja. Ekstraksi teksnya
+# dipakai sebagai panduan tata letak (lihat catatan di docs/).
+/docs/data_who/*.pdf

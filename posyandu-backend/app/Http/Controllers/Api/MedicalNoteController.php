@@ -7,6 +7,8 @@ use App\Models\Child;
 use App\Models\Measurement;
 use App\Models\MedicalNote;
 use App\Models\User;
+use App\Models\Visit;
+use App\Support\RedFlagCodes;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\JsonResponse;
@@ -141,12 +143,17 @@ class MedicalNoteController extends Controller
         try {
             $validated = $request->validate([
                 'measurement_id' => ['nullable', 'uuid', Rule::exists('measurements', 'id')],
+                // Opsional (P0-1): menautkan keluhan ke sesi kunjungan.
+                'visit_id' => ['nullable', 'uuid'],
                 'note_date' => ['required', 'date_format:Y-m-d', 'before_or_equal:today'],
                 'demam' => ['nullable', 'boolean'],
                 'rewel' => ['nullable', 'boolean'],
                 'diare' => ['nullable', 'boolean'],
                 'catatan' => ['nullable', 'string', 'max:1000'],
                 'tindak_lanjut' => ['nullable', 'string', Rule::in(MedicalNote::TINDAK_LANJUTS)],
+                'red_flags' => ['sometimes', 'nullable', 'array'],
+                'red_flags.*' => ['string', Rule::in(RedFlagCodes::all())],
+                'icd10_code' => ['sometimes', 'nullable', 'string', 'max:10', 'regex:/^[A-Z][0-9]{2}(\.[0-9A-Z]{1,4})?$/i'],
             ]);
 
             // Penimbangan yang dilampirkan harus milik anak yang sama. Dicek di
@@ -156,6 +163,12 @@ class MedicalNoteController extends Controller
 
             if ($measurementError !== null) {
                 return $measurementError;
+            }
+
+            $visitError = $this->assertVisitBelongsToChild($validated['visit_id'] ?? null, $child);
+
+            if ($visitError !== null) {
+                return $visitError;
             }
 
             $isiError = $this->assertHasContent($validated);
@@ -183,6 +196,7 @@ class MedicalNoteController extends Controller
             $note = MedicalNote::create([
                 'child_id' => $child->id,
                 'measurement_id' => $validated['measurement_id'] ?? null,
+                'visit_id' => $validated['visit_id'] ?? null,
                 'kader_id' => $user->id,
                 'note_date' => $validated['note_date'],
                 'demam' => $validated['demam'] ?? false,
@@ -190,6 +204,8 @@ class MedicalNoteController extends Controller
                 'diare' => $validated['diare'] ?? false,
                 'catatan' => $this->normalizeCatatan($validated['catatan'] ?? null),
                 'tindak_lanjut' => $validated['tindak_lanjut'] ?? null,
+                'red_flags' => $validated['red_flags'] ?? null,
+                'icd10_code' => $validated['icd10_code'] ?? null,
             ]);
 
             return response()->json([
@@ -277,12 +293,16 @@ class MedicalNoteController extends Controller
         try {
             $validated = $request->validate([
                 'measurement_id' => ['sometimes', 'nullable', 'uuid', Rule::exists('measurements', 'id')],
+                'visit_id' => ['sometimes', 'nullable', 'uuid'],
                 'note_date' => ['sometimes', 'required', 'date_format:Y-m-d', 'before_or_equal:today'],
                 'demam' => ['sometimes', 'nullable', 'boolean'],
                 'rewel' => ['sometimes', 'nullable', 'boolean'],
                 'diare' => ['sometimes', 'nullable', 'boolean'],
                 'catatan' => ['sometimes', 'nullable', 'string', 'max:1000'],
                 'tindak_lanjut' => ['sometimes', 'nullable', 'string', Rule::in(MedicalNote::TINDAK_LANJUTS)],
+                'red_flags' => ['sometimes', 'nullable', 'array'],
+                'red_flags.*' => ['string', Rule::in(RedFlagCodes::all())],
+                'icd10_code' => ['sometimes', 'nullable', 'string', 'max:10', 'regex:/^[A-Z][0-9]{2}(\.[0-9A-Z]{1,4})?$/i'],
             ]);
 
             if ($validated === []) {
@@ -301,6 +321,14 @@ class MedicalNoteController extends Controller
 
                 if ($measurementError !== null) {
                     return $measurementError;
+                }
+            }
+
+            if (array_key_exists('visit_id', $validated)) {
+                $visitError = $this->assertVisitBelongsToChild($validated['visit_id'], $note->child);
+
+                if ($visitError !== null) {
+                    return $visitError;
                 }
             }
 
@@ -330,6 +358,7 @@ class MedicalNoteController extends Controller
                 'rewel' => $validated['rewel'] ?? $note->rewel,
                 'diare' => $validated['diare'] ?? $note->diare,
                 'catatan' => array_key_exists('catatan', $validated) ? $validated['catatan'] : $note->catatan,
+                'red_flags' => array_key_exists('red_flags', $validated) ? $validated['red_flags'] : $note->red_flags,
             ]);
 
             if ($isiError !== null) {
@@ -442,8 +471,10 @@ class MedicalNoteController extends Controller
 
         $catatan = $data['catatan'] ?? null;
         $adaCatatan = is_string($catatan) && trim($catatan) !== '';
+        $adaRedFlag = is_array($data['red_flags'] ?? null)
+            && $data['red_flags'] !== [];
 
-        if ($adaKeluhan || $adaCatatan) {
+        if ($adaKeluhan || $adaCatatan || $adaRedFlag) {
             return null;
         }
 
@@ -451,7 +482,7 @@ class MedicalNoteController extends Controller
             'success' => false,
             'message' => 'Catatan keluhan masih kosong.',
             'errors' => [
-                'demam' => ['Centang minimal satu keluhan, atau isi catatan.'],
+                'demam' => ['Centang minimal satu keluhan, isi catatan, atau pilih red flag.'],
             ],
         ], 422);
     }
@@ -463,7 +494,7 @@ class MedicalNoteController extends Controller
             'success' => false,
             'message' => 'Catatan keluhan masih kosong.',
             'errors' => [
-                'demam' => ['Centang minimal satu keluhan, atau isi catatan.'],
+                'demam' => ['Centang minimal satu keluhan, isi catatan, atau pilih red flag.'],
             ],
         ], 422);
     }
@@ -493,6 +524,35 @@ class MedicalNoteController extends Controller
                 'message' => 'Penimbangan tidak sesuai.',
                 'errors' => [
                     'measurement_id' => ['Penimbangan ini bukan milik anak tersebut.'],
+                ],
+            ], 422);
+        }
+
+        return null;
+    }
+
+    /**
+     * Memastikan kunjungan yang dilampirkan milik anak yang sama dan masih aktif.
+     *
+     * Seperti `assertMeasurementBelongsToChild`: tanpa cek ini, keluhan anak ini
+     * bisa ditempelkan ke kunjungan anak lain tanpa error.
+     *
+     * @return JsonResponse|null null bila tidak ada masalah
+     */
+    private function assertVisitBelongsToChild(?string $visitId, ?Child $child): ?JsonResponse
+    {
+        if ($visitId === null) {
+            return null;
+        }
+
+        // `findForChild` mengembalikan null bila kunjungan tidak ada, sudah
+        // dibatalkan (soft delete), atau milik anak lain.
+        if ($child && Visit::findForChild($visitId, $child->id) === null) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Kunjungan tidak sesuai.',
+                'errors' => [
+                    'visit_id' => ['Kunjungan ini bukan milik anak tersebut.'],
                 ],
             ], 422);
         }
@@ -599,6 +659,7 @@ class MedicalNoteController extends Controller
             'id' => $note->id,
             'child_id' => $note->child_id,
             'measurement_id' => $note->measurement_id,
+            'visit_id' => $note->visit_id,
             'kader_id' => $note->kader_id,
             'kader' => $note->kader ? [
                 'id' => $note->kader->id,
@@ -611,6 +672,8 @@ class MedicalNoteController extends Controller
             'keluhan' => $note->keluhan_list,
             'catatan' => $note->catatan,
             'tindak_lanjut' => $note->tindak_lanjut,
+            'red_flags' => $note->red_flags ?? [],
+            'icd10_code' => $note->icd10_code,
             'ringkasan' => $note->ringkasan,
             'created_at' => $note->created_at?->toIso8601String(),
             'updated_at' => $note->updated_at?->toIso8601String(),

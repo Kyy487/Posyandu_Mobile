@@ -11,7 +11,7 @@ import 'auth_service.dart';
 ///
 /// Endpoint ini mengembalikan penimbangan, suntikan, dan catatan keluhan satu
 /// anak dalam satu respons, dikelompokkan per tanggal kunjungan. Bentuk
-/// responsnya dikunci di `docs/RANCANGAN_BUKU_MEDIS.md` bagian 7.2; service ini
+/// responsnya dikunci di `docs/arsip/RANCANGAN_BUKU_MEDIS.md` bagian 7.2; service ini
 /// tidak mengubah apa pun di dalamnya.
 ///
 /// Tiga keputusan yang tidak boleh dibalik di sini:

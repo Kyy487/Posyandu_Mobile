@@ -10,6 +10,7 @@ use App\Models\PosyanduSchedule;
 use App\Models\User;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Carbon;
 use PHPUnit\Framework\Attributes\Test;
 use Tests\TestCase;
 
@@ -61,8 +62,8 @@ class FactoryTest extends TestCase
         $penimbangan = Measurement::factory()->untukAnak($anak)->create();
 
         $this->assertGreaterThanOrEqual(
-            $anak->date_of_birth,
-            $penimbangan->measurement_date
+            $anak->date_of_birth->toDateString(),
+            Carbon::parse($penimbangan->measurement_date)->toDateString()
         );
     }
 

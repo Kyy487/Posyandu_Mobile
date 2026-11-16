@@ -3,12 +3,15 @@ import 'dart:convert';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:posyandu_mobile/models/child.dart';
 import 'package:posyandu_mobile/models/child_timeline.dart';
+import 'package:posyandu_mobile/models/consent.dart';
 import 'package:posyandu_mobile/models/growth_chart.dart';
 import 'package:posyandu_mobile/models/immunization.dart';
 import 'package:posyandu_mobile/models/immunization_recap.dart';
 import 'package:posyandu_mobile/models/measurement_model.dart';
 import 'package:posyandu_mobile/models/medical_note.dart';
 import 'package:posyandu_mobile/models/posyandu_schedule.dart';
+import 'package:posyandu_mobile/models/referral.dart';
+import 'package:posyandu_mobile/models/visit.dart';
 import 'package:posyandu_mobile/utils/constants.dart';
 import 'package:posyandu_mobile/utils/month_label.dart';
 
@@ -271,6 +274,85 @@ void main() {
       expect(m.weightKg, 7.1);
       expect(m.zScoreWfa, -3.09);
       expect(m.ageInMonths, 16);
+    });
+  });
+
+  group('Kontrak API - PATCH /api/kader/measurements/{id}', () {
+    // Respons asli (HTTP 200) dari MeasurementController@update.
+    // Field yang tidak dikirim (mis. head_circumference_cm) ikut terbaca.
+    const rawUpdated = '''
+    {
+      "success": true,
+      "message": "Data penimbangan berhasil diperbarui.",
+      "data": {
+        "id": "01a0dc0d-67eb-71e5-81c9-edecb72edeed",
+        "child_id": "01a0d979-c11f-705b-8dd8-a245652c7aa4",
+        "kader_id": "01a0d979-c297-704b-b89a-d66ff76f2474",
+        "measurement_date": "2026-09-26",
+        "weight_kg": "7.60",
+        "height_cm": "75.00",
+        "head_circumference_cm": null,
+        "age_in_months": 16,
+        "z_score_wfa": "-2.81",
+        "status_gizi": "Gizi Kurang",
+        "created_at": "2026-09-26T04:51:01.000000Z",
+        "updated_at": "2026-10-15T08:10:00.000000Z"
+      }
+    }
+    ''';
+
+    test('membaca z-score & status gizi hasil hitung ulang trigger', () {
+      final decoded = json.decode(rawUpdated) as Map<String, dynamic>;
+      expect(decoded['success'], isTrue);
+
+      final m = MeasurementModel.fromJson(
+        decoded['data'] as Map<String, dynamic>,
+      );
+
+      expect(m.id, '01a0dc0d-67eb-71e5-81c9-edecb72edeed');
+      expect(m.weightKg, 7.60);
+      expect(m.heightCm, 75.00);
+      expect(m.headCircumferenceCm, isNull);
+      expect(m.ageInMonths, 16);
+      expect(m.zScoreWfa, -2.81);
+      expect(m.statusGizi, 'Gizi Kurang');
+    });
+
+    test('membaca envelope 422 bentrok tanggal agar bisa ditampilkan ulang', () {
+      const rawBentrok = '''
+      {
+        "success": false,
+        "message": "Anak ini sudah punya penimbangan pada tanggal tersebut.",
+        "errors": {
+          "measurement_date": ["Tanggal itu sudah dipakai penimbangan lain."]
+        }
+      }
+      ''';
+
+      final decoded = json.decode(rawBentrok) as Map<String, dynamic>;
+
+      expect(decoded['success'], isFalse);
+      final errors = decoded['errors'] as Map<String, dynamic>;
+      expect(
+        (errors['measurement_date'] as List).first,
+        'Tanggal itu sudah dipakai penimbangan lain.',
+      );
+    });
+
+    test('membaca envelope 404 ketika baris sudah dihapus', () {
+      const rawHilang = '''
+      {
+        "success": false,
+        "message": "Data penimbangan tidak ditemukan.",
+        "errors": null
+      }
+      ''';
+
+      final decoded = json.decode(rawHilang) as Map<String, dynamic>;
+
+      expect(decoded['success'], isFalse);
+      expect(decoded['message'], 'Data penimbangan tidak ditemukan.');
+      expect(decoded['errors'], isNull);
     });
   });
 
@@ -1442,7 +1524,27 @@ void main() {
               "diare": false,
               "catatan": "Demam sejak 2 hari",
               "tindak_lanjut": "rujuk"
-            }
+            },
+            "referrals": [
+              {
+                "id": "01a0d979-reff-704b-b89a-d66ff76f2474",
+                "referral_date": "2026-09-24",
+                "referral_type": "puskesmas",
+                "reason": "Demam tinggi 3 hari",
+                "facility_name": "Puskesmas Sukamaju",
+                "status": "dilaporkan",
+                "kader": { "id": "01a0d979-c297-704b-b89a-d66ff76f2474", "name": "Kader 1" }
+              },
+              {
+                "id": "01a0d979-reff-704b-b89a-d66ff76f2475",
+                "referral_date": "2026-09-24",
+                "referral_type": "rs",
+                "reason": null,
+                "facility_name": "RS Umum Daerah",
+                "status": "selesai",
+                "kader": null
+              }
+            ]
           },
           {
             "date": "2026-08-15",
@@ -1454,7 +1556,8 @@ void main() {
               "diare": false,
               "catatan": "Rewel saat ASI",
               "tindak_lanjut": "ringan"
-            }
+            },
+            "referrals": []
           }
         ],
         "meta": { "has_more": true, "next_before": "2026-08-15" }
@@ -1627,6 +1730,56 @@ void main() {
       expect(note.keluhan, ['Demam', 'Diare']);
     });
 
+    test('rujukan terbaca pada entri dan bisa lebih dari satu', () {
+      final entry = timeline.entries[0];
+
+      expect(entry.adaRujukan, isTrue);
+      expect(entry.referrals.length, 2);
+
+      final pertama = entry.referrals[0];
+      expect(pertama.referralType, 'puskesmas');
+      expect(pertama.tipeLabel, 'Puskesmas');
+      expect(pertama.status, 'dilaporkan');
+      expect(pertama.statusLabel, 'Dilaporkan');
+      expect(pertama.facilityName, 'Puskesmas Sukamaju');
+      expect(pertama.reason, 'Demam tinggi 3 hari');
+      expect(pertama.kaderName, 'Kader 1');
+      expect(pertama.selesai, isFalse);
+
+      final kedua = entry.referrals[1];
+      expect(kedua.tipeLabel, 'Rumah Sakit');
+      expect(kedua.statusLabel, 'Selesai');
+      expect(kedua.reason, isNull);
+      expect(kedua.selesai, isTrue);
+    });
+
+    test('rujukan tanpa kader tetap terbaca, bukan dianggap rusak', () {
+      expect(timeline.entries[0].referrals[1].kaderName, isNull);
+    });
+
+    test('entri tanpa rujukan: referrals kosong, bukan tidak diketahui', () {
+      final entry = timeline.entries[1];
+
+      expect(entry.adaRujukan, isFalse);
+      expect(entry.referrals, isEmpty);
+      expect(entry.kosong, isFalse);
+    });
+
+    test('entri hanya berisi rujukan tetap dianggap tidak kosong', () {
+      final entry = TimelineEntry.fromJson({
+        'date': '2026-07-01',
+        'measurement': null,
+        'immunizations': [],
+        'medical_note': null,
+        'referrals': [
+          {'id': 'r1', 'referral_date': '2026-07-01', 'status': 'dibuat'},
+        ],
+      });
+
+      expect(entry.kosong, isFalse);
+      expect(entry.referrals.single.statusLabel, 'Dibuat');
+    });
+
     test('path endpoint timeline benar', () {
       expect(ApiConstants.childTimelineEndpoint, '/timeline');
 
@@ -1640,6 +1793,498 @@ void main() {
         url.path,
         '/api/children/01a0d979-c11f-705b-8dd8-a245652c7aa4/timeline',
       );
+    });
+
+    test('path endpoint rujukan anak benar dan tanpa query string', () {
+      expect(ApiConstants.childReferralsEndpoint, '/referrals');
+
+      final url = Uri.parse(
+        '${ApiConstants.baseUrl}${ApiConstants.childrenEndpoint}'
+        '/01a0d979-c11f-705b-8dd8-a245652c7aa4'
+        '${ApiConstants.childReferralsEndpoint}',
+      );
+
+      expect(
+        url.path,
+        '/api/children/01a0d979-c11f-705b-8dd8-a245652c7aa4/referrals',
+      );
+      expect(url.query, isEmpty);
+    });
+  });
+
+  group('Kontrak API - GET /api/children/{id}/referrals', () {
+    // Respons asli dari ChildController@referrals / ReferralService::present
+    // (lihat docs/arsip/RANCANGAN_RUJUKAN.md). Bentuk `child` dan `referrals` ini yang
+    // dibaca ReferralList.fromJson, jadi JSON di bawah disalin dari spesifikasi
+    // - bukan dikarang di sini.
+    const rawReferrals = '''
+    {
+      "success": true,
+      "message": "Daftar rujukan anak berhasil diambil.",
+      "data": {
+        "child": { "id": "01a0d979-c11f-705b-8dd8-a245652c7aa4", "name": "Siti" },
+        "referrals": [
+          {
+            "id": "01a0d979-reff-704b-b89a-d66ff76f2474",
+            "child_id": "01a0d979-c11f-705b-8dd8-a245652c7aa4",
+            "visit_id": "01a0d979-vist-704b-b89a-d66ff76f2474",
+            "referral_date": "2026-09-24",
+            "referral_type": "puskesmas",
+            "reason": "Demam tinggi 3 hari",
+            "facility_name": "Puskesmas Sukamaju",
+            "status": "dilaporkan",
+            "kader_id": "01a0d979-c297-704b-b89a-d66ff76f2474",
+            "kader": { "id": "01a0d979-c297-704b-b89a-d66ff76f2474", "name": "Kader 1" },
+            "created_at": "2026-09-24T08:00:00+07:00",
+            "updated_at": "2026-09-24T08:00:00+07:00"
+          },
+          {
+            "id": "01a0d979-reff-704b-b89a-d66ff76f2475",
+            "child_id": "01a0d979-c11f-705b-8dd8-a245652c7aa4",
+            "visit_id": "01a0d979-vist-704b-b89a-d66ff76f2475",
+            "referral_date": "2026-08-15",
+            "referral_type": "rs",
+            "reason": null,
+            "facility_name": "RS Umum Daerah",
+            "status": "selesai",
+            "kader_id": null,
+            "kader": null,
+            "created_at": "2026-08-15T09:30:00+07:00",
+            "updated_at": "2026-08-15T09:30:00+07:00"
+          }
+        ]
+      }
+    }
+    ''';
+
+    late ReferralList data;
+
+    setUp(() {
+      final body = json.decode(rawReferrals) as Map<String, dynamic>;
+      data = ReferralList.fromJson(
+        Map<String, dynamic>.from(body['data'] as Map),
+      );
+    });
+
+    test('blok anak dan jumlah rujukan terbaca', () {
+      expect(data.childId, '01a0d979-c11f-705b-8dd8-a245652c7aa4');
+      expect(data.childName, 'Siti');
+      expect(data.jumlah, 2);
+      expect(data.kosong, isFalse);
+      expect(data.jumlahBelumSelesai, 1);
+    });
+
+    test('rujukan pertama terbaca lengkap beserta labelnya', () {
+      final rujukan = data.referrals[0];
+
+      expect(rujukan.id, '01a0d979-reff-704b-b89a-d66ff76f2474');
+      expect(rujukan.childId, '01a0d979-c11f-705b-8dd8-a245652c7aa4');
+      expect(rujukan.visitId, '01a0d979-vist-704b-b89a-d66ff76f2474');
+      expect(rujukan.referralDate, '2026-09-24');
+      expect(rujukan.referralType, 'puskesmas');
+      expect(rujukan.tipeLabel, 'Puskesmas');
+      expect(rujukan.reason, 'Demam tinggi 3 hari');
+      expect(rujukan.facilityName, 'Puskesmas Sukamaju');
+      expect(rujukan.status, 'dilaporkan');
+      expect(rujukan.statusLabel, 'Dilaporkan');
+      expect(rujukan.kaderName, 'Kader 1');
+      expect(rujukan.selesai, isFalse);
+      expect(rujukan.adaCatatan, isTrue);
+    });
+
+    test('rujukan yang sudah selesai dan tanpa kader tetap terbaca', () {
+      final rujukan = data.referrals[1];
+
+      expect(rujukan.tipeLabel, 'Rumah Sakit');
+      expect(rujukan.statusLabel, 'Selesai');
+      expect(rujukan.selesai, isTrue);
+      expect(rujukan.reason, isNull);
+      expect(rujukan.adaCatatan, isFalse);
+      expect(rujukan.kaderId, isNull);
+      expect(rujukan.kaderName, isNull);
+    });
+
+    test('daftar kosong: bukan error, jumlah nol', () {
+      final kosong = ReferralList.fromJson({
+        'child': {'id': 'a', 'name': 'Anak'},
+        'referrals': <dynamic>[],
+      });
+
+      expect(kosong.kosong, isTrue);
+      expect(kosong.jumlah, 0);
+      expect(kosong.jumlahBelumSelesai, 0);
+    });
+
+    test('label nilai tak dikenal tidak menampilkan nilai mentah', () {
+      final rujukan = Referral.fromJson({
+        'id': 'r1',
+        'referral_type': 'klinik_swasta',
+        'status': 'entah',
+      });
+
+      expect(rujukan.tipeLabel, 'Fasilitas Kesehatan');
+      expect(rujukan.statusLabel, 'Tidak diketahui');
+    });
+
+    test('field hilang tidak membuat parser crash dan tidak jadi teks null', () {
+      final rujukan = Referral.fromJson(const <String, dynamic>{});
+
+      expect(rujukan.id, '');
+      expect(rujukan.facilityName, isNull);
+      expect(rujukan.reason, isNull);
+      expect(rujukan.adaCatatan, isFalse);
+    });
+
+    test('path endpoint tulis rujukan benar', () {
+      expect(ApiConstants.kaderReferralsEndpoint, '/referrals');
+
+      final url = Uri.parse(
+        '${ApiConstants.baseUrl}${ApiConstants.kaderReferralsEndpoint}',
+      );
+
+      expect(url.path, '/api/referrals');
+      expect(url.query, isEmpty);
+    });
+
+    test('nilai CHECK referral_type/status sama persis dengan yang dipakai form', () {
+      // Form memakai `semua.contains(...)` untuk memilih nilai dropdown saat
+      // koreksi. Kalau daftar ini menyimpang dari CHECK di database, dropdown
+      // diam-diam jatuh ke default dan kader mengira statusnya berubah padahal
+      // tidak. Jadi daftar ini ikut dikunci di test.
+      expect(
+        ReferralTipe.semua,
+        ['puskesmas', 'rs', 'faskes_lain'],
+      );
+      expect(
+        ReferralStatus.semua,
+        ['dibuat', 'dilaporkan', 'selesai'],
+      );
+    });
+  });
+
+  group('Kontrak API - PATCH/DELETE /api/referrals/{id}', () {
+    test('PATCH sukses mengembalikan rujukan dengan status baru', () {
+      const raw = '''
+      {
+        "success": true,
+        "message": "Rujukan berhasil diperbarui.",
+        "data": {
+          "id": "01a0d979-9f10-70cb-b3a9-d013f275c4ce",
+          "referral_date": "2026-09-24",
+          "referral_type": "rs",
+          "reason": "Demam tinggi 3 hari, perlu pemeriksaan lab.",
+          "facility_name": "RSUD Sukamaju",
+          "status": "dilaporkan",
+          "kader": { "id": "01a0d979-c297-704b-b89a-d66ff76f2474", "name": "Kader 1" }
+        }
+      }
+      ''';
+
+      final body = json.decode(raw) as Map<String, dynamic>;
+      final rujukan = Referral.fromJson(
+        Map<String, dynamic>.from(body['data'] as Map),
+      );
+
+      expect(body['success'], isTrue);
+      expect(rujukan.id, '01a0d979-9f10-70cb-b3a9-d013f275c4ce');
+      expect(rujukan.referralType, 'rs');
+      expect(rujukan.tipeLabel, 'Rumah Sakit');
+      expect(rujukan.status, ReferralStatus.dilaporkan);
+      expect(rujukan.statusLabel, 'Dilaporkan');
+      expect(rujukan.selesai, isFalse);
+    });
+
+    test('422 status di luar CHECK ditolak server', () {
+      // Server memetakan pelanggaran CHECK (SQLSTATE 23514) menjadi 422;
+      // pesannya menunjuk field status supaya bisa ditampilkan apa adanya.
+      const raw = '''
+      {
+        "success": false,
+        "message": "Validasi gagal.",
+        "errors": {
+          "status": ["Tipe atau status rujukan tidak valid."]
+        }
+      }
+      ''';
+
+      final body = json.decode(raw) as Map<String, dynamic>;
+
+      expect(body['success'], isFalse);
+      expect((body['errors'] as Map)['status'], isA<List>());
+    });
+
+    test('DELETE sukses: envelope tanpa data (soft delete)', () {
+      const raw = '''
+      {
+        "success": true,
+        "message": "Rujukan berhasil dibatalkan.",
+        "data": null
+      }
+      ''';
+
+      final body = json.decode(raw) as Map<String, dynamic>;
+
+      expect(body['success'], isTrue);
+      expect(body['data'], isNull);
+      expect(body['message'], isNotEmpty);
+    });
+  });
+
+  group('Kontrak API - GET /api/children/{id}/visits', () {
+    // Respons asli dari ChildController@visits / VisitService::present
+    // (lihat docs/arsip/RANCANGAN_VISIT.md). Bentuk `child` dan `visits` ini yang
+    // dibaca VisitList.fromJson, jadi JSON di bawah disalin dari spesifikasi -
+    // bukan dikarang di sini.
+    const rawVisits = '''
+    {
+      "success": true,
+      "message": "Daftar kunjungan anak berhasil diambil.",
+      "data": {
+        "child": { "id": "01a0d979-c11f-705b-8dd8-a245652c7aa4", "name": "Siti" },
+        "visits": [
+          {
+            "id": "01a0d979-vist-704b-b89a-d66ff76f2474",
+            "child_id": "01a0d979-c11f-705b-8dd8-a245652c7aa4",
+            "schedule_id": null,
+            "visit_date": "2026-09-24",
+            "visit_type": "posyandu",
+            "kader_id": "01a0d979-c297-704b-b89a-d66ff76f2474",
+            "kader": { "id": "01a0d979-c297-704b-b89a-d66ff76f2474", "name": "Kader 1" },
+            "anamnesis": "Demam sejak 2 hari",
+            "catatan_kader": null,
+            "created_at": "2026-09-24T08:00:00+07:00",
+            "updated_at": "2026-09-24T08:00:00+07:00",
+            "jumlah_pengukuran": 1,
+            "jumlah_imunisasi": 2,
+            "jumlah_keluhan": 1
+          },
+          {
+            "id": "01a0d979-vist-704b-b89a-d66ff76f2475",
+            "child_id": "01a0d979-c11f-705b-8dd8-a245652c7aa4",
+            "schedule_id": "01a0d979-schd-704b-b89a-d66ff76f2474",
+            "visit_date": "2026-08-15",
+            "visit_type": "kunjungan_rumah",
+            "kader_id": null,
+            "kader": null,
+            "anamnesis": null,
+            "catatan_kader": "Ibu tidak hadir di posyandu",
+            "created_at": "2026-08-15T09:30:00+07:00",
+            "updated_at": "2026-08-15T09:30:00+07:00",
+            "jumlah_pengukuran": 0,
+            "jumlah_imunisasi": 0,
+            "jumlah_keluhan": 0
+          }
+        ]
+      }
+    }
+    ''';
+
+    late VisitList data;
+
+    setUp(() {
+      final body = json.decode(rawVisits) as Map<String, dynamic>;
+      data = VisitList.fromJson(
+        Map<String, dynamic>.from(body['data'] as Map),
+      );
+    });
+
+    test('blok anak dan jumlah kunjungan terbaca', () {
+      expect(data.childId, '01a0d979-c11f-705b-8dd8-a245652c7aa4');
+      expect(data.childName, 'Siti');
+      expect(data.jumlah, 2);
+      expect(data.kosong, isFalse);
+    });
+
+    test('kunjungan pertama terbaca lengkap beserta jumlah data tertaut', () {
+      final visit = data.visits[0];
+
+      expect(visit.id, '01a0d979-vist-704b-b89a-d66ff76f2474');
+      expect(visit.childId, '01a0d979-c11f-705b-8dd8-a245652c7aa4');
+      expect(visit.visitDate, '2026-09-24');
+      expect(visit.visitType, 'posyandu');
+      expect(visit.tipeLabel, 'Posyandu');
+      expect(visit.tanggalLabel, '24 September 2026');
+      expect(visit.kaderName, 'Kader 1');
+      expect(visit.anamnesis, 'Demam sejak 2 hari');
+      expect(visit.jumlahPengukuran, 1);
+      expect(visit.jumlahImunisasi, 2);
+      expect(visit.jumlahKeluhan, 1);
+      expect(visit.jumlahDataTertaut, 4);
+      expect(visit.adaDataTertaut, isTrue);
+    });
+
+    test('kunjungan tanpa kader dan tanpa data tertaut tetap terbaca', () {
+      final visit = data.visits[1];
+
+      expect(visit.tipeLabel, 'Kunjungan Rumah');
+      expect(visit.kaderName, isNull);
+      expect(visit.adaDataTertaut, isFalse);
+      expect(visit.catatanKader, 'Ibu tidak hadir di posyandu');
+      expect(visit.ringkasan, '15 Agustus 2026 · Kunjungan Rumah');
+    });
+
+    test('daftar kosong: bukan error, jumlah nol', () {
+      final kosong = VisitList.fromJson({
+        'child': {'id': 'a', 'name': 'Anak'},
+        'visits': <dynamic>[],
+      });
+
+      expect(kosong.kosong, isTrue);
+      expect(kosong.jumlah, 0);
+    });
+
+    test('jenis kunjungan tak dikenal tidak menampilkan nilai mentah', () {
+      final visit = Visit.fromJson({'id': 'v1', 'visit_type': 'imunisasi_massal'});
+
+      expect(visit.tipeLabel, 'Kunjungan');
+    });
+
+    test('jumlah yang tidak dikirim dibaca 0, bukan crash', () {
+      final visit = Visit.fromJson({'id': 'v1', 'visit_date': '2026-09-24'});
+
+      expect(visit.jumlahPengukuran, 0);
+      expect(visit.jumlahImunisasi, 0);
+      expect(visit.jumlahKeluhan, 0);
+      expect(visit.adaDataTertaut, isFalse);
+    });
+
+    test('path endpoint kunjungan anak benar dan tanpa query string', () {
+      expect(ApiConstants.childVisitsEndpoint, '/visits');
+
+      final url = Uri.parse(
+        '${ApiConstants.baseUrl}${ApiConstants.childrenEndpoint}'
+        '/01a0d979-c11f-705b-8dd8-a245652c7aa4'
+        '${ApiConstants.childVisitsEndpoint}',
+      );
+
+      expect(
+        url.path,
+        '/api/children/01a0d979-c11f-705b-8dd8-a245652c7aa4/visits',
+      );
+      expect(url.query, isEmpty);
+    });
+
+    test('nilai CHECK visit_type sama persis dengan yang dipakai form', () {
+      // Form memakai `VisitTipe.semua.contains(...)` untuk memilih nilai
+      // dropdown saat koreksi. Kalau daftar ini menyimpang dari CHECK di
+      // database, dropdown diam-diam jatuh ke default dan kader mengira jenis
+      // kunjungannya berubah padahal tidak.
+      expect(
+        VisitTipe.semua,
+        ['posyandu', 'kunjungan_rumah', 'rujukan'],
+      );
+    });
+
+    test('path endpoint tulis kunjungan benar', () {
+      expect(ApiConstants.kaderVisitsEndpoint, '/visits');
+
+      final url = Uri.parse(
+        '${ApiConstants.baseUrl}${ApiConstants.kaderVisitsEndpoint}',
+      );
+
+      expect(url.path, '/api/visits');
+      expect(url.query, isEmpty);
+    });
+  });
+
+  group('Kontrak API - POST/PATCH /api/visits', () {
+    test('POST sukses (201) mengembalikan kunjungan baru tanpa jumlah', () {
+      // Server membalas tanpa `withCount`, jadi jumlah_* tidak ada. Model harus
+      // membacanya 0, bukan null/crash.
+      const raw = '''
+      {
+        "success": true,
+        "message": "Kunjungan berhasil dibuat.",
+        "data": {
+          "id": "01a0d979-vist-704b-b89a-d66ff76f2474",
+          "child_id": "01a0d979-c11f-705b-8dd8-a245652c7aa4",
+          "schedule_id": null,
+          "visit_date": "2026-10-13",
+          "visit_type": "posyandu",
+          "kader_id": "01a0d979-c297-704b-b89a-d66ff76f2474",
+          "kader": { "id": "01a0d979-c297-704b-b89a-d66ff76f2474", "name": "Kader 1" },
+          "anamnesis": "Ibu melaporkan anak demam sejak 2 hari.",
+          "catatan_kader": null,
+          "created_at": "2026-10-13T08:00:00+07:00",
+          "updated_at": "2026-10-13T08:00:00+07:00"
+        }
+      }
+      ''';
+
+      final body = json.decode(raw) as Map<String, dynamic>;
+      final visit = Visit.fromJson(
+        Map<String, dynamic>.from(body['data'] as Map),
+      );
+
+      expect(body['success'], isTrue);
+      expect(visit.visitDate, '2026-10-13');
+      expect(visit.visitType, 'posyandu');
+      expect(visit.kaderName, 'Kader 1');
+      expect(visit.anamnesis, 'Ibu melaporkan anak demam sejak 2 hari.');
+      expect(visit.catatanKader, isNull);
+      expect(visit.jumlahDataTertaut, 0);
+    });
+
+    test('PATCH sukses mengembalikan kunjungan dengan jenis baru', () {
+      const raw = '''
+      {
+        "success": true,
+        "message": "Kunjungan berhasil diperbarui.",
+        "data": {
+          "id": "01a0d979-vist-704b-b89a-d66ff76f2474",
+          "child_id": "01a0d979-c11f-705b-8dd8-a245652c7aa4",
+          "visit_date": "2026-10-13",
+          "visit_type": "kunjungan_rumah",
+          "kader": null,
+          "anamnesis": null,
+          "catatan_kader": "Ibu tidak hadir di posyandu"
+        }
+      }
+      ''';
+
+      final body = json.decode(raw) as Map<String, dynamic>;
+      final visit = Visit.fromJson(
+        Map<String, dynamic>.from(body['data'] as Map),
+      );
+
+      expect(visit.visitType, 'kunjungan_rumah');
+      expect(visit.tipeLabel, 'Kunjungan Rumah');
+      expect(visit.kaderName, isNull);
+    });
+
+    test('422 jenis kunjungan di luar CHECK ditolak server', () {
+      // Server memetakan pelanggaran CHECK (SQLSTATE 23514) menjadi 422.
+      const raw = '''
+      {
+        "success": false,
+        "message": "Validasi gagal.",
+        "errors": {
+          "visit_type": ["Tipe kunjungan tidak dikenal."]
+        }
+      }
+      ''';
+
+      final body = json.decode(raw) as Map<String, dynamic>;
+
+      expect(body['success'], isFalse);
+      expect((body['errors'] as Map)['visit_type'], isA<List>());
+    });
+
+    test('422 tanggal masa depan ditolak server', () {
+      const raw = '''
+      {
+        "success": false,
+        "message": "Validasi gagal.",
+        "errors": {
+          "visit_date": ["The visit date field must be a date before or equal to today."]
+        }
+      }
+      ''';
+
+      final body = json.decode(raw) as Map<String, dynamic>;
+
+      expect(body['success'], isFalse);
+      expect((body['errors'] as Map)['visit_date'], isA<List>());
     });
   });
 
@@ -1681,10 +2326,11 @@ void main() {
   });
 
   group('Kontrak API - GET /api/children/{id}/growth', () {
-    // Respons asli dari GrowthChartService (Opsi D). Bentuk `child`, `series`,
-    // dan `who_reference` ini yang dibaca GrowthChart.fromJson, jadi JSON di
-    // bawah disalin dari `docs/RANCANGAN_GRAFIK_TUMBUH_KEMBANG.md` bagian 7.2
-    // - bukan dikarang di sini.
+    // Respons asli dari GrowthChartService (Opsi D), diperluas amendemen
+    // multidimensi 15 Oktober 2026. Bentuk `child`, `series`, `who_reference`,
+    // dan `who_references` ini yang dibaca GrowthChart.fromJson, jadi JSON di
+    // bawah disalin dari `docs/arsip/RANCANGAN_WHO_MULTIDIM.md` bagian 6.2 - bukan
+    // dikarang di sini.
     const rawGrowth = '''
     {
       "success": true,
@@ -1700,7 +2346,7 @@ void main() {
           "medical_flags": null
         },
         "series": {
-          "unit": { "weight": "kg", "height": "cm" },
+          "unit": { "weight": "kg", "height": "cm", "bmi": "kg/m2" },
           "order": "asc",
           "points": [
             {
@@ -1709,8 +2355,15 @@ void main() {
               "weight_kg": 11.2,
               "height_cm": 85.0,
               "head_circumference_cm": 46.5,
+              "bmi": 15.5,
               "z_score_wfa": -0.32,
-              "status_gizi": "Normal"
+              "status_gizi": "Normal",
+              "z_score_hfa": -0.7,
+              "status_stunting": "Normal",
+              "z_score_bfa": 0.1,
+              "status_gizi_imt": "Normal",
+              "z_score_wfh": 0.3,
+              "status_wfh": "Normal"
             },
             {
               "date": "2026-09-24",
@@ -1718,8 +2371,15 @@ void main() {
               "weight_kg": 12.4,
               "height_cm": 88.0,
               "head_circumference_cm": 47.5,
+              "bmi": 16.01,
               "z_score_wfa": 0.21,
-              "status_gizi": "Normal"
+              "status_gizi": "Normal",
+              "z_score_hfa": -0.8,
+              "status_stunting": "Normal",
+              "z_score_bfa": 0.4,
+              "status_gizi_imt": "Normal",
+              "z_score_wfh": null,
+              "status_wfh": null
             }
           ]
         },
@@ -1732,7 +2392,48 @@ void main() {
             { "age_in_months": 24, "median_kg": 12.2, "lower_kg": 10.1, "upper_kg": 14.5 },
             { "age_in_months": 30, "median_kg": 13.3, "lower_kg": 11.2, "upper_kg": 15.7 }
           ]
-        }
+        },
+        "who_references": [
+          {
+            "metric": "weight_for_age",
+            "label": "BB/U",
+            "unit": "kg",
+            "x_axis": "age_in_months",
+            "source": "WHO Child Growth Standards 2006",
+            "gender": "P",
+            "age_range": { "from": 0, "to": 60 },
+            "points": [
+              { "age_in_months": 24, "median": 12.2, "lower": 10.1, "upper": 14.5 },
+              { "age_in_months": 30, "median": 13.3, "lower": 11.2, "upper": 15.7 }
+            ]
+          },
+          {
+            "metric": "height_for_age",
+            "label": "TB/U",
+            "unit": "cm",
+            "x_axis": "age_in_months",
+            "source": "WHO Child Growth Standards 2006",
+            "gender": "P",
+            "age_range": { "from": 0, "to": 60 },
+            "points": [
+              { "age_in_months": 24, "median": 87.1, "lower": 81.0, "upper": 93.2 },
+              { "age_in_months": 30, "median": 90.5, "lower": 84.0, "upper": 97.0 }
+            ]
+          },
+          {
+            "metric": "bmi_for_age",
+            "label": "IMT/U",
+            "unit": "kg/m2",
+            "x_axis": "age_in_months",
+            "source": "WHO Child Growth Standards 2006",
+            "gender": "P",
+            "age_range": { "from": 0, "to": 60 },
+            "points": [
+              { "age_in_months": 24, "median": 16.0, "lower": 13.8, "upper": 18.9 },
+              { "age_in_months": 30, "median": 16.2, "lower": 13.6, "upper": 19.4 }
+            ]
+          }
+        ]
       }
     }
     ''';
@@ -1769,7 +2470,91 @@ void main() {
     test('unit dan order dibaca apa adanya dari server', () {
       expect(chart.series.weightUnit, 'kg');
       expect(chart.series.heightUnit, 'cm');
+      expect(chart.series.bmiUnit, 'kg/m2');
       expect(chart.series.order, 'asc');
+    });
+
+    test('angka multidimensi dibaca apa adanya dari trigger', () {
+      final titik = chart.series.points.first;
+
+      expect(titik.bmi, 15.5);
+      expect(titik.zScoreHfa, -0.7);
+      expect(titik.statusStunting, 'Normal');
+      expect(titik.zScoreBfa, 0.1);
+      expect(titik.statusGiziImt, 'Normal');
+      expect(titik.zScoreWfh, 0.3);
+      expect(titik.statusWfh, 'Normal');
+    });
+
+    test('BB/TB null di atas 24 bulan tetap null, bukan nol', () {
+      final titik = chart.series.points.last;
+
+      expect(titik.ageInMonths, 30);
+      expect(titik.zScoreWfh, isNull);
+      expect(titik.statusWfh, isNull);
+    });
+
+    test('who_references berisi tiga metrik berurut BB/U, TB/U, IMT/U', () {
+      expect(chart.whoBands.length, 3);
+      expect(
+        chart.whoBands.map((b) => b.metric).toList(),
+        ['weight_for_age', 'height_for_age', 'bmi_for_age'],
+      );
+      expect(chart.whoBands[1].label, 'TB/U');
+      expect(chart.whoBands[1].unit, 'cm');
+      expect(chart.whoBands[2].label, 'IMT/U');
+      expect(chart.whoBands[2].unit, 'kg/m2');
+    });
+
+    test('bandUntuk memilih pita lewat metric, bukan label', () {
+      final tbu = chart.bandUntuk('height_for_age');
+      final imtu = chart.bandUntuk('bmi_for_age');
+
+      expect(tbu, isNotNull);
+      expect(tbu!.points.first.median, 87.1);
+      expect(tbu.points.first.lower, 81.0);
+      expect(tbu.points.first.upper, 93.2);
+      expect(imtu!.points.last.upper, 19.4);
+
+      // Metrik yang tidak dikirim server (mis. BB/TB) tidak boleh mencocokkan
+      // entri apa pun - itu yang membuat BB/TB digambar tanpa pita.
+      expect(chart.bandUntuk('weight_for_height'), isNull);
+    });
+
+    test('bmi bisa digambar hanya saat umur dan BMI keduanya ada', () {
+      expect(chart.series.points.first.bisaDigambarBmi, isTrue);
+      expect(chart.series.jumlahTitikBmi, 2);
+    });
+
+    test('who_references yang hilang tidak membuat parser crash', () {
+      final growth = GrowthChart.fromJson({
+        'series': {
+          'unit': {'weight': 'kg', 'height': 'cm'},
+          'order': 'asc',
+          'points': <dynamic>[],
+        },
+      });
+
+      expect(growth.whoBands, isEmpty);
+      expect(growth.bandUntuk('weight_for_age'), isNull);
+      // Tanpa kunci `unit.bmi`, satuan jatuh ke default, bukan string kosong.
+      expect(growth.series.bmiUnit, 'kg/m2');
+    });
+
+    test('titikMultidimTerakhir melewati titik yang semua angkanya null', () {
+      const series = GrowthSeries(
+        points: [
+          GrowthPoint(
+            date: '2026-06-12',
+            ageInMonths: 27,
+            statusStunting: 'Normal',
+          ),
+          GrowthPoint(date: '2026-09-24', ageInMonths: 72),
+        ],
+      );
+
+      expect(series.titikMultidimTerakhir?.date, '2026-06-12');
+      expect(series.titikMultidimTerakhir?.statusStunting, 'Normal');
     });
 
     test('points tidak diurutkan ulang oleh klien', () {
@@ -2007,6 +2792,110 @@ void main() {
       // query string. Kalau `?limit=` pernah muncul di sini, layar bisa
       // menampilkan garis yang terpotong di tengah tanpa terlihat salah.
       expect(url.query, isEmpty);
+    });
+  });
+
+  group('Kontrak API - GET /api/children/{id}/consents', () {
+    // Respons asli ConsentController@index: `data` adalah LIST langsung
+    // (bukan {child, consents}), dan hanya baris yang belum dicabut
+    // (revoked_at null) yang ikut. Ini yang dibaca
+    // ConsentService.getByChild -> List<Consent>.
+    const rawDaftar = '''
+    {
+      "success": true,
+      "message": "Daftar persetujuan anak berhasil diambil.",
+      "data": [
+        {
+          "id": "01a0d979-cons-704b-b89a-d66ff76f2474",
+          "child_id": "01a0d979-c11f-705b-8dd8-a245652c7aa4",
+          "granted_by": "01a0d979-c297-704b-b89a-d66ff76f2474",
+          "consent_type": "data_processing",
+          "granted_at": "2026-10-13T08:00:00+07:00",
+          "revoked_at": null,
+          "document_version": "1.0",
+          "notes": null,
+          "created_at": "2026-10-13T08:00:00+07:00",
+          "updated_at": "2026-10-13T08:00:00+07:00"
+        }
+      ]
+    }
+    ''';
+
+    test('data berupa list langsung dibaca jadi Consent aktif', () {
+      final body = json.decode(rawDaftar) as Map<String, dynamic>;
+      final list = (body['data'] as List)
+          .map((e) => Consent.fromJson(Map<String, dynamic>.from(e as Map)))
+          .toList();
+
+      expect(body['success'], isTrue);
+      expect(list, hasLength(1));
+      expect(list.first.consentType, ConsentTipe.dataProcessing);
+      expect(list.first.tipeLabel, 'Pemrosesan Data');
+      expect(list.first.aktif, isTrue);
+      expect(list.first.documentVersion, '1.0');
+    });
+
+    test('tanggal ISO 8601 penuh dipotong jadi label tanggal', () {
+      final consent = Consent.fromJson({
+        'id': 'c1',
+        'child_id': 'a1',
+        'consent_type': 'research',
+        'granted_at': '2026-10-13T08:00:00+07:00',
+        'revoked_at': null,
+      });
+
+      expect(consent.tanggalLabel, '13 Oktober 2026');
+    });
+
+    test('revoked_at terisi berarti consent tidak lagi aktif', () {
+      final consent = Consent.fromJson({
+        'id': 'c1',
+        'child_id': 'a1',
+        'consent_type': 'data_sharing',
+        'granted_at': '2026-10-13T08:00:00+07:00',
+        'revoked_at': '2026-10-14T09:00:00+07:00',
+      });
+
+      expect(consent.aktif, isFalse);
+      expect(consent.tipeLabel, 'Berbagi Data');
+    });
+
+    test('tipe yang tidak dikenal tidak crash, pakai label generik', () {
+      final consent = Consent.fromJson({
+        'id': 'c1',
+        'child_id': 'a1',
+        'consent_type': 'marketing',
+      });
+
+      expect(consent.tipeLabel, 'Persetujuan');
+      expect(consent.tipeDeskripsi, '');
+      expect(consent.tanggalLabel, '-');
+    });
+
+    test('ConsentTipe.semua menampilkan ketiga tipe sesuai server', () {
+      // Cermin ConsentController::CONSENT_TYPES. Kalau backend menambah tipe
+      // tapi daftar ini tidak ikut, layar tidak akan pernah menampilkannya.
+      expect(ConsentTipe.semua, [
+        'data_processing',
+        'data_sharing',
+        'research',
+      ]);
+      expect(kConsentDocumentVersion, '1.0');
+    });
+
+    test('path endpoint consent benar', () {
+      expect(ApiConstants.childConsentsEndpoint, '/consents');
+
+      final url = Uri.parse(
+        '${ApiConstants.baseUrl}${ApiConstants.childrenEndpoint}'
+        '/01a0d979-c11f-705b-8dd8-a245652c7aa4'
+        '${ApiConstants.childConsentsEndpoint}',
+      );
+
+      expect(
+        url.path,
+        '/api/children/01a0d979-c11f-705b-8dd8-a245652c7aa4/consents',
+      );
     });
   });
 }

@@ -14,6 +14,9 @@ php artisan serve
 > Bila `php` tidak dikenali di terminal, Laragon belum terdaftar di `PATH`.
 > Gunakan path penuh:
 > `C:\laragon\bin\php\php-8.4.25-Win32-vs17-x64\php.exe artisan serve`
+>
+> Pastikan ekstensi `fileinfo` dan `gd` aktif. Keduanya dibutuhkan untuk upload
+> file dan test. Cek dengan `php -m`; bila tidak ada, aktifkan di `php.ini`.
 
 Cek apakah backend hidup:
 
@@ -70,7 +73,7 @@ App\Models\User::create([
 
 ## 3. Data Contoh (Seeder)
 
-Untuk mengisi akun demo, master 16 dosis imunisasi, dan 3 agenda contoh:
+Untuk mengisi akun demo, master dosis imunisasi, dan 3 agenda contoh:
 
 ```powershell
 cd C:\laragon\www\posyandu\posyandu-backend
@@ -102,7 +105,8 @@ Akun demo, **7 orang** (2 Ibu + 5 Kader), password semuanya `password123`:
 | `5555666677778891` | Kader Tati | `kader` |
 | `5555666677778892` | Bidan Yuni | `kader` |
 
-Sisipannya: 6 anak, 16 master dosis imunisasi, dan 3 agenda kegiatan
+Sisipannya: 6 anak, 21 dosis imunisasi aktif (jadwal Program Imunisasi Rutin;
+lihat `arsip/RANCANGAN_IMUNISASI_JADWAL.md`), dan 3 agenda kegiatan
 (9 penugasan kader di pivot).
 
 > Jangan menaruh data produksi pada NIK yang sama dengan NIK contoh di atas:

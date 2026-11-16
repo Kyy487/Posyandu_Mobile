@@ -3,103 +3,159 @@ import 'package:flutter/material.dart';
 
 import '../models/growth_chart.dart';
 
-/// Metrik yang sedang ditebalkan di grafik.
+/// Metrik yang sedang digambar di grafik.
 ///
-/// Grafik selalu menggambar BB **dan** TB di satu kanvas, jadi enum ini bukan
-/// pemilih data - hanya memilih garis mana yang ditebalkan dan_series mana yang
-/// dipakai untuk tooltip.
-enum GrowthMetric { weight, height }
+/// Grafik sekarang menggambar **satu** kurva anak dengan **satu** pitanya,
+/// dipilih lewat tombol di layar. Sebelumnya enum ini cuma menebalkan salah satu
+/// dari dua garis di kanvas yang sama; sekarang ia benar-benar pemilih data.
+///
+/// IMT/U ditambahkan karena satuannya `kg/m²` tidak bisa dipetakan ke kanvas
+/// yang sama dengan kg dan cm - itulah alasan dual-axis dihapus.
+enum GrowthMetric { weightForAge, heightForAge, bmiForAge }
 
-/// Grafik tumbuh kembang: pita WHO BB/U + garis BB + garis TB.
+/// Kunci `metric` di `who_references` untuk tiap pilihan.
 ///
-/// Wrapper tipis di atas `fl_chart`. Semua keputusan bentuk grafik sudah ditulis
-/// di `docs/RANCANGAN_GRAFIK_TUMBUH_KEMBANG.md` bagian 8; widget ini hanya
-/// menerjemahkannya jadi `LineChart`. Kalau bentuk visualnya perlu berubah,
+/// Dicocokkan lewat kunci ini, bukan lewat label tampilan ("BB/U"), karena label
+/// bisa berubah tanpa mengubah kontrak.
+extension GrowthMetricInfo on GrowthMetric {
+  String get metricKey => switch (this) {
+    GrowthMetric.weightForAge => 'weight_for_age',
+    GrowthMetric.heightForAge => 'height_for_age',
+    GrowthMetric.bmiForAge => 'bmi_for_age',
+  };
+
+  /// Label pendek untuk tombol metrik.
+  String get label => switch (this) {
+    GrowthMetric.weightForAge => 'BB/U',
+    GrowthMetric.heightForAge => 'TB/U',
+    GrowthMetric.bmiForAge => 'IMT/U',
+  };
+
+  /// Label panjang untuk tooltip.
+  String get labelPanjang => switch (this) {
+    GrowthMetric.weightForAge => 'Berat Badan',
+    GrowthMetric.heightForAge => 'Tinggi Badan',
+    GrowthMetric.bmiForAge => 'IMT',
+  };
+
+  /// Satuan yang sesuai, dibaca dari `series.unit`.
+  String satuanDari(GrowthSeries series) => switch (this) {
+    GrowthMetric.weightForAge => series.weightUnit,
+    GrowthMetric.heightForAge => series.heightUnit,
+    GrowthMetric.bmiForAge => series.bmiUnit,
+  };
+
+  /// Nilai titik untuk metrik ini. `null` berarti tidak diukur hari itu.
+  double? nilaiDari(GrowthPoint point) => switch (this) {
+    GrowthMetric.weightForAge => point.weightKg,
+    GrowthMetric.heightForAge => point.heightCm,
+    GrowthMetric.bmiForAge => point.bmi,
+  };
+}
+
+/// Grafik tumbuh kembang: satu pita WHO + satu garis anak.
+///
+/// Wrapper tipis di atas `fl_chart`. Semua keputusan bentuk grafik ada di
+/// `docs/arsip/RANCANGAN_GRAFIK_TUMBUH_KEMBANG.md` bagian 8 dan
+/// `docs/arsip/RANCANGAN_WHO_MULTIDIM.md` bagian 7.2; widget ini hanya
+/// menerjemahkannya jadi `LineChart`. Kalau bentuk visualnya berubah,
 /// dokumennya yang diubah lebih dulu.
 ///
 /// Empat keputusan yang tidak boleh dibalik di sini:
 ///
 ///  1. **Sumbu x adalah umur dalam tahun, bukan tanggal.** Pita WHO diindeks
-///     umur, jadi sumbu tanggal tidak akan bisa disejajarkan dengan pita.
-///     Umurnya diambil dari `age_in_months` milik server, tidak dihitung dari
+///     umur, jadi sumbu tanggal tidak bisa disejajarkan dengan pita. Umurnya
+///     diambil dari `age_in_months` milik server, tidak dihitung dari
 ///     `date_of_birth`.
-///  2. **Pita hanya untuk BB/U.** Tidak ada pita tinggi badan, dan tidak akan
-///     ada selama database tidak punya acuan TB/U. Garis TB tetap digambar
-///     tanpa band, dan legenda menyatakan itu.
+///  2. **Satu metrik per kanvas.** BB/U, TB/U, dan IMT/U tidak pernah digambar
+///     bersama; IMT/U bersatuan `kg/m²` yang tidak punya padanan di sumbu kg
+///     atau cm. Pita yang dipakai adalah entri `who_references` bermetrik sama.
 ///  3. **Tidak ada perhitungan z-score di klien.** Widget ini tidak pernah
 ///     menghitung apa pun dari `date_of_birth`; itu keputusan trigger
 ///     PostgreSQL, dan menghitungnya lagi di sini hanya membuka pintu untuk dua
-///     tampilan yang berbeda.
-///  4. **Angka nol tidak pernah diplot.** Titik dengan `weight_kg` atau
-///     `height_cm` `null` dilewati, dan titik tanpa umur dilewati karena tidak
-///     bisa diposisikan. `MeasurementModel` yang lama memakai `?? 0`; pola itu
-///     di sini akan membuat Ibu melihat anak beratnya nol pada kunjungan yang
-///     memang tidak menimbang.
+///     tampilan yang berbeda. `bmi` pun dihitung server.
+///  4. **Angka nol tidak pernah diplot.** Titik yang nilainya `null` untuk
+///     metrik aktif dilewati, dan titik tanpa umur dilewati karena tidak bisa
+///     diposisikan.
 class GrowthLineChart extends StatelessWidget {
   final GrowthSeries series;
-  final WhoReference whoReference;
+  final List<WhoBandReference> whoBands;
   final GrowthMetric metrikAktif;
 
   const GrowthLineChart({
     super.key,
     required this.series,
-    required this.whoReference,
-    this.metrikAktif = GrowthMetric.weight,
+    this.whoBands = const <WhoBandReference>[],
+    this.metrikAktif = GrowthMetric.weightForAge,
   });
 
   static const _warnaBerat = Color(0xFFD81B60);
   static const _warnaTinggi = Color(0xFF00897B);
+  static const _warnaBmi = Color(0xFF6A1B9A);
   static const _warnaPita = Color(0xFF9E9E9E);
   static const _warnaPitaIsi = Color(0xFFE0E0E0);
   static const _warnaMedian = Color(0xFF757575);
 
+  /// Warna garis anak dan label sumbu untuk metrik aktif.
+  static Color warnaMetrik(GrowthMetric metrik) => switch (metrik) {
+    GrowthMetric.weightForAge => _warnaBerat,
+    GrowthMetric.heightForAge => _warnaTinggi,
+    GrowthMetric.bmiForAge => _warnaBmi,
+  };
+
   @override
   Widget build(BuildContext context) {
-    final skala = _Skala.from(series, whoReference);
+    final band = _bandUntuk(whoBands, metrikAktif);
+    final skala = _Skala.from(series, band, metrikAktif);
 
-    // Tanpa satu pun titik yang bisa digambar, `LineChart` akan menggambar
-    // kanvas kosong tanpa tahu itu. Layar yang bisa menampilkan pesan "belum ada
-    // penimbangan" lebih berguna daripada kanvas hampa.
+    // Tanpa satu pun titik yang bisa digambar untuk metrik ini, `LineChart`
+    // akan menggambar kanvas kosong tanpa tahu itu. Layar yang bisa menampilkan
+    // pesan "belum ada data" lebih berguna daripada kanvas hampa.
     if (skala.tanpaTitik) {
       return const SizedBox.shrink();
     }
 
     return LineChart(
       skala.jadiLineChartData(
-        warnaBerat: _warnaBerat,
-        warnaTinggi: _warnaTinggi,
-        warnaPita: _warnaPita,
         warnaPitaIsi: _warnaPitaIsi,
-        warnaMedian: _warnaMedian,
-        weightUnit: series.weightUnit,
-        heightUnit: series.heightUnit,
-        metrikAktif: metrikAktif,
+        satuan: metrikAktif.satuanDari(series),
+        warnaMetrik: warnaMetrik(metrikAktif),
       ),
       duration: const Duration(milliseconds: 250),
     );
+  }
+
+  /// Pita untuk metrik aktif, atau `null` kalau server tidak mengirimnya.
+  static WhoBandReference? _bandUntuk(
+    List<WhoBandReference> bands,
+    GrowthMetric metrik,
+  ) {
+    for (final band in bands) {
+      if (band.metric == metrik.metricKey) return band;
+    }
+    return null;
   }
 }
 
 /// Indeks baris di `lineBarsData`.
 ///
 /// Dipakai `betweenBarsData` untuk mengisi pita, jadi urutannya harus sama
-/// dengan urutan di [_Skala.baruBaris]. Kalau salah, pita akan terisi antara
-/// garis yang salah - dan itu terlihat meyakinkan tanpa benar.
+/// dengan urutan di [_Skala.baris]. Kalau salah, pita akan terisi antara garis
+/// yang salah - dan itu terlihat meyakinkan tanpa benar.
 const int _indeksPitaBawah = 0;
 const int _indeksPitaAtas = 1;
 
 /// Baris median tidak dipakai di tooltip, tapi tetap harus punya slot supaya
-/// indeks berat dan tinggi tidak bergeser.
+/// indeks garis nilai tidak bergeser.
 const int _indeksMedian = 2;
 
-const int _indeksBerat = 3;
-const int _indeksTinggi = 4;
+const int _indeksNilai = 3;
 
 /// Berapa baris yang harus ada di `lineBarsData`.
 ///
 /// Dipakai test widget untuk memeriksa urutannya, jadi mengubah urutan di
 /// `_baris` tidak bisa lolos tanpa test ini ikut diperbarui.
-const int jumlahBarisGrafik = 5;
+const int jumlahBarisGrafik = 4;
 
 /// Semua perhitungan posisi titik dan batas sumbu, terkumpul di satu tempat.
 ///
@@ -107,54 +163,38 @@ const int jumlahBarisGrafik = 5;
 /// semua nilai di sini **dibaca** dari server, tidak ada satu pun yang dihitung
 /// ulang dari tanggal lahir.
 class _Skala {
-  /// Koordinat sumbu y dalam satuan yang sama dengan `weight_kg`.
+  /// Koordinat sumbu y dalam satuan metrik aktif (kg, cm, atau kg/m²).
   final double yMin;
   final double yMax;
   final double xMin;
   final double xMax;
 
-  /// Rentang tinggi badan dalam cm, dipetakan ke koordinat y yang sama supaya
-  /// kedua garis bisa berbagi satu kanvas tanpa saling menutupi.
-  final double cmMin;
-  final double cmRentang;
-
   final List<LineChartBarData> baris;
+
+  /// Titik anak yang bisa digambar di metrik aktif. Dipakai tooltip supaya
+  /// tanggal yang disebut cocok dengan titik yang benar-benar terlihat.
   final List<GrowthPoint> titik;
   final bool tanpaTitik;
   final bool pitaAda;
 
-  _Skala({
+  /// Metrik aktif. Disimpan supaya tooltip bisa mengambil nilai titik yang
+  /// benar tanpa parameter tambahan di tiap pemanggilan.
+  final GrowthMetric metrik;
+
+  const _Skala({
     required this.yMin,
     required this.yMax,
     required this.xMin,
     required this.xMax,
-    required this.cmMin,
-    required this.cmRentang,
     required this.baris,
     required this.titik,
     required this.tanpaTitik,
     required this.pitaAda,
+    required this.metrik,
   });
 
   double get intervalY => _intervalRapi((yMax - yMin) / 4);
   double get intervalX => _intervalRapi((xMax - xMin) / 4);
-
-  /// Koordinat y untuk nilai tinggi badan dalam cm.
-  ///
-  /// Tinggi badan tidak bisa langsung dipakai sebagai `y` karena satuannya cm
-  /// sementara pita WHO-nya kg. Menyamakan rentang keduanya membuat kedua garis
-  /// memenuhi kanvas, dan sumbu kanan menerjemahkan kembali ke cm - jadi angka
-  /// yang dibaca Ibu tetap satuan aslinya.
-  double yDariCm(double cm) {
-    if (cmRentang <= 0) return yMin;
-    return yMin + ((cm - cmMin) / cmRentang) * (yMax - yMin);
-  }
-
-  /// Nilai cm yang dibaca dari koordinat y, untuk label sumbu kanan.
-  double cmDariY(double y) {
-    if (yMax <= yMin) return cmMin;
-    return cmMin + ((y - yMin) / (yMax - yMin)) * cmRentang;
-  }
 
   /// Tanggal penimbangan yang berdekatan dengan koordinat y yang disentuh.
   ///
@@ -167,8 +207,8 @@ class _Skala {
     double jarakTerdekat = double.infinity;
 
     for (final p in titik) {
-      if (p.umurTahun == null) continue;
-      final yTitik = p.weightKg ?? yDariCm(p.heightCm ?? 0);
+      final yTitik = metrik.nilaiDari(p);
+      if (yTitik == null) continue;
       final jarak = (yTitik - y).abs();
       if (jarak < jarakTerdekat) {
         jarakTerdekat = jarak;
@@ -180,14 +220,9 @@ class _Skala {
   }
 
   LineChartData jadiLineChartData({
-    required Color warnaBerat,
-    required Color warnaTinggi,
-    required Color warnaPita,
     required Color warnaPitaIsi,
-    required Color warnaMedian,
-    required String weightUnit,
-    required String heightUnit,
-    required GrowthMetric metrikAktif,
+    required String satuan,
+    required Color warnaMetrik,
   }) {
     // Urutan baris di `_baris()` mengikat tiga hal sekaligus: indeks
     // `betweenBarsData` yang mengisi pita, indeks `spot.barIndex` di tooltip,
@@ -221,36 +256,16 @@ class _Skala {
 
       titlesData: FlTitlesData(
         topTitles: const AxisTitles(),
+        // Hanya satu sumbu y sekarang: tidak ada lagi kg di kiri dan cm di
+        // kanan, karena setiap kanvas cuma punya satu metrik.
+        rightTitles: const AxisTitles(),
         leftTitles: AxisTitles(
           sideTitles: SideTitles(
             showTitles: true,
-            reservedSize: 38,
+            reservedSize: 42,
             interval: intervalY,
-            getTitlesWidget: (value, meta) => _label(
-              value,
-              meta,
-              '${_angka(value)} $weightUnit',
-              metrikAktif == GrowthMetric.weight
-                  ? warnaBerat
-                  : Colors.grey[600]!,
-            ),
-          ),
-        ),
-        rightTitles: AxisTitles(
-          sideTitles: SideTitles(
-            showTitles: true,
-            reservedSize: 34,
-            interval: intervalY,
-            // Sumbu kanan menampilkan cm asli, bukan koordinat yang sudah
-            // diskalakan, jadi angka yang dibaca Ibu selalu satuan yang benar.
-            getTitlesWidget: (value, meta) => _label(
-              value,
-              meta,
-              '${_angka(cmDariY(value))} $heightUnit',
-              metrikAktif == GrowthMetric.height
-                  ? warnaTinggi
-                  : Colors.grey[600]!,
-            ),
+            getTitlesWidget: (value, meta) =>
+                _label(value, meta, '${_angka(value)} $satuan', warnaMetrik),
           ),
         ),
         bottomTitles: AxisTitles(
@@ -304,23 +319,19 @@ class _Skala {
               );
             }
 
-            // Bukan `else`: dua baris terakhir memang data anak, dan bulat ini
-            // yang menentukan tooltipnya menampilkan kg atau cm.
-            final berat = spot.barIndex == _indeksBerat;
             assert(
-              spot.barIndex == _indeksTinggi || berat,
+              spot.barIndex == _indeksNilai,
               'Ada baris di luar pita/median yang tidak dikenal: ${spot.barIndex}.',
             );
-            final nilai = berat ? spot.y : cmDariY(spot.y);
-            final satuan = berat ? weightUnit : heightUnit;
-            final warna = berat ? warnaBerat : warnaTinggi;
+
             final tanggal = tanggalUntuk(spot.y);
 
             return LineTooltipItem(
-              '$nilai $satuan\n$tanggal',
+              '${metrik.labelPanjang}\n'
+              '${_angkaDesimal(spot.y)} $satuan\n$tanggal',
               TextStyle(
                 fontSize: 11,
-                color: warna,
+                color: warnaMetrik,
                 fontWeight: FontWeight.w600,
               ),
             );
@@ -377,17 +388,10 @@ class _Skala {
     return nilai.round().toString();
   }
 
-  /// Titik yang bisa diposisikan: harus punya umur (sumbu x) dan nilai metrik.
-  static List<GrowthPoint> _titikSiap(
-    List<GrowthPoint> sumber, {
-    required bool berat,
-  }) {
-    return sumber
-        .where((p) {
-          if (p.umurTahun == null) return false;
-          return berat ? p.weightKg != null : p.heightCm != null;
-        })
-        .toList(growable: false);
+  /// Angka tooltip satu desimal, lebih informatif daripada pembulatan sumbu.
+  static String _angkaDesimal(double nilai) {
+    if (nilai.isNaN || nilai.isInfinite) return '-';
+    return nilai.toStringAsFixed(1);
   }
 
   /// Batas sumbu yang "bagus" dibaca mata: 1, 2, 5, atau 10.
@@ -402,22 +406,28 @@ class _Skala {
     return 1;
   }
 
-  factory _Skala.from(GrowthSeries series, WhoReference pita) {
-    final titikBerat = _titikSiap(series.points, berat: true);
-    final titikTinggi = _titikSiap(series.points, berat: false);
+  factory _Skala.from(
+    GrowthSeries series,
+    WhoBandReference? pita,
+    GrowthMetric metrik,
+  ) {
+    final titikNilai = series.points
+        .where((p) => p.umurTahun != null && metrik.nilaiDari(p) != null)
+        .toList(growable: false);
 
-    if (titikBerat.isEmpty && titikTinggi.isEmpty) {
+    final bandAda = pita != null && !pita.kosong;
+
+    if (titikNilai.isEmpty) {
       return _Skala(
         yMin: 0,
         yMax: 1,
         xMin: 0,
         xMax: 1,
-        cmMin: 0,
-        cmRentang: 0,
         baris: const <LineChartBarData>[],
         titik: const <GrowthPoint>[],
         tanpaTitik: true,
         pitaAda: false,
+        metrik: metrik,
       );
     }
 
@@ -425,26 +435,23 @@ class _Skala {
     // pita yang lebih lebar akan meluber keluar area gambar dan terlihat
     // terpotong - dan pita yang terpotong persis seperti pita yang salah.
     //
-    // Daftar sumber bisa kosong: anak yang ditimbang beratnya saja tidak punya
-    // satu pun titik tinggi badan, dan anak tanpa pita pun tidak ada. `_min` dan
-    // `_max` deshalb menerima nilai cadangan, bukan `reduce` telanjang yang
-    // melempar `StateError` saat daftarnya kosong.
+    // Daftar sumber bisa kosong: anak tanpa pita tidak punya satu titik pun dari
+    // band, dan garis anak tetap harus digambar. `_min` dan `_max` karena itu
+    // menerima nilai cadangan, bukan `reduce` telanjang yang melempar
+    // `StateError` saat daftarnya kosong.
     var yMin = _min([
-      for (final p in titikBerat) p.weightKg!,
-      for (final w in pita.points) w.lowerKg,
+      for (final p in titikNilai) metrik.nilaiDari(p)!,
+      if (bandAda) for (final w in pita.points) w.lower,
     ], cadangan: 0);
     var yMax = _max([
-      for (final p in titikBerat) p.weightKg!,
-      for (final w in pita.points) w.upperKg,
-    ], cadangan: 10);
-    [yMin, yMax] = _bantalan(yMin, yMax, minimum: 1);
+      for (final p in titikNilai) metrik.nilaiDari(p)!,
+      if (bandAda) for (final w in pita.points) w.upper,
+    ], cadangan: 1);
 
-    // Tanpa satu pun titik tinggi badan, tidak ada sumbu kanan yang punya
-    // angka. Rentang cm 0 dipakai supaya `cmDariY` dan `yDariCm` tidak
-    // membagi dengan nol; tidak ada yang memanggilnya karena garis TB kosong.
-    var cmMin = _min([for (final p in titikTinggi) p.heightCm!], cadangan: 0);
-    var cmMaks = _max([for (final p in titikTinggi) p.heightCm!], cadangan: 1);
-    [cmMin, cmMaks] = _bantalan(cmMin, cmMaks, minimum: 1);
+    // Satuan metrik (kg, cm, kg/m²) punya rentang yang berbeda-beda, tapi
+    // bantalan minimum 1 tetap masuk akal untuk ketiganya: 1 kg, 1 cm, atau
+    // 1 kg/m² sama-sama cukup untuk memisahkan satu titik tunggal dari tepi.
+    [yMin, yMax] = _bantalan(yMin, yMax, minimum: 1);
 
     // Sumbu x mengikuti umur anak yang tercatat, bukan rentang pita. Kalau pita
     // yang menentukan, anak 2 bulan mendapat kanvas 0-60 bulan dan garisnya
@@ -453,8 +460,8 @@ class _Skala {
       for (final p in series.points)
         if (p.umurTahun != null) p.umurTahun!,
     ];
-    // Daftar `umur` tidak pernah kosong di titik ini: `_Skala.from` sudah
-    // keluar lebih awal kalau tidak ada satu pun titik yang bisa digambar.
+    // Daftar `umur` tidak pernah kosong di titik ini: sudah keluar lebih awal
+    // kalau tidak ada satu pun titik yang punya nilai untuk metrik aktif.
     var xMin = _min(umur, cadangan: 0);
     var xMax = _max(umur, cadangan: 1);
     if (xMax - xMin < 0.5) {
@@ -471,36 +478,11 @@ class _Skala {
       yMax: yMax,
       xMin: xMin,
       xMax: xMax,
-      cmMin: cmMin,
-      cmRentang: cmMaks - cmMin,
-      baris: const <LineChartBarData>[],
-      titik: series.points,
+      baris: _baris(pita, titikNilai, metrik),
+      titik: titikNilai,
       tanpaTitik: false,
-      pitaAda: !pita.kosong,
-    )._denganBaris(pita, titikBerat, titikTinggi);
-  }
-
-  /// Salinan dengan baris garis terisi.
-  ///
-  /// Dipisah dari constructor utama karena baris pita butuh [_Skala] ini sudah
-  /// jadi untuk memetakan tinggi badan ke koordinat y - dan kolom `final` tidak
-  /// bisa diisi setelahnya.
-  _Skala _denganBaris(
-    WhoReference pita,
-    List<GrowthPoint> titikBerat,
-    List<GrowthPoint> titikTinggi,
-  ) {
-    return _Skala(
-      yMin: yMin,
-      yMax: yMax,
-      xMin: xMin,
-      xMax: xMax,
-      cmMin: cmMin,
-      cmRentang: cmRentang,
-      baris: _baris(pita, titikBerat, titikTinggi),
-      titik: titik,
-      tanpaTitik: tanpaTitik,
-      pitaAda: pitaAda,
+      pitaAda: bandAda,
+      metrik: metrik,
     );
   }
 
@@ -521,10 +503,6 @@ class _Skala {
   }
 
   /// Batas terkecil dari daftar, atau [cadangan] kalau daftarnya kosong.
-  ///
-  /// `cadangan` dipakai supaya anak yang hanya ditimbang tinggi badannya - atau
-  /// grafik tanpa pita dan tanpa titik berat - tidak membuat widget meledak
-  /// dengan `StateError` dari `reduce` atas daftar kosong.
   static double _min(List<double> nilai, {required double cadangan}) {
     if (nilai.isEmpty) return cadangan;
     return nilai.reduce((a, b) => a < b ? a : b);
@@ -539,45 +517,36 @@ class _Skala {
   /// Baris-baris garis yang akan digambar, urutannya dikunci oleh indeks di
   /// bagian atas file.
   ///
-  /// Bukan `static` karena garis tinggi badan butuh [yDariCm] untuk memetakan cm
-  /// ke koordinat y yang sama dengan pita.
-  List<LineChartBarData> _baris(
-    WhoReference pita,
-    List<GrowthPoint> titikBerat,
-    List<GrowthPoint> titikTinggi,
+  /// Selalu empat baris: batas bawah pita, batas atas pita, median, lalu garis
+  /// nilai anak. Tanpa pita, tiga baris pertama tetap ada sebagai placeholder
+  /// kosong supaya indeks garis nilai tidak bergeser - `betweenBarsData` hanya
+  /// dirender kalau `pitaAda`, jadi placeholder tidak pernah terlihat.
+  static List<LineChartBarData> _baris(
+    WhoBandReference? pita,
+    List<GrowthPoint> titikNilai,
+    GrowthMetric metrik,
   ) {
     final hasil = <LineChartBarData>[];
+    final bandAda = pita != null && !pita.kosong;
 
-    // Pita hanya digambar kalau WHO mengirimnya. Interpolasi dari dua titik yang
-    // berdekatan menghasilkan pita yang terlihat meyakinkan tapi tidak benar,
-    // dan itu lebih buruk daripada tidak ada pita sama sekali.
-    if (pita.kosong) {
-      // Tiga baris kosong supaya indeks median, berat, dan tinggi tidak
-      // bergeser. `betweenBarsData` hanya dirender kalau `pitaAda`, jadi
-      // placeholder ini tidak pernah terlihat.
-      hasil.add(_garisBatas(const <FlSpot>[]));
-      hasil.add(_garisBatas(const <FlSpot>[]));
-      hasil.add(
-        LineChartBarData(
-          spots: const <FlSpot>[],
-          isCurved: false,
-          dotData: const FlDotData(show: false),
-        ),
-      );
+    if (!bandAda) {
+      hasil.add(_kosong());
+      hasil.add(_kosong());
+      hasil.add(_kosong());
     } else {
       hasil.add(
         _garisBatas([
-          for (final w in pita.points) FlSpot(w.umurTahun, w.lowerKg),
+          for (final w in pita.points) FlSpot(w.umurTahun, w.lower),
         ]),
       );
       hasil.add(
         _garisBatas([
-          for (final w in pita.points) FlSpot(w.umurTahun, w.upperKg),
+          for (final w in pita.points) FlSpot(w.umurTahun, w.upper),
         ]),
       );
       hasil.add(
         LineChartBarData(
-          spots: [for (final w in pita.points) FlSpot(w.umurTahun, w.medianKg)],
+          spots: [for (final w in pita.points) FlSpot(w.umurTahun, w.median)],
           isCurved: false,
           color: GrowthLineChart._warnaMedian,
           barWidth: 1,
@@ -587,42 +556,24 @@ class _Skala {
       );
     }
 
+    final warna = GrowthLineChart.warnaMetrik(metrik);
+
     hasil.add(
       LineChartBarData(
-        spots: [for (final p in titikBerat) FlSpot(p.umurTahun!, p.weightKg!)],
+        spots: [
+          for (final p in titikNilai)
+            FlSpot(p.umurTahun!, metrik.nilaiDari(p)!),
+        ],
         isCurved: true,
         curveSmoothness: 0.2,
         preventCurveOverShooting: true,
-        color: GrowthLineChart._warnaBerat,
+        color: warna,
         barWidth: 3,
         dotData: FlDotData(
           show: true,
           getDotPainter: (spot, percent, bar, index) => FlDotCirclePainter(
             radius: 3,
-            color: GrowthLineChart._warnaBerat,
-            strokeWidth: 1,
-            strokeColor: Colors.white,
-          ),
-        ),
-      ),
-    );
-
-    hasil.add(
-      LineChartBarData(
-        spots: [
-          for (final p in titikTinggi)
-            FlSpot(p.umurTahun!, yDariCm(p.heightCm!)),
-        ],
-        isCurved: true,
-        curveSmoothness: 0.2,
-        preventCurveOverShooting: true,
-        color: GrowthLineChart._warnaTinggi,
-        barWidth: 2,
-        dotData: FlDotData(
-          show: true,
-          getDotPainter: (spot, percent, bar, index) => FlDotCirclePainter(
-            radius: 2.5,
-            color: GrowthLineChart._warnaTinggi,
+            color: warna,
             strokeWidth: 1,
             strokeColor: Colors.white,
           ),
@@ -640,6 +591,15 @@ class _Skala {
       isCurved: false,
       color: GrowthLineChart._warnaPita,
       barWidth: 1,
+      dotData: const FlDotData(show: false),
+    );
+  }
+
+  /// Baris kosong sebagai placeholder supaya indeks tidak bergeser.
+  static LineChartBarData _kosong() {
+    return LineChartBarData(
+      spots: const <FlSpot>[],
+      isCurved: false,
       dotData: const FlDotData(show: false),
     );
   }

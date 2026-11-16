@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http/http.dart' as http;
 
+import '../../demo/demo_mode.dart';
 import '../utils/constants.dart';
 
 class AuthService {
@@ -66,6 +67,16 @@ class AuthService {
 
   /// Keluar dan mencabut token di server.
   Future<Map<String, dynamic>> logout() async {
+    if (DemoMode.enabled || DemoMode.frontendOnly) {
+      DemoMode.disable();
+      await storage.delete(key: 'token');
+      return {
+        'success': true,
+        'message': 'Logout demo berhasil',
+        'errors': null,
+      };
+    }
+
     final token = await storage.read(key: 'token');
 
     if (token == null) {
@@ -105,6 +116,18 @@ class AuthService {
   Future<bool> hasSession() async {
     final token = await getToken();
     return token != null && token.isNotEmpty;
+  }
+
+  /// Login sebagai demo (tanpa backend). Menggunakan token statis dari
+  /// [DemoMode] agar layar dashboard bisa membaca data dummy.
+  Future<Map<String, dynamic>> loginAsDemo({required String role}) async {
+    DemoMode.enable(role: role);
+    await storage.write(key: 'token', value: DemoMode.token);
+    return {
+      'success': true,
+      'message': 'Masuk demo berhasil',
+      'data': {'user': DemoMode.currentUser, 'token': DemoMode.token},
+    };
   }
 
   /// NIK terakhir yang user pilih untuk diingat ("Ingat NIK" di login).

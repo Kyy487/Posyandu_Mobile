@@ -570,6 +570,8 @@ class ImmunizationRecapTest extends TestCase
     #[Test]
     public function dosis_yang_sudah_disuntik_tidak_punya_sisa_bulan(): void
     {
+        $this->travelTo(CarbonImmutable::parse(self::ACUAN));
+
         $kader = User::factory()->kader()->create();
         [$hb] = $this->masterDosis();
 

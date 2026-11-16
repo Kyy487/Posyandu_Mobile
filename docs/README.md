@@ -39,6 +39,12 @@ posyandu/
 | Catatan Keluhan Kader | Selesai |
 | Grafik Tumbuh Kembang | Selesai |
 | Edit data anak oleh Kader | Selesai |
+| Admin import/koreksi IHS anak | Selesai |
+| FHIR R4 draft + validasi SATUSEHAT | Selesai (pengiriman otomatis belum) |
+| Red flags & edukasi gizi | Selesai |
+| Sosial media profil | Selesai |
+| Observability & retensi log | Selesai |
+| Hardening API (CORS, security headers, token expiry) | Selesai |
 | AI Food Scanner (microservice) | Belum dimulai |
 | Pemetaan Spasial (PostGIS) | Belum dimulai |
 
@@ -85,8 +91,11 @@ flutter test
 
 | Kategori | File |
 |---|---|
-| Panduan | `AI_AGENT_RULES.md`, `Cara_menjalankan.md`, `SETUP_LOG.md`, `PROJECT_OVERVIEW.md` |
-| Kontrak | `API_CONTRACT.md`, `DATABASE_SCHEMA.md` |
-| Perencanaan | `RANCANGAN.md`, `RENCANA_SELANJUTNYA.md`, `RANCANGAN_BUKU_MEDIS.md`, `RANCANGAN_GRAFIK_TUMBUH_KEMBANG.md` |
-| Laporan | `LAPORAN_ZSCORE_TRIGGER.md`, `LAPORAN_IMUNISASI_JADWAL.md`, `LAPORAN_MEDICAL_NOTES.md`, `LAPORAN_BUKU_MEDIS.md`, `LAPORAN_GRAFIK_TUMBUH_KEMBANG.md`, `LAPORAN_REKAP_IMUNISASI_BULANAN.md`, `LAPORAN_REKAP_CSV.md` |
+| Dokumentasi utama | `DOKUMENTASI_UTAMA.md` (status, hasil kerja, arsitektur, operasional, troubleshooting, Fase 1.5, Fase 2A) |
+| Rencana induk | `RENCANA_UNIFIED_SATU_PINTU.md` (rencana dan checklist lintas fase) |
+| Rancangan Fase 1 | `RANCANGAN_STANDARISASI.md` |
+| Checklist Fase 1.5 | `CHECKLIST_FASE_1_5.md` |
+| Panduan | `AI_AGENT_RULES.md`, `Cara_menjalankan.md`, `SETUP_LOG.md`, `KEAMANAN_APLIKASI.md` |
+| Kontrak | `API_CONTRACT.md`, `DATABASE_SCHEMA.md`, `ERD_POSYANDU.mermaid.md` |
+| Arsip | `arsip/` (dokumen rencana/status/laporan per-fitur lama) |
 | Aturan agent | `posyandu-backend/.ai/rules/` (dibaca otomatis lewat `AGENTS.md`) |
