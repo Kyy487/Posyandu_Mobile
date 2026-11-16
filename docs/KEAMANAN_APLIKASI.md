@@ -19,7 +19,8 @@ CORS ketat, *security header*, dan masa berlaku token Sanctum sudah diterapkan d
 | **Otorisasi Berbasis Peran** | Sudah Ada | Menggunakan middleware `RoleCheck` (`ibu`, `kader`) untuk membatasi akses endpoint. |
 | **Status Akun Ibu** | Sudah Ada | Middleware `EnsureIbuActive` membatasi Ibu dengan status `pending` atau `rejected`. Hanya route terkait kelengkapan pendaftaran, profil, dan logout yang diizinkan. |
 | **Pemisahan Endpoint** | Sudah Ada | Endpoint Ibu (`/ibu/*`) dan Kader (`/kader/*`) dipisah untuk mencegah akses lintas peran. |
-| **Perlindungan NIK** | Sudah Ada | Kolom `nik` dienkripsi menggunakan *Laravel Encryption* (`encrypted` cast). Pencarian untuk login menggunakan `nik_hash` (SHA256). `nik` dan `nik_hash` disembunyikan pada beberapa response. |
+| **Perlindungan NIK & KK** | Sudah Ada | Kolom `nik` dan `no_kk` dienkripsi menggunakan *Laravel Encryption* (`encrypted` cast). Pencarian untuk login menggunakan `nik_hash` (SHA256). `nik`, `nik_hash`, dan `no_kk` disembunyikan dari respons API. |
+| **Registrasi Berbasis Token** | Sudah Ada | `GET /registration/status` dan `POST/PUT/PATCH /registration/complete` wajib Bearer token. NIK tidak dipakai sebagai kredensial dan tidak dapat diubah setelah pendaftaran. |
 | **Proteksi Password** | Sudah Ada | Password di-*hash* menggunakan `Hash::make()` dan diverifikasi dengan `Hash::check()`. |
 | **Registrasi Kader Terkontrol** | Sudah Ada | Pendaftaran kader wajib menyertakan `kader_code`. Dicek menggunakan `hash_equals()` untuk mencegah *timing attack*. Jika `KADER_REGISTRATION_CODE` kosong di `.env`, pendaftaran kader otomatis dimatikan (403). |
 | **Persetujuan Data (Consent)** | Sudah Ada | Saat penambahan data anak, wajib mengirim `consent_type` dan `consent_document_version`. Tercatat pada tabel `consents` sebagai bukti persetujuan (mendukung prinsip kepatuhan terkait perlindungan data). |

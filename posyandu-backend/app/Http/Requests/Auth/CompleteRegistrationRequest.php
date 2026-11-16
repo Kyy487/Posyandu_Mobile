@@ -2,7 +2,6 @@
 
 namespace App\Http\Requests\Auth;
 
-use App\Models\User;
 use App\Support\NikHasher;
 use Closure;
 use Illuminate\Foundation\Http\FormRequest;
@@ -10,9 +9,8 @@ use Illuminate\Foundation\Http\FormRequest;
 /**
  * Validasi pelengkapan data pendaftaran.
  *
- * Endpoint ini boleh dipanggil dengan Bearer token ATAU dengan `nik` + status
- * pending (alur lama mobile). Karena itu NIK tetap opsional, tetapi bila
- * dikirim harus valid dan tidak dipakai akun lain.
+ * Endpoint wajib Bearer token; akun diambil dari token, bukan NIK. NIK boleh
+ * dikirim ulang untuk kompatibilitas klien lama, tetapi tidak boleh diubah.
  */
 class CompleteRegistrationRequest extends FormRequest
 {
@@ -27,7 +25,7 @@ class CompleteRegistrationRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'nik' => ['nullable', 'string', 'digits:16', $this->uniqueNikRule()],
+            'nik' => ['nullable', 'string', 'digits:16', $this->immutableNikRule()],
             'no_kk' => ['nullable', 'string', 'digits:16'],
             'name' => ['sometimes', 'required', 'string', 'max:255'],
             'phone_number' => ['nullable', 'string', 'max:16', 'regex:/^[0-9+\-\s]+$/'],
@@ -60,30 +58,13 @@ class CompleteRegistrationRequest extends FormRequest
         ];
     }
 
-    private function uniqueNikRule(): Closure
+    private function immutableNikRule(): Closure
     {
         return function (string $attribute, mixed $value, Closure $fail): void {
-            $nik = (string) $value;
-            $currentId = $this->user()?->id;
+            $user = $this->user();
 
-            // Tanpa token, endpoint ini mengidentifikasi akun lewat NIK.
-            // Akun pending/rejected dengan NIK tersebut adalah akun yang
-            // sedang diperbaiki, bukan duplikat.
-            if ($currentId === null) {
-                $currentId = User::query()
-                    ->where('nik_hash', NikHasher::hash($nik))
-                    ->whereIn('status', ['pending', 'rejected'])
-                    ->value('id');
-            }
-
-            $query = User::query()->where('nik_hash', NikHasher::hash($nik));
-
-            if ($currentId !== null) {
-                $query->whereKeyNot($currentId);
-            }
-
-            if ($query->exists()) {
-                $fail('NIK sudah terdaftar pada akun lain.');
+            if ($user === null || $user->nik_hash !== NikHasher::hash((string) $value)) {
+                $fail('NIK tidak dapat diubah.');
             }
         };
     }

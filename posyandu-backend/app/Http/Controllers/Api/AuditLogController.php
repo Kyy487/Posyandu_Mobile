@@ -7,6 +7,7 @@ use App\Models\AuditLog;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Validation\ValidationException;
 
 /**
  * Daftar riwayat audit (siapa mengubah apa dan kapan).
@@ -39,12 +40,12 @@ class AuditLogController extends Controller
                 ->when($validated['event'] ?? null, fn ($q, $event) => $q->where('event', $event))
                 ->orderByDesc('created_at')
                 ->orderByDesc('id')
-                ->get();
+                ->paginate($this->perPage($request));
 
             return response()->json([
                 'success' => true,
                 'message' => 'Riwayat audit berhasil diambil.',
-                'data' => $riwayat->map(fn (AuditLog $log) => [
+                'data' => $riwayat->getCollection()->map(fn (AuditLog $log) => [
                     'id' => $log->id,
                     'auditable_type' => $log->auditable_type,
                     'auditable_id' => $log->auditable_id,
@@ -54,9 +55,16 @@ class AuditLogController extends Controller
                     'new_values' => $log->new_values,
                     'ip_address' => $log->ip_address,
                     'created_at' => $log->created_at?->toISOString(),
-                ]),
+                ])->values(),
+                'meta' => $this->paginationMeta($riwayat),
             ], 200);
 
+        } catch (ValidationException $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Validasi gagal.',
+                'errors' => $e->errors(),
+            ], 422);
         } catch (\Throwable $e) {
             Log::error('Gagal mengambil riwayat audit: '.$e->getMessage(), [
                 'exception' => $e,

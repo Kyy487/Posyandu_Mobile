@@ -3,10 +3,14 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\AuditLog;
 use App\Models\User;
+use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Validation\ValidationException;
 
 class KaderRegistrationController extends Controller
 {
@@ -19,12 +23,17 @@ class KaderRegistrationController extends Controller
             $query->where('status', $status);
         }
 
-        $users = $query->orderBy('created_at', 'asc')->get()->makeHidden(['nik', 'nik_hash', 'password']);
+        $users = $query->orderBy('created_at', 'asc')->orderBy('id')->paginate($this->perPage($request));
+
+        $users->getCollection()->transform(
+            fn (User $user) => $user->makeHidden(['nik', 'nik_hash', 'password'])
+        );
 
         return response()->json([
             'success' => true,
             'message' => 'Daftar permohonan registrasi berhasil diambil.',
-            'data' => $users,
+            'data' => $users->items(),
+            'meta' => $this->paginationMeta($users),
         ]);
     }
 
@@ -83,8 +92,40 @@ class KaderRegistrationController extends Controller
             ], 422);
         }
 
-        $user->fill($validator->validated());
-        $user->save();
+        try {
+            $user = DB::transaction(function () use ($request, $user, $validator): User {
+                $locked = $this->lockPendingIbu($user);
+                $locked->fill($validator->validated());
+
+                if (! $locked->isDirty()) {
+                    return $locked;
+                }
+
+                $oldValues = [];
+                foreach (array_keys($locked->getDirty()) as $column) {
+                    $oldValues[$column] = $locked->getOriginal($column);
+                }
+
+                $locked->save();
+
+                $newValues = [];
+                foreach ($locked->getChanges() as $column => $value) {
+                    if ($column === 'updated_at') {
+                        continue;
+                    }
+
+                    $newValues[$column] = $value;
+                }
+
+                $this->recordAudit($request, $locked, $oldValues, $newValues);
+
+                return $locked;
+            });
+        } catch (ModelNotFoundException) {
+            return $this->registrationNotFound();
+        } catch (ValidationException $e) {
+            return $this->validationFailed($e);
+        }
 
         $user = $user->makeHidden(['nik', 'nik_hash', 'password']);
 
@@ -113,12 +154,27 @@ class KaderRegistrationController extends Controller
             ], 422);
         }
 
-        $user->status = 'active';
-        $user->approved_by = $request->user()->id;
-        $user->approved_at = now();
-        $user->rejection_reason = null;
-        $user->verified_at = now();
-        $user->save();
+        try {
+            $user = DB::transaction(function () use ($request, $user): User {
+                $locked = $this->lockPendingIbu($user);
+                $oldValues = $this->verificationSnapshot($locked);
+
+                $locked->status = 'active';
+                $locked->approved_by = $request->user()->id;
+                $locked->approved_at = now();
+                $locked->rejection_reason = null;
+                $locked->verified_at = now();
+                $locked->save();
+
+                $this->recordAudit($request, $locked, $oldValues, $this->verificationSnapshot($locked));
+
+                return $locked;
+            });
+        } catch (ModelNotFoundException) {
+            return $this->registrationNotFound();
+        } catch (ValidationException $e) {
+            return $this->validationFailed($e);
+        }
 
         $user = $user->makeHidden(['nik', 'nik_hash', 'password']);
 
@@ -159,11 +215,26 @@ class KaderRegistrationController extends Controller
             ], 422);
         }
 
-        $user->status = 'rejected';
-        $user->approved_by = $request->user()->id;
-        $user->approved_at = now();
-        $user->rejection_reason = $request->rejection_reason;
-        $user->save();
+        try {
+            $user = DB::transaction(function () use ($request, $user): User {
+                $locked = $this->lockPendingIbu($user);
+                $oldValues = $this->verificationSnapshot($locked);
+
+                $locked->status = 'rejected';
+                $locked->approved_by = $request->user()->id;
+                $locked->approved_at = now();
+                $locked->rejection_reason = $request->rejection_reason;
+                $locked->save();
+
+                $this->recordAudit($request, $locked, $oldValues, $this->verificationSnapshot($locked));
+
+                return $locked;
+            });
+        } catch (ModelNotFoundException) {
+            return $this->registrationNotFound();
+        } catch (ValidationException $e) {
+            return $this->validationFailed($e);
+        }
 
         $user = $user->makeHidden(['nik', 'nik_hash', 'password']);
 
@@ -172,5 +243,68 @@ class KaderRegistrationController extends Controller
             'message' => 'Permohonan registrasi berhasil ditolak.',
             'data' => $user,
         ]);
+    }
+
+    private function lockPendingIbu(User $user): User
+    {
+        $locked = User::query()->whereKey($user->getKey())->lockForUpdate()->first();
+
+        if ($locked === null || $locked->role !== 'ibu') {
+            throw (new ModelNotFoundException)->setModel(User::class, [$user->getKey()]);
+        }
+
+        if ($locked->status !== 'pending') {
+            throw ValidationException::withMessages([
+                'status' => ['Permohonan ini tidak dalam status menunggu persetujuan.'],
+            ]);
+        }
+
+        return $locked;
+    }
+
+    private function verificationSnapshot(User $user): array
+    {
+        return [
+            'status' => $user->status,
+            'approved_by' => $user->approved_by,
+            'approved_at' => $user->approved_at?->toDateTimeString(),
+            'rejection_reason' => $user->rejection_reason,
+            'verified_at' => $user->verified_at?->toDateTimeString(),
+        ];
+    }
+
+    private function recordAudit(Request $request, User $user, array $oldValues, array $newValues): void
+    {
+        if ($newValues === []) {
+            return;
+        }
+
+        AuditLog::create([
+            'auditable_type' => $user->getMorphClass(),
+            'auditable_id' => $user->getKey(),
+            'event' => 'updated',
+            'actor_id' => $request->user()->id,
+            'old_values' => $oldValues,
+            'new_values' => $newValues,
+            'ip_address' => $request->ip(),
+        ]);
+    }
+
+    private function registrationNotFound(): JsonResponse
+    {
+        return response()->json([
+            'success' => false,
+            'message' => 'Permohonan registrasi tidak ditemukan.',
+            'errors' => null,
+        ], 404);
+    }
+
+    private function validationFailed(ValidationException $e): JsonResponse
+    {
+        return response()->json([
+            'success' => false,
+            'message' => 'Permohonan ini tidak dalam status menunggu persetujuan.',
+            'errors' => $e->errors(),
+        ], 422);
     }
 }

@@ -12,7 +12,7 @@ class RegistrationCompletionTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_pending_user_dapat_melengkapi_data_dengan_nik(): void
+    public function test_pending_user_dapat_melengkapi_data_dengan_token(): void
     {
         $nik = '3273012345678903';
         $user = User::factory()->ibu()->create([
@@ -22,11 +22,12 @@ class RegistrationCompletionTest extends TestCase
             'address' => 'Jl. Alamat Lama',
         ]);
 
-        $response = $this->postJson('/api/registration/complete', [
-            'nik' => $nik,
-            'name' => 'Ibu Baru',
-            'address' => 'Jl. Alamat Baru',
-        ]);
+        $response = $this->actingAs($user, 'sanctum')
+            ->postJson('/api/registration/complete', [
+                'nik' => $nik,
+                'name' => 'Ibu Baru',
+                'address' => 'Jl. Alamat Baru',
+            ]);
 
         $response->assertOk();
         $response->assertJsonPath('success', true);
@@ -37,6 +38,66 @@ class RegistrationCompletionTest extends TestCase
             'name' => 'Ibu Baru',
             'address' => 'Jl. Alamat Baru',
         ]);
+    }
+
+    public function test_registrasi_wajib_token_dan_nik_tidak_bisa_dipakai_sebagai_kredensial(): void
+    {
+        $nik = '3273012345678904';
+        $user = User::factory()->ibu()->create([
+            'nik' => $nik,
+            'status' => 'pending',
+            'name' => 'Nama Lama',
+            'address' => 'Jl. Alamat Lama',
+        ]);
+
+        $this->getJson('/api/registration/status?nik='.$nik)
+            ->assertUnauthorized();
+
+        $this->postJson('/api/registration/complete', [
+            'nik' => $nik,
+            'name' => 'Nama Baru',
+            'address' => 'Jl. Alamat Baru',
+        ])->assertUnauthorized();
+
+        $this->assertDatabaseHas('users', [
+            'id' => $user->id,
+            'name' => 'Nama Lama',
+            'address' => 'Jl. Alamat Lama',
+        ]);
+    }
+
+    public function test_nik_tidak_dapat_diubah_setelah_registrasi(): void
+    {
+        $nik = '3273012345678905';
+        $user = User::factory()->ibu()->create([
+            'nik' => $nik,
+            'status' => 'pending',
+        ]);
+
+        $this->actingAs($user, 'sanctum')
+            ->postJson('/api/registration/complete', [
+                'nik' => '3273012345678999',
+                'address' => 'Jl. Alamat Baru',
+            ])
+            ->assertStatus(422)
+            ->assertJsonValidationErrors('nik');
+
+        $this->assertSame($nik, $user->fresh()->nik);
+    }
+
+    public function test_status_tidak_mengembalikan_nik_dan_nomor_kk(): void
+    {
+        $user = User::factory()->menungguVerifikasi()->create([
+            'no_kk' => '3273012345678906',
+        ]);
+
+        $response = $this->actingAs($user, 'sanctum')
+            ->getJson('/api/registration/status')
+            ->assertOk();
+
+        $this->assertArrayNotHasKey('nik', $response->json('data'));
+        $this->assertArrayNotHasKey('nik_hash', $response->json('data'));
+        $this->assertArrayNotHasKey('no_kk', $response->json('data'));
     }
 
     public function test_status_dan_user_tetap_dapat_diakses_selama_drop_off(): void

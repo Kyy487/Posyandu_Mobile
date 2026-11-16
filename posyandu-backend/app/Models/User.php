@@ -48,6 +48,7 @@ class User extends Authenticatable
         'remember_token',
         'nik',
         'nik_hash',
+        'no_kk',
     ];
 
     /**

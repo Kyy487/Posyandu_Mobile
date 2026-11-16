@@ -47,10 +47,6 @@ Route::post('/register', [AuthController::class, 'register'])
 
 Route::post('/login', [AuthController::class, 'login'])
     ->middleware('throttle:'.config('posyandu.login_throttle'));
-Route::get('/registration/status', [RegistrationCompletionController::class, 'show']);
-Route::post('/registration/complete', [RegistrationCompletionController::class, 'update']);
-Route::put('/registration/complete', [RegistrationCompletionController::class, 'update']);
-Route::patch('/registration/complete', [RegistrationCompletionController::class, 'update']);
 
 // ---------------------------------------------------------------------
 // Route Terlindungi (Protected) - Wajib Bearer Token
@@ -58,6 +54,9 @@ Route::patch('/registration/complete', [RegistrationCompletionController::class,
 Route::middleware('auth:sanctum')->group(function () {
 
     Route::post('/logout', [AuthController::class, 'logout']);
+
+    Route::get('/registration/status', [RegistrationCompletionController::class, 'show']);
+    Route::match(['post', 'put', 'patch'], '/registration/complete', [RegistrationCompletionController::class, 'update']);
 
     Route::get('/profile', [ProfileController::class, 'show']);
     Route::match(['put', 'patch'], '/profile', [ProfileController::class, 'update']);

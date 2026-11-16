@@ -174,12 +174,14 @@ class MeasurementController extends Controller
             $measurements = Measurement::where('child_id', $childId)
                 ->orderBy('measurement_date', 'desc')
                 ->orderBy('created_at', 'desc')
-                ->get();
+                ->orderBy('id', 'desc')
+                ->paginate($this->perPage($request));
 
             return response()->json([
                 'success' => true,
                 'message' => 'Berhasil mengambil riwayat penimbangan.',
-                'data' => $measurements,
+                'data' => $measurements->items(),
+                'meta' => $this->paginationMeta($measurements),
             ], 200);
 
         } catch (\Throwable $e) {

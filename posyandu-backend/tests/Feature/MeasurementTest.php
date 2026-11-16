@@ -181,6 +181,31 @@ class MeasurementTest extends TestCase
         ]);
     }
 
+    #[Test]
+    public function riwayat_penimbangan_kader_dipaginasi(): void
+    {
+        $kader = User::factory()->kader()->create();
+        $anak = $this->anak();
+
+        foreach (range(1, 12) as $bulan) {
+            Measurement::factory()
+                ->untukAnak($anak)
+                ->olehKader($kader)
+                ->padaTanggal(sprintf('2025-%02d-01', $bulan))
+                ->create();
+        }
+
+        $respons = $this->sebagai($kader)
+            ->getJson("/api/kader/measurements?child_id={$anak->id}&per_page=5&page=2");
+
+        $respons->assertOk()
+            ->assertJsonCount(5, 'data')
+            ->assertJsonPath('meta.current_page', 2)
+            ->assertJsonPath('meta.per_page', 5)
+            ->assertJsonPath('meta.total', 12)
+            ->assertJsonPath('meta.last_page', 3);
+    }
+
     // -----------------------------------------------------------------
     // Helper
     // -----------------------------------------------------------------

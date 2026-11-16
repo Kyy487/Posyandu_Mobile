@@ -142,7 +142,7 @@ class ChildController extends Controller
 
             Consent::create([
                 'child_id' => $child->id,
-                'granted_by' => $user->id,
+                'granted_by' => $mother->id,
                 'consent_type' => $validated['consent_type'],
                 'granted_at' => now(),
                 'document_version' => $validated['consent_document_version'],
@@ -794,7 +794,7 @@ class ChildController extends Controller
         ], 200);
     }
 
-    public function indexKader()
+    public function indexKader(Request $request)
     {
         try {
             // Relasi `mother` agar nama ibu ikut terkirim (dibaca mobile di
@@ -804,13 +804,15 @@ class ChildController extends Controller
             // Paginasi/filter bisa ditambahkan nanti tanpa mengubah bentuk respons.
             $children = Child::with('mother:id,name,nik')
                 ->orderBy('name')
-                ->get();
+                ->orderBy('id')
+                ->paginate($this->perPage($request));
 
             // Format baku JSON Envelope wajib
             return response()->json([
                 'success' => true,
                 'message' => 'Berhasil mengambil daftar anak',
-                'data' => $children,
+                'data' => $children->items(),
+                'meta' => $this->paginationMeta($children),
             ], 200);
 
         } catch (\Throwable $e) {

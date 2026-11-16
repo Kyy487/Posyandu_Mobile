@@ -56,7 +56,7 @@ Kondisi pada commit acuan:
 
 | Pemeriksaan | Hasil |
 |---|---|
-| Full test backend | 328 test lulus, 2363 assertion |
+| Full test backend | 348 test lulus, 2457 assertion |
 | Pint | Lulus |
 | Redaksi log | Processor aktif; NIK/token/kredensial disamarkan |
 | Migration 1-10 di database dev | Sudah dijalankan |
@@ -239,12 +239,14 @@ Aturan:
 ### 5.7 Registrasi dan Unggah Ulang
 
 - Ibu `pending` dan `rejected` tetap bisa mengakses status pendaftaran,
-  melengkapi pendaftaran, profil, dan logout.
+  melengkapi pendaftaran, profil, dan logout dengan Bearer token.
 - Ibu `rejected` bisa mengunggah ulang `ktp`/`kk` lewat
   `/api/registration/complete`.
-- `RegistrationCompletionController::resolveUser` menerima user dari guard
-  default atau `sanctum`, sehingga Bearer token bekerja di route tanpa
-  middleware `auth:sanctum`.
+- `GET /registration/status` dan `POST/PUT/PATCH /registration/complete`
+  berada di group `auth:sanctum`. NIK tidak lagi dipakai sebagai kredensial
+  untuk menemukan akun.
+- NIK tidak dapat diubah lewat endpoint pelengkapan; `nik`, `nik_hash`, dan
+  `no_kk` tidak dikembalikan dalam respons API.
 
 ### 5.8 Redaksi Log
 
@@ -462,7 +464,7 @@ GET /api/kader/fhir/Immunization/{id}/validate
 | FHIR Immunization invalid | Mapping KFA/CVX kosong | Isi `immunization_types` |
 | Red flag saja ditolak DB | Migration 10 belum jalan | Jalankan migrate |
 | Waktu backfill terlihat beda | Ditampilkan dalam zona waktu lokal | Bandingkan dengan `utc()` atau nilai UTC |
-| `registration/complete` 401 | Token tidak terbaca | Pastikan Bearer token dan `resolveUser` |
+| `registration/complete` 401 | Token tidak terbaca atau tidak dikirim | Pastikan Bearer token aktif pada request |
 | Log FHIR kosong | Kredensial kosong | Cek `storage/logs/satusehat.log` |
 | Log masih memuat NIK | Processor redaksi tidak aktif atau config ter-cache | Jalankan `php artisan config:clear`, cek `logging.channels.*.tap` |
 | `satusehat.log` tidak memuat payload penuh | Memang disengaja | Hanya ringkasan; payload penuh tidak ditulis |

@@ -8,6 +8,7 @@ use App\Models\ImmunizationRecord;
 use App\Models\ImmunizationType;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Str;
 use PHPUnit\Framework\Attributes\Test;
 use Tests\TestCase;
 
@@ -179,6 +180,34 @@ class AuditLogTest extends TestCase
             collect($data)->every(fn ($log) => $log['event'] === 'created'),
             'semua baris harus ber-event created'
         );
+    }
+
+    #[Test]
+    public function endpoint_audit_dipaginasi(): void
+    {
+        $kader = User::factory()->kader()->create();
+
+        foreach (range(1, 12) as $i) {
+            AuditLog::create([
+                'auditable_type' => Child::class,
+                'auditable_id' => (string) Str::uuid(),
+                'event' => 'updated',
+                'actor_id' => $kader->id,
+                'old_values' => ['name' => 'Lama '.$i],
+                'new_values' => ['name' => 'Baru '.$i],
+            ]);
+        }
+
+        $respons = $this->withToken($this->token($kader))
+            ->getJson('/api/kader/audit-logs?per_page=5&page=2')
+            ->assertOk()
+            ->assertJsonCount(5, 'data')
+            ->assertJsonPath('meta.current_page', 2)
+            ->assertJsonPath('meta.per_page', 5)
+            ->assertJsonPath('meta.total', 12)
+            ->assertJsonPath('meta.last_page', 3);
+
+        $this->assertNotEmpty($respons->json('data.0.actor.name'));
     }
 
     private function token(User $user): string

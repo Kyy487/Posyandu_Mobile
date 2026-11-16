@@ -148,7 +148,7 @@ Respons sukses berisi `data.user`, `data.token`, `data.status`, dan
 
 1. `POST /register` → akun `ibu`, `status = pending`,
    `onboarding_status = need_child_data`, token diterbitkan.
-2. `POST /registration/complete` (Bearer token **atau** `nik`) → melengkapi
+2. `POST /registration/complete` (**wajib Bearer token**) → melengkapi
    profil dan/atau mengunggah bukti verifikasi. Status tetap `pending`.
 3. Kader menyetujui lewat `POST /kader/registrations/{user}/approve` →
    `status = active`, `verification_status = approved`.
@@ -168,9 +168,9 @@ kembali ke `pending` dan alasan penolakan dibersihkan.
 | `kader.verification` | Ibu `pending`/`rejected` ditolak `403` dari area dashboard. Kader selalu lolos. |
 | `child.onboarding` | Ibu `approved` dengan `onboarding_status = need_child_data` ditolak `403` sampai punya anak. Kader selalu lolos. |
 
-Endpoint yang tetap dapat diakses Ibu `pending`/`rejected`: `POST /logout`,
-`GET /profile`, `PUT/PATCH /profile`, `GET /user`, `GET /registration/status`,
-`POST/PUT/PATCH /registration/complete`.
+Endpoint yang tetap dapat diakses Ibu `pending`/`rejected` (selalu dengan
+Bearer token): `POST /logout`, `GET /profile`, `PUT/PATCH /profile`,
+`GET /user`, `GET /registration/status`, `POST/PUT/PATCH /registration/complete`.
 
 `POST /registration/child` hanya memakai `kader.verification` (bukan
 `child.onboarding`), karena endpoint inilah jalan keluar dari status
@@ -191,28 +191,27 @@ Respons `403` dari middleware selalu memakai envelope standar dan menyertakan
 }
 ```
 
-## Registration & Onboarding (Public / Protected)
+## Registration & Onboarding (Protected)
 
 | Method | Endpoint | Akses | Description |
 | :--- | :--- | :--- | :--- |
-| `GET` | `/registration/status` | Token atau `?nik=` | Status pendaftaran + data verifikasi |
-| `POST`/`PUT`/`PATCH` | `/registration/complete` | Token atau `nik` | Lengkapi/perbaiki data pendaftaran Ibu |
+| `GET` | `/registration/status` | Bearer token | Status pendaftaran + data verifikasi milik akun login |
+| `POST`/`PUT`/`PATCH` | `/registration/complete` | Bearer token | Lengkapi/perbaiki data pendaftaran Ibu |
 | `POST` | `/registration/child` | Bearer token, Ibu `approved` | Simpan data anak dan selesaikan onboarding |
 
 ### `GET /registration/status`
 
-Dapat memakai Bearer token atau query `?nik=3273...`. Lewat token, respons
-berisi user yang sedang login. Lewat NIK, hanya akun dengan status
-`pending`/`rejected` yang dicari. Respons berisi objek `user` beserta
-`verifications`.
+Wajib Bearer token. Respons berisi user yang sedang login beserta
+`verifications`. NIK, `nik_hash`, dan `no_kk` tidak pernah dikembalikan.
 
 ### `POST /registration/complete`
 
-Menerima `application/json` atau `multipart/form-data` (bila mengunggah berkas).
+Wajib Bearer token. Menerima `application/json` atau `multipart/form-data`
+(bila mengunggah berkas).
 
 | Field | Tipe | Wajib | Keterangan |
 | :--- | :--- | :--- | :--- |
-| `nik` | string(16 digit) | Tidak | Boleh dikirim ulang; unik kecuali milik akun sendiri |
+| `nik` | string(16 digit) | Tidak | Boleh dikirim ulang bila sama; NIK tidak dapat diubah |
 | `no_kk` | string(16 digit) | Tidak | Nomor KK |
 | `name` | string(255) | Tidak | Nama lengkap |
 | `phone_number` | string(16) | Tidak | Nomor HP |

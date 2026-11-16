@@ -8,7 +8,6 @@ use App\Http\Requests\Child\StoreChildRequest;
 use App\Models\User;
 use App\Services\ChildOnboardingService;
 use App\Services\ParentRegistrationService;
-use App\Support\NikHasher;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -20,19 +19,12 @@ class RegistrationCompletionController extends Controller
     ) {}
 
     /**
-     * Status pendaftaran (bisa diakses via token atau NIK).
+     * Status pendaftaran milik akun yang sedang login.
      */
     public function show(Request $request): JsonResponse
     {
-        $user = $this->resolveUser($request);
-
-        if ($user === null) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Status pendaftaran tidak ditemukan.',
-                'errors' => null,
-            ], 404);
-        }
+        /** @var User $user */
+        $user = $request->user();
 
         $user->load('verifications');
 
@@ -48,15 +40,8 @@ class RegistrationCompletionController extends Controller
      */
     public function update(CompleteRegistrationRequest $request): JsonResponse
     {
-        $user = $this->resolveUser($request);
-
-        if ($user === null) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Status pendaftaran tidak ditemukan.',
-                'errors' => null,
-            ], 404);
-        }
+        /** @var User $user */
+        $user = $request->user();
 
         if ($user->role !== 'ibu') {
             return response()->json([
@@ -117,24 +102,5 @@ class RegistrationCompletionController extends Controller
                 'user' => $user->fresh()->load('verifications'),
             ],
         ], 201);
-    }
-
-    private function resolveUser(Request $request): ?User
-    {
-        $user = $request->user() ?? $request->user('sanctum');
-
-        if ($user !== null) {
-            return $user;
-        }
-
-        $nik = (string) $request->input('nik');
-        if ($nik === '') {
-            return null;
-        }
-
-        return User::query()
-            ->where('nik_hash', NikHasher::hash($nik))
-            ->whereIn('status', ['pending', 'rejected'])
-            ->first();
     }
 }
